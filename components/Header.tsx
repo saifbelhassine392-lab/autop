@@ -1,101 +1,132 @@
-﻿"use client"
+﻿'use client'
 
-import { useSession, signOut } from "next-auth/react"
-import { useCart } from "@/contexts/CartContext"
-import Link from "next/link"
-import { useState } from "react"
+import Link from 'next/link'
+import { useSession, signOut } from 'next-auth/react'
+import { useCart } from '@/contexts/CartContext'
+import { useState } from 'react'
+import { ShoppingCart, Menu, X, User, LogOut } from 'lucide-react'
 
 export default function Header() {
   const { data: session } = useSession()
-  const { count } = useCart()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const { totalItems } = useCart()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const navLinks = [
+    { href: '/', label: 'Accueil' },
+    { href: '/pieces', label: 'Pièces' },
+    { href: '/devis', label: 'Devis' },
+  ]
+
+  const proLinks = session?.user?.role === 'admin' 
+    ? [{ href: '/admin', label: 'Admin' }]
+    : session?.user?.role === 'pro'
+    ? [{ href: '/espace-pro', label: 'Espace Pro' }]
+    : []
 
   return (
-    <header className="bg-slate-900 border-b border-slate-800 px-4 md:px-6 py-4">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-white">AUTOP</Link>
-        
-        {/* Burger menu mobile */}
-        <button 
-          className="md:hidden text-white text-2xl"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          {menuOpen ? "✕" : "☰"}
-        </button>
+    <header className="bg-white shadow-md sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <Link href="/" className="flex items-center">
+            <span className="text-2xl font-bold text-red-600">AUTOP</span>
+          </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
-          <Link href="/" className="text-slate-300 hover:text-white transition-colors text-sm">Accueil</Link>
-          <Link href="/pieces" className="text-slate-300 hover:text-white transition-colors text-sm">Pièces</Link>
-          <Link href="/devis" className="text-slate-300 hover:text-white transition-colors text-sm">Devis</Link>
-          
-          {session?.user?.role === "admin" && (
-            <Link href="/admin" className="text-red-400 hover:text-red-300 font-semibold transition-colors text-sm">
-              🔧 Admin
-            </Link>
-          )}
-          
-          {session && (
-            <>
-              <Link href="/mes-devis" className="text-slate-300 hover:text-white transition-colors text-sm">Mes devis</Link>
-              <Link href="/panier" className="relative text-slate-300 hover:text-white transition-colors text-sm">
-                🛒 Panier
-                {count > 0 && (
-                  <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
-                    {count}
-                  </span>
-                )}
-              </Link>
-            </>
-          )}
-          
-          {session ? (
-            <div className="flex items-center gap-3">
-              <span className="text-slate-400 text-sm hidden lg:block">{session.user?.name}</span>
-              <button
-                onClick={() => signOut({ callbackUrl: "/" })}
-                className="px-3 py-2 bg-red-500/10 text-red-400 rounded-lg text-sm font-medium hover:bg-red-500/20 transition-colors"
+          {/* Desktop Nav */}
+          <nav className="hidden md:flex space-x-8">
+            {[...navLinks, ...proLinks].map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-gray-700 hover:text-red-600 font-medium transition"
               >
-                Déconnexion
-              </button>
-            </div>
-          ) : (
-            <Link href="/connexion" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-              Connexion
-            </Link>
-          )}
-        </nav>
-      </div>
+                {link.label}
+              </Link>
+            ))}
+          </nav>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <nav className="md:hidden mt-4 pb-4 space-y-3 border-t border-slate-800 pt-4">
-          <Link href="/" className="block text-slate-300 hover:text-white text-sm">Accueil</Link>
-          <Link href="/pieces" className="block text-slate-300 hover:text-white text-sm">Pièces</Link>
-          <Link href="/devis" className="block text-slate-300 hover:text-white text-sm">Devis</Link>
-          {session?.user?.role === "admin" && (
-            <Link href="/admin" className="block text-red-400 font-semibold text-sm">🔧 Admin</Link>
-          )}
-          {session && (
-            <>
-              <Link href="/mes-devis" className="block text-slate-300 hover:text-white text-sm">Mes devis</Link>
-              <Link href="/panier" className="block text-slate-300 hover:text-white text-sm">🛒 Panier ({count})</Link>
-            </>
-          )}
-          {session ? (
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="w-full px-4 py-2 bg-red-500/10 text-red-400 rounded-lg text-sm font-medium"
-            >
-              Déconnexion
-            </button>
-          ) : (
-            <Link href="/connexion" className="block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium text-center">
-              Connexion
+          {/* Right side */}
+          <div className="flex items-center space-x-4">
+            <Link href="/panier" className="relative p-2 text-gray-700 hover:text-red-600">
+              <ShoppingCart className="w-6 h-6" />
+              {totalItems > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {totalItems}
+                </span>
+              )}
             </Link>
-          )}
-        </nav>
-      )}
+
+            {session ? (
+              <div className="hidden md:flex items-center space-x-4">
+                <Link href="/mes-devis" className="text-sm text-gray-600 hover:text-red-600">
+                  Mes Devis
+                </Link>
+                <button
+                  onClick={() => signOut()}
+                  className="flex items-center space-x-1 text-gray-600 hover:text-red-600"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-sm">Déconnexion</span>
+                </button>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center space-x-4">
+                <Link href="/connexion" className="text-gray-700 hover:text-red-600 font-medium">
+                  Connexion
+                </Link>
+                <Link
+                  href="/inscription"
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
+                >
+                  S'inscrire
+                </Link>
+              </div>
+            )}
+
+            {/* Mobile menu button */}
+            <button
+              className="md:hidden p-2"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden py-4 border-t">
+            <div className="flex flex-col space-y-3">
+              {[...navLinks, ...proLinks].map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-gray-700 hover:text-red-600 font-medium px-2 py-1"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {link.label}
+                </Link>
+              ))}
+              {session ? (
+                <>
+                  <Link href="/mes-devis" className="text-gray-700 px-2 py-1">Mes Devis</Link>
+                  <button
+                    onClick={() => signOut()}
+                    className="text-left text-red-600 px-2 py-1"
+                  >
+                    Déconnexion
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link href="/connexion" className="text-gray-700 px-2 py-1">Connexion</Link>
+                  <Link href="/inscription" className="text-gray-700 px-2 py-1">Inscription</Link>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </header>
   )
 }
