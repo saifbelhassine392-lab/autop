@@ -9,7 +9,7 @@ import {
   FilePlus, FileDown, Send,
   Building2, UserPlus, List, ClipboardList,
   Package, PlusCircle, Edit, BarChart2, TrendingUp,
-  LogOut, ChevronRight
+  LogOut, ChevronRight, Receipt
 } from 'lucide-react';
 
 type SidebarItem = {
@@ -63,6 +63,13 @@ const sections: SidebarSection[] = [
       { id: 'ajouter-article', label: 'AJOUTER ARTICLE', icon: PlusCircle },
       { id: 'modifier-article', label: 'MODIFIER / SUPPRIMER', icon: Edit },
       { id: 'liste-articles', label: 'LISTE COMPLÈTE', icon: Package },
+    ]
+  },
+  {
+    title: "COMPTABILITÉ",
+    color: "text-purple-400",
+    items: [
+      { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt }
     ]
   },
   {

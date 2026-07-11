@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     const user = session.user as any;
     const body = await req.json();
-    const { devisId, selectedFormat, fileBase64, fileName, shippingAddress, customerNote, modifiedItems } = body;
+    const { devisId, selectedFormat, fileBase64, fileName, shippingAddress, customerNote, modifiedItems, shippingMethod, paymentMethod } = body;
 
     if (!devisId) {
       return NextResponse.json({ success: false, error: 'ID Devis manquant' }, { status: 400 });
@@ -68,8 +68,12 @@ export async function POST(req: NextRequest) {
       }));
     }
 
-    const tax = subtotal * 0.19; // 19% TVA tunisienne
-    const total = subtotal + tax;
+    const actualShippingMethod = shippingMethod || 'standard';
+    const isFreeMethod = actualShippingMethod === 'AU MAGASIN' || actualShippingMethod === 'PAR PROPRES MOYENS' || actualShippingMethod === 'POWER TRANSPORT';
+    const shippingCost = isFreeMethod ? 0 : 7.90;
+
+    const tax = (subtotal + shippingCost) * 0.19; // 19% TVA tunisienne
+    const total = subtotal + shippingCost + tax;
 
     const orderCount = await prisma.order.count();
     const nextNumber = String(orderCount + 1).padStart(6, '0');
@@ -81,9 +85,16 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         status: 'PENDING',
         paymentStatus: 'PENDING',
-        shippingAddress: shippingAddress || 'À spécifier',
+        paymentMethod: paymentMethod || 'CASH_ON_DELIVERY',
+        shippingAddress: {
+          street: shippingAddress || 'À spécifier',
+          city: 'Tunis',
+          zipCode: '2035',
+          country: 'Tunisie',
+          shippingMethod: actualShippingMethod
+        },
         subtotal,
-        shippingCost: 0,
+        shippingCost,
         tax,
         total,
         customerNote: customerNote || `Commande générée à partir du Devis #${devisId.slice(-6).toUpperCase()}`,

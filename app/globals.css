@@ -136,3 +136,34 @@
   background-size: 12px 12px;
   background-position: 0 0, 6px 6px;
 }
+
+/* Dynamic 3D Neon Typo & Dynamic Bold Text styles */
+.text-3d-neon {
+  font-weight: 900 !important;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 6px rgba(220, 38, 38, 0.4),
+               0 0 15px rgba(220, 38, 38, 0.2),
+               1px 1px 0px #7f1d1d,
+               2px 2px 0px #7f1d1d,
+               3px 3px 0px #7f1d1d,
+               4px 4px 6px rgba(0, 0, 0, 0.8);
+  transition: text-shadow 0.3s ease;
+}
+
+.text-3d-neon:hover {
+  text-shadow: 0 0 10px rgba(255, 50, 50, 0.6),
+               0 0 25px rgba(255, 50, 50, 0.3),
+               1px 1px 0px #991b1b,
+               2px 2px 0px #991b1b,
+               3px 3px 0px #991b1b,
+               4px 4px 0px #991b1b,
+               5px 5px 8px rgba(0, 0, 0, 0.9);
+}
+
+.text-3d-bold {
+  font-weight: 900 !important;
+  letter-spacing: 0.05em;
+  text-shadow: 1px 1px 0px #1e293b,
+               2px 2px 0px #0f172a,
+               3px 3px 4px rgba(0,0,0,0.6);
+}

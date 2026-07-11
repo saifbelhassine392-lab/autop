@@ -24,6 +24,16 @@ export default function MesDevisPage() {
   const [customerNote, setCustomerNote] = useState('')
   const [orderFormat, setOrderFormat] = useState<'pdf' | 'excel'>('pdf')
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
+  const [shippingMethod, setShippingMethod] = useState<'POWER TRANSPORT' | 'PAR PROPRES MOYENS' | 'AU MAGASIN'>('POWER TRANSPORT')
+  const [paymentMethod, setPaymentMethod] = useState<'CASH_ON_DELIVERY' | 'BANK_TRANSFER' | 'CARD' | 'PAYPAL'>('CASH_ON_DELIVERY')
+
+  useEffect(() => {
+    if (shippingMethod === 'AU MAGASIN') {
+      setShippingAddress('COMPTOIR DE DISTRIBUTION AUTOP - CHARGUIA 2')
+    } else if (shippingAddress === 'COMPTOIR DE DISTRIBUTION AUTOP - CHARGUIA 2') {
+      setShippingAddress('')
+    }
+  }, [shippingMethod])
 
   const loadData = async () => {
     if (!session) return;
@@ -355,7 +365,9 @@ export default function MesDevisPage() {
           fileName,
           shippingAddress,
           customerNote,
-          modifiedItems: editableItems
+          modifiedItems: editableItems,
+          shippingMethod,
+          paymentMethod
         })
       });
 
@@ -542,14 +554,27 @@ export default function MesDevisPage() {
                             </p>
                             <p className="text-[10px] text-slate-500 mt-1 uppercase">Soumis le : {d.date}</p>
                           </div>
-                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                            <button
-                              onClick={() => downloadQuotePDF(d)}
-                              className="px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              VOIR DEVIS
-                            </button>
+                          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                            {d.isTreated && d.status === 'Traité' ? (
+                              <button
+                                onClick={() => {
+                                  setOrderModalDevis(d);
+                                  setEditableItems(d.items.map((it: any) => ({ ...it, discount: it.discount || 0 })));
+                                }}
+                                className="chrome-gloss px-4 py-2 bg-red-650/15 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/30 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                OUVRIR & MODIFIER DEVIS
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => downloadQuotePDF(d)}
+                                className="px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                VOIR DEVIS
+                              </button>
+                            )}
                             <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               d.isTreated 
                                 ? "bg-green-500/10 text-green-400 border border-green-500/20" 
@@ -756,9 +781,59 @@ export default function MesDevisPage() {
                   type="text"
                   placeholder="EX: 19 RUE DE L'USINE, CHARGUIA 2, TUNIS"
                   value={shippingAddress}
+                  disabled={shippingMethod === 'AU MAGASIN'}
                   onChange={(e) => setShippingAddress(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition font-semibold uppercase"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition font-semibold uppercase disabled:opacity-50"
                 />
+              </div>
+
+              {/* Mode de livraison */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MODE DE LIVRAISON *</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'POWER TRANSPORT', label: 'POWER TRANSPORT' },
+                    { id: 'PAR PROPRES MOYENS', label: 'PROPRES MOYENS' },
+                    { id: 'AU MAGASIN', label: 'AU MAGASIN' }
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setShippingMethod(m.id as any)}
+                      className={`py-2.5 rounded-xl text-[9px] font-black tracking-wider transition border ${
+                        shippingMethod === m.id
+                          ? 'bg-red-650 border-red-500 text-white shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode de paiement */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MODE DE PAIEMENT *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'CASH_ON_DELIVERY', label: 'A LA LIVRAISON' },
+                    { id: 'BANK_TRANSFER', label: 'VIREMENT BANCAIRE' }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPaymentMethod(p.id as any)}
+                      className={`py-2.5 rounded-xl text-[9px] font-black tracking-wider transition border ${
+                        paymentMethod === p.id
+                          ? 'bg-red-650 border-red-500 text-white shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-450 hover:text-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Note / Remarque client */}
@@ -769,7 +844,7 @@ export default function MesDevisPage() {
                   rows={2}
                   value={customerNote}
                   onChange={(e) => setCustomerNote(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition font-semibold uppercase"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 transition font-semibold uppercase resize-none"
                 />
               </div>
 
@@ -787,7 +862,7 @@ export default function MesDevisPage() {
                       onClick={() => setOrderFormat(fmt.id as any)}
                       className={`flex-1 py-3 rounded-xl text-xs font-black tracking-wider transition border ${
                         orderFormat === fmt.id
-                          ? 'bg-red-600 border-red-500 text-white shadow-lg shadow-red-600/25'
+                          ? 'bg-red-650 border-red-500 text-white shadow-lg shadow-red-600/25'
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-900'
                       }`}
                     >
@@ -875,12 +950,15 @@ export default function MesDevisPage() {
               {/* Dynamic Totals */}
               {(() => {
                 const subtotal = editableItems.reduce((sum, item) => sum + (item.price * item.quantity * (1 - (item.discount || 0) / 100)), 0);
-                const tax = subtotal * 0.19;
-                const total = subtotal + tax;
+                const isFree = shippingMethod === 'AU MAGASIN' || shippingMethod === 'PAR PROPRES MOYENS' || shippingMethod === 'POWER TRANSPORT';
+                const sCost = isFree ? 0 : 7.90;
+                const tax = (subtotal + sCost) * 0.19;
+                const total = subtotal + sCost + tax;
                 return (
                   <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800/80 flex justify-between items-center text-xs">
                     <div>
                       <p className="text-slate-500 uppercase tracking-widest text-[9px]">TOTAL H.T. : {subtotal.toFixed(3)} TND</p>
+                      <p className="text-slate-500 uppercase tracking-widest text-[9px] mt-1">FRAIS LIVRAISON : {sCost === 0 ? 'GRATUIT' : `${sCost.toFixed(3)} TND`}</p>
                       <p className="text-slate-500 uppercase tracking-widest text-[9px] mt-1">TVA (19%) : {tax.toFixed(3)} TND</p>
                     </div>
                     <div className="text-right">

@@ -15,6 +15,19 @@ export async function GET() {
 
     // Si l'utilisateur est ADMIN, on lui montre toutes les demandes de devis
     if (user.role === 'ADMIN') {
+      // Auto-initialisation des profils admin s'ils n'existent pas
+      const adminProfilesCount = await prisma.adminProfile.count();
+      if (adminProfilesCount === 0) {
+        await prisma.adminProfile.createMany({
+          data: [
+            { name: 'SAIF' },
+            { name: 'AMINE' },
+            { name: 'SAIFALLAH' }
+          ],
+          skipDuplicates: true
+        });
+      }
+
       const quotes = await prisma.quote.findMany({
         orderBy: { createdAt: 'desc' },
         include: {
@@ -130,5 +143,54 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Quotes POST error:', error);
     return NextResponse.json({ error: 'Erreur serveur lors du traitement' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { quoteId, managedByName, status } = body;
+
+    if (!quoteId) {
+      return NextResponse.json({ error: 'Identifiant de demande requis' }, { status: 400 });
+    }
+
+    const data: any = {};
+    if (status) data.status = status;
+
+    if (managedByName !== undefined) {
+      if (managedByName === null || managedByName === 'NON ASSIGNÉ') {
+        data.managedById = null;
+      } else {
+        let profile = await prisma.adminProfile.findUnique({
+          where: { name: managedByName }
+        });
+        if (!profile) {
+          profile = await prisma.adminProfile.create({
+            data: { name: managedByName }
+          });
+        }
+        data.managedById = profile.id;
+      }
+    }
+
+    const updatedQuote = await prisma.quote.update({
+      where: { id: quoteId },
+      data,
+      include: {
+        managedBy: true,
+        items: true
+      }
+    });
+
+    return NextResponse.json({ success: true, data: updatedQuote });
+  } catch (error) {
+    console.error('Quotes PATCH error:', error);
+    return NextResponse.json({ error: 'Erreur serveur lors de la mise à jour' }, { status: 500 });
   }
 }

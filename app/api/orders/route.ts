@@ -89,7 +89,8 @@ export async function POST(req: NextRequest) {
     });
 
     const freeThreshold = parseFloat(settings.find(s => s.key === 'shipping_free_threshold')?.value || '99');
-    const shippingCost = subtotal >= freeThreshold ? 0 : parseFloat(settings.find(s => s.key === 'shipping_standard_cost')?.value || '7.90');
+    const isFreeMethod = body.shippingMethod === 'AU MAGASIN' || body.shippingMethod === 'PAR PROPRES MOYENS' || body.shippingMethod === 'POWER TRANSPORT';
+    const shippingCost = (subtotal >= freeThreshold || isFreeMethod) ? 0 : parseFloat(settings.find(s => s.key === 'shipping_standard_cost')?.value || '7.90');
     const taxRate = parseFloat(settings.find(s => s.key === 'tax_rate')?.value || '20');
 
     const tax = (subtotal + shippingCost) * (taxRate / 100);
@@ -103,7 +104,10 @@ export async function POST(req: NextRequest) {
       data: {
         orderNumber,
         userId,
-        shippingAddress: body.shippingAddress,
+        shippingAddress: {
+          ...(body.shippingAddress || {}),
+          shippingMethod: body.shippingMethod || 'standard'
+        },
         billingAddress: body.billingAddress || body.shippingAddress,
         items: {
           create: cartItems.map((item) => ({
@@ -180,24 +184,30 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { orderId, status, trackingNote } = body;
+    const { orderId, status, trackingNote, paymentStatus, isPaid } = body;
 
-    if (!orderId || !status) {
+    if (!orderId) {
       return NextResponse.json({ success: false, error: 'Données manquantes' }, { status: 400 });
+    }
+
+    const data: any = {};
+    if (status) data.status = status;
+    if (trackingNote !== undefined) data.customerNote = trackingNote || null;
+    if (paymentStatus) data.paymentStatus = paymentStatus;
+    if (isPaid !== undefined) data.isPaid = isPaid;
+
+    if (status) {
+      data.statusHistory = {
+        create: {
+          status,
+          note: trackingNote || `Statut mis à jour à ${status}`,
+        }
+      };
     }
 
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: {
-        status,
-        customerNote: trackingNote || undefined,
-        statusHistory: {
-          create: {
-            status,
-            note: trackingNote || `Statut mis à jour à ${status}`,
-          }
-        }
-      }
+      data
     });
 
     return NextResponse.json({ success: true, data: updatedOrder });

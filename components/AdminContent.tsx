@@ -8,7 +8,7 @@ import {
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
-  ShoppingBag, BarChart2, Download
+  ShoppingBag, BarChart2, Download, Receipt
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -25,13 +25,33 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TOUS STATUTS');
+  const [assigneeFilter, setAssigneeFilter] = useState('TOUS LES PROFILS');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchQuotes = () => {
     fetch('/api/quotes').then(r => r.json()).then(d => {
       setQuotes(Array.isArray(d) ? d : d.data || []);
     }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchQuotes();
   }, []);
+
+  const handleAssignProfile = async (quoteId: string, name: string) => {
+    try {
+      const res = await fetch('/api/quotes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId, managedByName: name })
+      });
+      if (res.ok) {
+        fetchQuotes();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const filtered = quotes.filter(q => {
     const matchesSearch = 
@@ -39,13 +59,20 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       q.brand?.toLowerCase().includes(search.toLowerCase()) ||
       q.id?.includes(search);
     
+    let matchesStatus = true;
     if (statusFilter === 'EN ATTENTE') {
-      return matchesSearch && q.status !== 'TREATED';
+      matchesStatus = q.status !== 'TREATED';
+    } else if (statusFilter === 'TRAITÉ') {
+      matchesStatus = q.status === 'TREATED';
     }
-    if (statusFilter === 'TRAITÉ') {
-      return matchesSearch && q.status === 'TREATED';
+
+    let matchesAssignee = true;
+    const assigneeName = q.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ';
+    if (assigneeFilter !== 'TOUS LES PROFILS') {
+      matchesAssignee = assigneeName === assigneeFilter;
     }
-    return matchesSearch;
+
+    return matchesSearch && matchesStatus && matchesAssignee;
   });
 
   return (
@@ -53,22 +80,35 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1">DEMANDES CLIENTS EN ATTENTE</h2>
       <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">TRAITEZ LES DEMANDES REÇUES EN TEMPS RÉEL</p>
 
-      <div className="flex gap-2 mb-5">
+      <div className="flex flex-col sm:flex-row gap-2 mb-5">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR CLIENT, VÉHICULE, N° DEMANDE..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
-        <select 
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="bg-white text-black font-bold text-xs px-3 rounded-xl border border-slate-300"
-        >
-          <option value="TOUS STATUTS">TOUS STATUTS</option>
-          <option value="EN ATTENTE">EN ATTENTE</option>
-          <option value="TRAITÉ">TRAITÉ</option>
-        </select>
+        <div className="flex gap-2">
+          <select 
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer"
+          >
+            <option value="TOUS STATUTS">TOUS STATUTS</option>
+            <option value="EN ATTENTE">EN ATTENTE</option>
+            <option value="TRAITÉ">TRAITÉ</option>
+          </select>
+          <select 
+            value={assigneeFilter}
+            onChange={e => setAssigneeFilter(e.target.value)}
+            className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer"
+          >
+            <option value="TOUS LES PROFILS">TOUS LES PROFILS</option>
+            <option value="SAIF">TÂCHES SAIF</option>
+            <option value="AMINE">TÂCHES AMINE</option>
+            <option value="SAIFALLAH">TÂCHES SAIFALLAH</option>
+            <option value="NON ASSIGNÉ">NON ASSIGNÉ</option>
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -78,7 +118,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       ) : (
         filtered.map((q) => (
           <div key={q.id} className={cardCls}>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
               <div>
                 <span className="font-black text-red-400 text-sm uppercase font-mono">#{q.id?.slice(-6).toUpperCase()}</span>
                 <h4 className="font-black text-white uppercase text-sm mt-0.5">{q.clientName?.toUpperCase()}</h4>
@@ -86,9 +126,25 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                   {q.clientEmail} · {q.createdAt ? new Date(q.createdAt).toLocaleDateString('fr-FR') : ''}
                 </div>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                q.status === 'TREATED' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-              }`}>{q.status === 'TREATED' ? 'TRAITÉ' : 'EN ATTENTE'}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Sélecteur de profil admin */}
+                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
+                  <span className="text-[8px] text-slate-500 font-black uppercase tracking-wider">Assigné à :</span>
+                  <select
+                    value={q.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
+                    onChange={(e) => handleAssignProfile(q.id, e.target.value)}
+                    className="bg-transparent text-slate-200 font-bold text-[9px] focus:outline-none cursor-pointer uppercase"
+                  >
+                    <option value="NON ASSIGNÉ" className="bg-slate-900 text-slate-500">NON ASSIGNÉ</option>
+                    <option value="SAIF" className="bg-slate-900 text-white">SAIF</option>
+                    <option value="AMINE" className="bg-slate-900 text-white">AMINE</option>
+                    <option value="SAIFALLAH" className="bg-slate-900 text-white">SAIFALLAH</option>
+                  </select>
+                </div>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                  q.status === 'TREATED' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                }`}>{q.status === 'TREATED' ? 'TRAITÉ' : 'EN ATTENTE'}</span>
+              </div>
             </div>
 
             <div className="bg-slate-950 rounded-xl p-3 mb-3">
@@ -103,7 +159,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               {q.status !== 'TREATED' && (
                 <button 
                   onClick={() => onTreatQuote && onTreatQuote(q)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wide transition shadow shadow-red-600/20"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-650 hover:bg-red-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wide transition shadow shadow-red-600/20"
                 >
                   <Edit3 className="w-3.5 h-3.5" /> CRÉER DEVIS
                 </button>
@@ -2402,6 +2458,204 @@ function SectionSuiviPO() {
   );
 }
 
+// ─── SECTION: SERVICE COMPTABILITÉ (FACTURES) ──────────────────────────────────
+function SectionComptabilite() {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showOnlyDelivered, setShowOnlyDelivered] = useState(true);
+
+  const fetchOrders = () => {
+    setLoading(true);
+    fetch('/api/orders')
+      .then(r => r.json())
+      .then(d => {
+        setOrders(Array.isArray(d.data) ? d.data : []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleTogglePaymentStatus = async (orderId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'PAID' ? 'PENDING' : 'PAID';
+    const isPaid = newStatus === 'PAID';
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, paymentStatus: newStatus, isPaid })
+      });
+      if (res.ok) {
+        fetchOrders();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDownloadInvoice = async (o: any) => {
+    const { jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+    const doc = new jsPDF();
+    const ref = o.orderNumber.replace('CMD', 'FAC');
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, 210, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.text("AUTOP TUNISIE", 20, 24);
+    doc.setFontSize(10);
+    doc.text("FACTURE ACQUITTEE - SERVICE COMPTABILITE", 20, 31);
+    
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Facture : #${ref}`, 140, 20);
+    doc.text(`Date : ${new Date(o.updatedAt).toLocaleDateString('fr-FR')}`, 140, 26);
+
+    autoTable(doc, {
+      startY: 65,
+      head: [["Information", "Détail"]],
+      body: [
+        ["Nom du Client", o.user?.name || `${o.user?.firstName} ${o.user?.lastName}` || "Client Autop"],
+        ["Email", o.user?.email || ""],
+        ["Commande originale", o.orderNumber],
+        ["Adresse de livraison", o.shippingAddress?.street || o.shippingAddress || "N/A"],
+        ["Mode de livraison", o.shippingAddress?.shippingMethod || "N/A"],
+        ["Statut de paiement", o.paymentStatus === 'PAID' ? 'PAYÉ' : 'EN ATTENTE'],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [30, 41, 59] },
+    });
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable?.finalY + 15,
+      head: [["Désignation", "Quantité", "P.U. (TND)", "Total (TND)"]],
+      body: o.items.map((it: any) => [
+        it.productName,
+        it.quantity.toString(),
+        it.price.toFixed(3),
+        it.total.toFixed(3)
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [30, 41, 59] },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 180;
+    doc.text(`TOTAL H.T. : ${o.subtotal.toFixed(3)} TND`, 135, finalY + 10);
+    doc.text(`FRAIS DE PORT : ${o.shippingCost.toFixed(3)} TND`, 135, finalY + 16);
+    doc.text(`TVA (19%) : ${o.tax.toFixed(3)} TND`, 135, finalY + 22);
+    doc.text(`TOTAL TTC : ${o.total.toFixed(3)} TND`, 135, finalY + 28);
+
+    doc.save(`Facture_AUTOP_${ref}.pdf`);
+  };
+
+  const filtered = orders.filter(o => {
+    const matchesSearch = 
+      o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      o.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      o.user?.email?.toLowerCase().includes(search.toLowerCase());
+    
+    if (showOnlyDelivered) {
+      return matchesSearch && o.status === 'DELIVERED';
+    }
+    return matchesSearch;
+  });
+
+  return (
+    <div>
+      <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
+        <Receipt className="w-5 h-5 text-purple-400" /> SERVICE COMPTABILITÉ
+      </h2>
+      <p className="text-slate-450 text-xs uppercase tracking-wider mb-5">GESTION DES FACTURES CLIENTS ET ENCAISSEMENTS</p>
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input type="text" placeholder="RECHERCHER PAR CLIENT, EMAIL, FACTURE..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+        </div>
+        <button
+          onClick={() => setShowOnlyDelivered(!showOnlyDelivered)}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
+            showOnlyDelivered 
+              ? 'bg-red-650/15 border-red-500 text-white' 
+              : 'bg-white text-black border-slate-300'
+          }`}
+        >
+          {showOnlyDelivered ? '✓ Uniquement Livrées (Facturées)' : 'Toutes les commandes'}
+        </button>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+        {loading ? (
+          <div className="text-center py-12 text-slate-500 font-bold uppercase animate-pulse">Chargement...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-slate-600 font-bold uppercase">Aucune facture disponible</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/40 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="px-4 py-3">N° Facture</th>
+                  <th className="px-4 py-3">Client</th>
+                  <th className="px-4 py-3">Date émise</th>
+                  <th className="px-4 py-3">Frais port</th>
+                  <th className="px-4 py-3 text-right">Montant TTC</th>
+                  <th className="px-4 py-3 text-center">Paiement</th>
+                  <th className="px-4 py-3 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(o => {
+                  const ref = o.orderNumber.replace('CMD', 'FAC');
+                  const shippingMethod = o.shippingAddress?.shippingMethod || 'standard';
+                  return (
+                    <tr key={o.id} className="border-b border-slate-800/40 hover:bg-slate-800/20 transition-colors">
+                      <td className="px-4 py-3 font-mono font-black text-red-400 text-sm">#{ref}</td>
+                      <td className="px-4 py-3">
+                        <div className="font-bold text-white uppercase text-xs">{o.user?.name || `${o.user?.firstName} ${o.user?.lastName}`}</div>
+                        <div className="text-[9px] text-slate-500">{o.user?.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-450 uppercase">{new Date(o.updatedAt).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-3 text-xs text-slate-450 font-mono font-bold uppercase">{o.shippingCost > 0 ? `${o.shippingCost.toFixed(3)} TND` : 'GRATUIT'} ({shippingMethod})</td>
+                      <td className="px-4 py-3 text-right font-bold text-white font-mono text-sm">{o.total.toFixed(3)} TND</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleTogglePaymentStatus(o.id, o.paymentStatus)}
+                          className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
+                            o.paymentStatus === 'PAID'
+                              ? 'bg-green-500/10 text-green-400 border-green-500/30'
+                              : 'bg-red-500/10 text-red-400 border-red-500/30'
+                          }`}
+                        >
+                          {o.paymentStatus === 'PAID' ? '✓ PAYÉ' : '⚡ NON PAYÉ'}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3 text-center flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleDownloadInvoice(o)}
+                          className="chrome-gloss px-3 py-1.5 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 border border-slate-700 text-slate-200 text-[10px] font-black uppercase rounded-lg transition flex items-center gap-1"
+                        >
+                          <Download className="w-3 h-3" /> Facture
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AdminContent() {
   const { adminSection, setAdminSection } = useApp();
@@ -2421,6 +2675,7 @@ export default function AdminContent() {
     'recherche-four': <SectionConsultationFournisseur />,
     'comparatif': <SectionConsultationFournisseur />,
     'suivi-po': <SectionSuiviPO />,
+    'comptabilite': <SectionComptabilite />,
     'ajouter-article': <SectionGestionArticles />,
     'modifier-article': <SectionGestionArticles />,
     'liste-articles': <SectionGestionArticles />,
