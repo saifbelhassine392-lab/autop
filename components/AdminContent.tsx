@@ -558,7 +558,7 @@ function SectionListeFournisseurs() {
                   {s.isActive ? 'ACTIF' : 'INACTIF'}
                 </span>
                 <button onClick={() => setEditingSupplier(s)} className="text-slate-400 hover:text-green-400 transition p-1.5" title="Modifier">
-                  <Edit className="w-3.5 h-3.5" />
+                  <Edit3 className="w-3.5 h-3.5" />
                 </button>
                 <button onClick={() => handleDelete(s.id)} className="text-slate-500 hover:text-red-400 transition p-1.5" title="Supprimer">
                   <Trash2 className="w-3.5 h-3.5" />
