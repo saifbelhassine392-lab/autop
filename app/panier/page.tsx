@@ -366,7 +366,7 @@ export default function PanierPage() {
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-bold uppercase font-mono">FRAIS LIVRAISON ({shippingMethod}) :</span>
                     <span className="text-slate-200 font-black font-mono">
-                      {actualShippingCost === 0 ? 'GRATUIT' : `${actualShippingCost.toFixed(3)} TND`}
+                      GRATUIT
                     </span>
                   </div>
                   <div className="flex justify-between">
