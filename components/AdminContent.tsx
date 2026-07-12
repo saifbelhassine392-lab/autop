@@ -2902,7 +2902,7 @@ function SectionRobotB2B() {
               <div className="flex-1">
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
                 <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : 'RUPTURE / NON TROUVÉ'}
+                  {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'RUPTURE / NON TROUVÉ')}
                 </div>
               </div>
             </div>
