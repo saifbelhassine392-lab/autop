@@ -6,7 +6,7 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 
-async function scrapeSTEQ(reference: string) {
+async function scrapeSTEQ(query: string) {
   try {
     // 1. Get initial cookie & Login
     const initialRes = await fetch("https://b2bsteq.com/", {
@@ -48,7 +48,7 @@ async function scrapeSTEQ(reference: string) {
     // 2. Search
     const searchParams = new URLSearchParams();
     searchParams.append("MySearchType", "1");
-    searchParams.append("MySearchKey", reference);
+    searchParams.append("MySearchKey", query);
     searchParams.append("MySearchSubmit", "");
 
     const searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
@@ -93,10 +93,11 @@ async function scrapeSTEQ(reference: string) {
 
 export async function POST(request: Request) {
   try {
-    const { supplierId, reference } = await request.json();
+    const { supplierId, query, reference } = await request.json();
+    const searchQuery = query || reference;
 
-    if (!supplierId || !reference) {
-      return NextResponse.json({ success: false, error: "Fournisseur et référence requis" }, { status: 400 });
+    if (!supplierId || !searchQuery) {
+      return NextResponse.json({ success: false, error: "Fournisseur et recherche requis" }, { status: 400 });
     }
 
     const { prisma } = await import('@/lib/prisma');
@@ -113,7 +114,7 @@ export async function POST(request: Request) {
 
     if (supName === "STEQ") {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-      const res = await scrapeSTEQ(reference);
+      const res = await scrapeSTEQ(searchQuery);
       searchResult = {
         price: res.price,
         discount: res.discount,

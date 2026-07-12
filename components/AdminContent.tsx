@@ -2781,7 +2781,7 @@ function SectionComptabilite() {
 }
 
 function SectionRobotB2B() {
-  const [reference, setReference] = useState('');
+  const [query, setQuery] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -2799,14 +2799,14 @@ function SectionRobotB2B() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reference || !selectedSupplierId) return;
+    if (!query || !selectedSupplierId) return;
     setLoading(true);
     setResult(null);
     try {
       const res = await fetch('/api/b2b/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId: selectedSupplierId, reference })
+        body: JSON.stringify({ supplierId: selectedSupplierId, query })
       });
       const data = await res.json();
       if (data.success) {
@@ -2843,12 +2843,12 @@ function SectionRobotB2B() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">RÉFÉRENCE ARTICLE</label>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">RECHERCHE INTELLIGENTE</label>
             <input 
               type="text"
-              value={reference}
-              onChange={e => setReference(e.target.value)}
-              placeholder="EX: 1K0698151"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="RÉFÉRENCE, DÉSIGNATION OU VOITURE..."
               required
               className="w-full bg-white text-black font-black text-lg px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300"
             />
