@@ -28,12 +28,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, contactName, phone, email, address, city } = body;
+    const { name, contactName, phone, email, address, city, b2bUrl, b2bLogin, b2bPassword } = body;
 
     if (!name) return NextResponse.json({ error: 'Nom requis' }, { status: 400 });
 
     const supplier = await prisma.supplier.create({
-      data: { name, contactName, phone, email, address, city }
+      data: { name, contactName, phone, email, address, city, b2bUrl, b2bLogin, b2bPassword }
     });
     return NextResponse.json({ success: true, data: supplier }, { status: 201 });
   } catch (err) {

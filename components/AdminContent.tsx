@@ -540,7 +540,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
 // ─── SECTION: AJOUTER FOURNISSEUR ────────────────────────────────────────────
 function SectionAjouterFournisseur() {
-  const [form, setForm] = useState({ name: '', contactName: '', phone: '', email: '', address: '', city: '' });
+  const [form, setForm] = useState({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -556,7 +556,7 @@ function SectionAjouterFournisseur() {
       });
       if (res.ok) {
         setSaved(true);
-        setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '' });
+        setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
         setTimeout(() => setSaved(false), 3000);
       } else {
         const d = await res.json();
@@ -592,6 +592,25 @@ function SectionAjouterFournisseur() {
                 className={f.key === 'email' ? "w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-green-500" : inputCls.replace('focus:border-red-500', 'focus:border-green-500')} />
             </div>
           ))}
+        </div>
+
+        <div className="mt-6 border-t border-slate-700 pt-6">
+          <h3 className="text-sm font-black text-cyan-400 uppercase tracking-widest mb-4">ACCÈS B2B (MÉMO ET ROBOT)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { label: 'LIEN DU SITE B2B', key: 'b2bUrl', type: 'text', placeholder: 'https://...' },
+              { label: 'LOGIN / UTILISATEUR', key: 'b2bLogin', type: 'text', placeholder: 'Identifiant B2B' },
+              { label: 'MOT DE PASSE B2B', key: 'b2bPassword', type: 'text', placeholder: 'Mot de passe B2B' },
+            ].map(f => (
+              <div key={f.key}>
+                <label className={labelCls}>{f.label}</label>
+                <input type={f.type} placeholder={f.placeholder}
+                  value={(form as any)[f.key]}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  className="w-full bg-slate-900 text-white font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500" />
+              </div>
+            ))}
+          </div>
         </div>
 
         {error && (

@@ -258,6 +258,9 @@ model Supplier {
   email          String?
   address        String?
   city           String?
+  b2bUrl         String?
+  b2bLogin       String?
+  b2bPassword    String?
   isActive       Boolean         @default(true)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
