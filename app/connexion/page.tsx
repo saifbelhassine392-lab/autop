@@ -34,13 +34,13 @@ export default function LoginPage() {
           } else if (user?.role === "PROFESSIONAL") {
             router.push("/espace-pro");
           } else {
-            router.push("/");
+            router.push("/mes-devis");
           }
         } else {
-          router.push("/");
+          router.push("/mes-devis");
         }
       } catch (err) {
-        router.push("/");
+        router.push("/mes-devis");
       }
       router.refresh(); // Rafraîchit l'état de la session
     }
