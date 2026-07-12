@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from "https";
+import axios from 'axios';
 
 // Create an HTTPS agent that ignores SSL certificate errors (for fetch)
 const httpsAgent = new https.Agent({
@@ -9,19 +10,15 @@ const httpsAgent = new https.Agent({
 async function scrapeSTEQ(query: string) {
   try {
     // 1. Get initial cookie & Login
-    const initialRes = await fetch("https://b2bsteq.com/", {
-      method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0",
-      },
-      cache: 'no-store'
+    const initialRes = await axios.get("https://b2bsteq.com/", {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      httpsAgent
     });
     
     let sessionCookie = "";
-    const initCookies = initialRes.headers.get("set-cookie") || "";
-    if (initCookies.includes("PHPSESSID")) {
-      const match = initCookies.match(/PHPSESSID=[^;]+/);
-      if (match) sessionCookie = match[0];
+    const initialSetCookie = initialRes.headers["set-cookie"];
+    if (initialSetCookie) {
+      sessionCookie = initialSetCookie[0].split(";")[0];
     }
 
     const loginParams = new URLSearchParams();
@@ -29,22 +26,20 @@ async function scrapeSTEQ(query: string) {
     loginParams.append("UserPassword", "STEQ484630925");
     loginParams.append("UserSubmit", "");
 
-    const loginRes = await fetch("https://b2bsteq.com/", {
-      method: "POST",
+    const loginRes = await axios.post("https://b2bsteq.com/", loginParams.toString(), {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0",
         "Cookie": sessionCookie,
+        "User-Agent": "Mozilla/5.0",
       },
-      body: loginParams.toString(),
-      redirect: "manual",
-      cache: 'no-store'
+      httpsAgent,
+      maxRedirects: 0,
+      validateStatus: (status) => status >= 200 && status < 400
     });
 
-    const loginCookies = loginRes.headers.get("set-cookie") || "";
-    if (loginCookies.includes("PHPSESSID")) {
-      const match = loginCookies.match(/PHPSESSID=[^;]+/);
-      if (match) sessionCookie = match[0];
+    const loginCookies = loginRes.headers["set-cookie"];
+    if (loginCookies) {
+      sessionCookie = loginCookies[0].split(";")[0];
     }
 
     // 2. Search
@@ -53,18 +48,16 @@ async function scrapeSTEQ(query: string) {
     searchParams.append("MySearchKey", query);
     searchParams.append("MySearchSubmit", "");
 
-    const searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
-      method: "POST",
+    const searchRes = await axios.post("https://b2bsteq.com/form-recherche.html", searchParams.toString(), {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         "Cookie": sessionCookie,
         "User-Agent": "Mozilla/5.0",
       },
-      body: searchParams.toString(),
-      cache: 'no-store'
+      httpsAgent
     });
 
-    const html = await searchRes.text();
+    const html = searchRes.data;
 
     // 3. Extract JSON from HTML
     const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
