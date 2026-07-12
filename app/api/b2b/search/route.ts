@@ -77,15 +77,27 @@ async function scrapeSTEQ(query: string) {
       return { price: 0, discount: 0, availability: "Non Disponible" };
     }
 
-    // Find the best item (preferably one with Available > 0, otherwise the first one)
-    let bestItem = items.find((i: any) => parseInt(i.Available) > 0);
-    if (!bestItem) bestItem = items[0];
+    // Map all items instead of just returning the best one
+    const parsedItems = items.map((i: any) => ({
+      name: i.ItemNumberEquiv || i.ItemNo || '',
+      brand: i.ItemBrandEquiv || '',
+      price: parseFloat(i.UnitPrice) || 0,
+      discount: parseFloat(i.MaxDiscount) || 0,
+      availability: parseInt(i.Available) > 0 ? "Disponible" : "Sur Commande",
+      rawStock: parseInt(i.Available) || 0,
+      available: parseInt(i.Available) > 0
+    }));
+
+    // Find the best item for backward compatibility (if needed)
+    let bestItem = parsedItems.find((i: any) => i.available);
+    if (!bestItem) bestItem = parsedItems[0];
 
     return {
-      price: parseFloat(bestItem.UnitPrice) || 0,
-      discount: parseFloat(bestItem.MaxDiscount) || 0,
-      availability: parseInt(bestItem.Available) > 0 ? "Disponible" : "Sur Commande",
-      rawStock: parseInt(bestItem.Available) || 0
+      price: bestItem.price,
+      discount: bestItem.discount,
+      availability: bestItem.availability,
+      rawStock: bestItem.rawStock,
+      items: parsedItems
     };
 
   } catch (err: any) {
@@ -122,7 +134,8 @@ export async function POST(request: Request) {
         price: res.price,
         discount: res.discount,
         available: (res.rawStock ?? 0) > 0 || res.availability === "Disponible",
-        stock: res.rawStock
+        stock: res.rawStock,
+        availability: res.availability
       };
     }
     else if (supName === "FAD") searchResult = { error: "Scraper FAD en cours d'intégration." };

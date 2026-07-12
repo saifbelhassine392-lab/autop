@@ -2890,21 +2890,47 @@ function SectionRobotB2B() {
         <div className={`p-6 rounded-2xl border ${result.success ? (result.data.available ? 'bg-green-950/30 border-green-500/30' : 'bg-red-950/30 border-red-500/30') : 'bg-red-950/30 border-red-500/30'}`}>
           <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4">RÉSULTAT DE LA RECHERCHE</h3>
           {result.success ? (
-            <div className="flex flex-col sm:flex-row gap-6">
-              <div className="flex-1">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">PRIX BRUT (SANS REMISE)</div>
-                <div className="text-xl font-black text-white">{result.data.price.toFixed(3)} TND</div>
-              </div>
-              <div className="flex-1">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">REMISE APPLICABLE</div>
-                <div className="text-xl font-black text-cyan-400">{result.data.discount}%</div>
-              </div>
-              <div className="flex-1">
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
-                <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'RUPTURE / NON TROUVÉ')}
+            <div className="flex flex-col gap-6">
+              {/* Résumé global ou meilleur choix */}
+              <div className="flex flex-col sm:flex-row gap-6">
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">PRIX BRUT (SANS REMISE)</div>
+                  <div className="text-xl font-black text-white">{result.data.price.toFixed(3)} TND</div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">REMISE APPLICABLE</div>
+                  <div className="text-xl font-black text-cyan-400">{result.data.discount}%</div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
+                  <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-red-400'}`}>
+                    {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'RUPTURE / NON TROUVÉ')}
+                  </div>
                 </div>
               </div>
+
+              {/* Liste des autres marques/équivalences */}
+              {result.data.items && result.data.items.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-slate-700/50">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">PIÈCES TROUVÉES ({result.data.items.length})</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {result.data.items.map((item: any, idx: number) => (
+                      <div key={idx} className={`p-3 rounded-lg border ${item.available ? 'bg-green-950/20 border-green-500/20' : 'bg-red-950/10 border-red-500/10'}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-bold text-white text-sm">{item.brand || 'SANS MARQUE'}</span>
+                          <span className={`text-xs font-black px-2 py-0.5 rounded-full ${item.available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                            {item.available ? (item.rawStock ? `${item.rawStock} DISPO` : 'OUI') : 'NON'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-end">
+                          <span className="text-xs text-slate-400">{item.name}</span>
+                          <span className="font-black text-cyan-400">{item.price > 0 ? `${item.price.toFixed(3)} TND` : '-'}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-red-400 font-bold uppercase">{result.error}</div>
