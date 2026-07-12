@@ -13,7 +13,8 @@ async function scrapeSTEQ(query: string) {
       method: "GET",
       headers: {
         "User-Agent": "Mozilla/5.0",
-      }
+      },
+      cache: 'no-store'
     });
     
     let sessionCookie = "";
@@ -37,6 +38,7 @@ async function scrapeSTEQ(query: string) {
       },
       body: loginParams.toString(),
       redirect: "manual",
+      cache: 'no-store'
     });
 
     const loginCookies = loginRes.headers.get("set-cookie") || "";
@@ -59,6 +61,7 @@ async function scrapeSTEQ(query: string) {
         "User-Agent": "Mozilla/5.0",
       },
       body: searchParams.toString(),
+      cache: 'no-store'
     });
 
     const html = await searchRes.text();
