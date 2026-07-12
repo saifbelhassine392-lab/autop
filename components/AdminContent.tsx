@@ -781,6 +781,7 @@ function SectionConsultationFournisseur() {
   const [selectedSuppIds, setSelectedSuppIds] = useState<string[]>([]);
   // Prices mapping: { [supplierId]: { [itemIndex]: { price: number, discount: number } } }
   const [compPrices, setCompPrices] = useState<Record<string, Record<number, { price: number, discount: number }>>>({});
+  const [b2bLoading, setB2bLoading] = useState(false);
 
   const [catalogue, setCatalogue] = useState<any[]>([]);
   const [activeSuggestRow, setActiveSuggestRow] = useState<number | null>(null);
@@ -990,6 +991,55 @@ function SectionConsultationFournisseur() {
     setNotes(`Généré à partir du tableau comparatif. Meilleur prix fournisseur.`);
     setActiveTab('order');
     alert(`✅ ARTICLES CHARGÉS DANS L'ONGLET BON DE COMMANDE POUR : ${supp.name.toUpperCase()}`);
+  };
+
+  const handleB2BSearch = async () => {
+    if (selectedSuppIds.length === 0) {
+      alert('VEUILLEZ SÉLECTIONNER AU MOINS UN FOURNISSEUR POUR LA RECHERCHE B2B');
+      return;
+    }
+    const itemsToSearch = compItems.filter(it => it.reference.trim() !== '');
+    if (itemsToSearch.length === 0) {
+      alert('VEUILLEZ RENSEIGNER AU MOINS UNE RÉFÉRENCE ARTICLE');
+      return;
+    }
+
+    setB2bLoading(true);
+    try {
+      for (const suppId of selectedSuppIds) {
+        for (let i = 0; i < compItems.length; i++) {
+          const item = compItems[i];
+          if (!item.reference.trim()) continue;
+
+          // Call the API endpoint
+          try {
+            const res = await fetch('/api/b2b/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ supplierId: suppId, reference: item.reference })
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+              const { price, discount, available } = data.data;
+              if (available) {
+                // Update state directly for this cell
+                setCompPrices(prev => ({
+                  ...prev,
+                  [suppId]: {
+                    ...(prev[suppId] || {}),
+                    [i]: { price, discount }
+                  }
+                }));
+              }
+            }
+          } catch (err) {
+            console.error(`Error searching B2B for ${item.reference} at ${suppId}`, err);
+          }
+        }
+      }
+    } finally {
+      setB2bLoading(false);
+    }
   };
 
   return (
@@ -1238,9 +1288,19 @@ function SectionConsultationFournisseur() {
           <div className={cardCls}>
             <div className="flex items-center justify-between mb-3">
               <div className="text-[10px] font-black uppercase tracking-widest text-green-400">2. SAISIR LES ARTICLES À CONSULTER</div>
-              <button onClick={addCompLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-[11px] font-black uppercase rounded-lg transition font-sans">
-                <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
-              </button>
+              <div className="flex gap-2">
+                <button onClick={handleB2BSearch} disabled={b2bLoading} className="flex items-center gap-1.5 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-[11px] font-black uppercase rounded-lg transition disabled:opacity-50 font-sans shadow-[0_0_15px_rgba(8,145,178,0.4)]">
+                  {b2bLoading ? (
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5" />
+                  )}
+                  {b2bLoading ? 'RECHERCHE EN COURS...' : 'ROBOT B2B'}
+                </button>
+                <button onClick={addCompLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-[11px] font-black uppercase rounded-lg transition font-sans">
+                  <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -2720,6 +2780,122 @@ function SectionComptabilite() {
   );
 }
 
+function SectionRobotB2B() {
+  const [reference, setReference] = useState('');
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/suppliers').then(r => r.json()).then(d => {
+      const sups = d.data || [];
+      setSuppliers(sups);
+      const steq = sups.find((s: any) => s.name.toUpperCase() === 'STEQ');
+      if (steq) setSelectedSupplierId(steq.id);
+      else if (sups.length > 0) setSelectedSupplierId(sups[0].id);
+    });
+  }, []);
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reference || !selectedSupplierId) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch('/api/b2b/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplierId: selectedSupplierId, reference })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setResult({ success: true, data: data.data });
+      } else {
+        setResult({ success: false, error: data.error });
+      }
+    } catch (err) {
+      setResult({ success: false, error: 'Erreur réseau.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
+        <Package className="w-5 h-5 text-cyan-400" /> 🤖 ROBOT B2B
+      </h2>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-6">RECHERCHE AUTOMATISÉE CHEZ VOS FOURNISSEURS</p>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl mb-6">
+        <form onSubmit={handleSearch} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">FOURNISSEUR CIBLE</label>
+            <select 
+              value={selectedSupplierId}
+              onChange={e => setSelectedSupplierId(e.target.value)}
+              className="w-full bg-slate-950 text-white font-bold text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 uppercase cursor-pointer"
+            >
+              {suppliers.map(s => (
+                <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">RÉFÉRENCE ARTICLE</label>
+            <input 
+              type="text"
+              value={reference}
+              onChange={e => setReference(e.target.value)}
+              placeholder="EX: 1K0698151"
+              required
+              className="w-full bg-white text-black font-black text-lg px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300"
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full mt-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+          >
+            {loading ? (
+              <><span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> RECHERCHE EN COURS...</>
+            ) : (
+              <><Search className="w-5 h-5" /> LANCER LE ROBOT</>
+            )}
+          </button>
+        </form>
+      </div>
+
+      {result && (
+        <div className={`p-6 rounded-2xl border ${result.success ? (result.data.available ? 'bg-green-950/30 border-green-500/30' : 'bg-red-950/30 border-red-500/30') : 'bg-red-950/30 border-red-500/30'}`}>
+          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4">RÉSULTAT DE LA RECHERCHE</h3>
+          {result.success ? (
+            <div className="flex flex-col sm:flex-row gap-6">
+              <div className="flex-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">PRIX BRUT (SANS REMISE)</div>
+                <div className="text-xl font-black text-white">{result.data.price.toFixed(3)} TND</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">REMISE APPLICABLE</div>
+                <div className="text-xl font-black text-cyan-400">{result.data.discount}%</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
+                <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-red-400'}`}>
+                  {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : 'RUPTURE / NON TROUVÉ'}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-red-400 font-bold uppercase">{result.error}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AdminContent() {
   const { adminSection, setAdminSection } = useApp();
@@ -2736,6 +2912,7 @@ export default function AdminContent() {
     'ajouter-fournisseur': <SectionAjouterFournisseur />,
     'liste-fournisseurs': <SectionListeFournisseurs />,
     'consultation-fournisseur': <SectionConsultationFournisseur />,
+    'robot-b2b': <SectionRobotB2B />,
     'recherche-four': <SectionConsultationFournisseur />,
     'comparatif': <SectionConsultationFournisseur />,
     'suivi-po': <SectionSuiviPO />,

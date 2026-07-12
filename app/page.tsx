@@ -1,11 +1,9 @@
-import Header from '@/components/Header'
 import AccueilPage from './AccueilPage'
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-900">
-      <Header />
-      <main>
+    <div className="h-screen w-full overflow-hidden bg-slate-950">
+      <main className="w-full h-full">
         <AccueilPage />
       </main>
     </div>

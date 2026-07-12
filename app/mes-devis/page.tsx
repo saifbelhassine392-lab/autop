@@ -418,7 +418,7 @@ export default function MesDevisPage() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950/60 backdrop-blur-md text-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500" />
       </div>
     );
@@ -426,7 +426,7 @@ export default function MesDevisPage() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4 text-center">
+      <div className="min-h-screen bg-slate-950/60 backdrop-blur-md text-white flex items-center justify-center p-4 text-center">
         <div>
           <h2 className="text-2xl font-bold mb-4">Connexion Requise</h2>
           <p className="text-slate-400 mb-6">Veuillez vous connecter pour voir l'espace client.</p>
@@ -459,7 +459,7 @@ export default function MesDevisPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Dashboard Left Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-md sticky top-24 shadow-2xl">
+            <div className="bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-md sticky top-24 shadow-2xl">
               <h2 className="text-[10px] font-black text-slate-500 mb-6 tracking-widest uppercase">FONCTIONS ESPACE</h2>
               <nav className="flex flex-col gap-2.5">
                 {[
@@ -506,7 +506,7 @@ export default function MesDevisPage() {
           <div className="lg:col-span-3 space-y-6">
             
             {/* Search Bar */}
-            <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-5 backdrop-blur-md shadow-xl flex gap-2 items-center">
+            <div className="bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/60 rounded-3xl p-5 backdrop-blur-md shadow-xl flex gap-2 items-center">
               <Search className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
               <input 
                 type="text" 
@@ -764,7 +764,7 @@ export default function MesDevisPage() {
       {/* MODAL POUR CRÉATION DE BON DE COMMANDE */}
       {orderModalDevis && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-[32px] p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative text-left">
+          <div className="bg-slate-900/60 backdrop-blur-sm/60 backdrop-blur-sm border border-slate-800 rounded-[32px] p-6 md:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative text-left">
             <button 
               onClick={() => setOrderModalDevis(null)}
               className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-950/60 border border-slate-800 transition"

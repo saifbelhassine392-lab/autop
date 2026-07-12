@@ -53,7 +53,7 @@ export default function InscriptionPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-[#0a0e1a] px-4 py-12 text-slate-100 overflow-hidden">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950/60 backdrop-blur-md px-4 py-12 text-slate-100 overflow-hidden">
       {/* Background Image Container */}
       <div className="absolute inset-0 z-0">
         <img 
@@ -67,7 +67,7 @@ export default function InscriptionPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex bg-slate-900/60 border border-slate-800/80 rounded-3xl p-4 shadow-2xl backdrop-blur-md max-w-xs items-center justify-center mb-4">
+          <div className="inline-flex bg-slate-900/60 backdrop-blur-sm/60 border border-slate-800/80 rounded-3xl p-4 shadow-2xl backdrop-blur-md max-w-xs items-center justify-center mb-4">
             <img src="/logo.png" alt="AUTOP Logo" className="max-h-16 w-auto object-contain" />
           </div>
           <h2 className="text-3xl font-black tracking-wider text-white">Créer un compte</h2>
@@ -80,7 +80,7 @@ export default function InscriptionPage() {
         </div>
 
         {/* Card Form */}
-        <div className="bg-slate-900/30 border border-slate-800/80 rounded-3xl p-8 shadow-2xl backdrop-blur-md">
+        <div className="bg-slate-900/60 backdrop-blur-sm/30 border border-slate-800/80 rounded-3xl p-8 shadow-2xl backdrop-blur-md">
           <form className="space-y-6" onSubmit={handleRegister}>
             {error && (
               <div className="rounded-xl bg-red-500/10 p-3 text-sm text-red-400 border border-red-500/20 text-center normal-case">

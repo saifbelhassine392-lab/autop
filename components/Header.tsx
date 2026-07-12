@@ -29,11 +29,10 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 relative flex items-center justify-center">
+          <Link href="/" className="flex items-center">
+            <div className="w-32 h-12 relative flex items-center justify-start">
               <img src="/logo.png" alt="AUTOP Logo" className="max-h-full max-w-full object-contain" />
             </div>
-            <span className="text-2xl font-black tracking-wider text-red-500">AUTOP</span>
           </Link>
 
           {/* Desktop Nav */}

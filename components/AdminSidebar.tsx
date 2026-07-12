@@ -79,6 +79,7 @@ const sections: SidebarSection[] = [
       { id: 'ajouter-fournisseur', label: 'AJOUTER FOURNISSEUR', icon: UserPlus },
       { id: 'liste-fournisseurs', label: 'LISTE FOURNISSEURS', icon: List },
       { id: 'consultation-fournisseur', label: 'CONSULTATION FOURNISSEUR', icon: ClipboardList },
+      { id: 'robot-b2b', label: '🤖 ROBOT B2B', icon: Package },
       { id: 'suivi-po', label: 'SUIVI PO & LIVRAISONS', icon: Clock },
       { id: 'historique-achat', label: "HISTORIQUE D'ACHATS", icon: ClipboardList },
     ]

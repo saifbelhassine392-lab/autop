@@ -58,7 +58,7 @@ export default function PiecesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 text-slate-100 bg-[#0a0e1a] min-h-screen">
+    <div className="max-w-7xl mx-auto px-4 py-8 text-slate-100 bg-slate-950/60 backdrop-blur-md min-h-screen">
       <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white hover:border-red-500 transition mb-6 font-bold text-sm">
         <Home className="w-4 h-4" /> Accueil
       </Link>
@@ -74,7 +74,7 @@ export default function PiecesPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-800 text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-slate-500"
+            className="w-full pl-10 pr-4 py-3 bg-slate-900/60 backdrop-blur-sm border border-slate-800 text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 placeholder-slate-500"
           />
         </div>
         <select
@@ -86,11 +86,11 @@ export default function PiecesPage() {
             if (e.target.value) params.append('category', e.target.value)
             fetchProducts(params.toString())
           }}
-          className="px-4 py-3 bg-slate-900 border border-slate-800 text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
+          className="px-4 py-3 bg-slate-900/60 backdrop-blur-sm border border-slate-800 text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
         >
-          <option value="" className="bg-slate-900 text-slate-100">Toutes les catégories</option>
+          <option value="" className="bg-slate-900/60 backdrop-blur-sm/60 backdrop-blur-sm text-slate-100">Toutes les catégories</option>
           {Array.isArray(categories) && categories.map((cat: any) => (
-            <option key={cat.id} value={cat.slug} className="bg-slate-900 text-slate-100">{cat.name}</option>
+            <option key={cat.id} value={cat.slug} className="bg-slate-900/60 backdrop-blur-sm/60 backdrop-blur-sm text-slate-100">{cat.name}</option>
           ))}
         </select>
         <button
@@ -112,7 +112,7 @@ export default function PiecesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {Array.isArray(products) && products.map((product) => (
-            <div key={product.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-red-500/50 transition duration-300 shadow-xl flex flex-col justify-between">
+            <div key={product.id} className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-xl overflow-hidden hover:border-red-500/50 transition duration-300 shadow-xl flex flex-col justify-between">
               <div className="relative h-48 bg-slate-950 flex items-center justify-center">
                 {product.images && product.images[0] ? (
                   <Image

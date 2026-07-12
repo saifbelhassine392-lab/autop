@@ -354,8 +354,8 @@ export default function DevisPage() {
 
   if (submittedQuoteId) {
     return (
-      <div className="max-w-xl mx-auto p-6 bg-[#0a0e1a] min-h-screen text-slate-100 flex items-center justify-center">
-        <div className="neon-border-glow bg-slate-900/80 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl w-full backdrop-blur-md">
+      <div className="max-w-xl mx-auto p-6 bg-slate-950/60 backdrop-blur-md min-h-screen text-slate-100 flex items-center justify-center">
+        <div className="neon-border-glow bg-slate-900/60 backdrop-blur-sm/80 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl w-full backdrop-blur-md">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
           <h2 className="text-2xl font-black text-white mb-2">Demande Confirmée !</h2>
           <p className="text-sm text-slate-400 mb-6">
@@ -409,7 +409,7 @@ export default function DevisPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-[#0a0e1a] min-h-screen text-slate-100">
+    <div className="max-w-4xl mx-auto p-6 bg-slate-950/60 backdrop-blur-md min-h-screen text-slate-100">
       <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white hover:border-red-500 transition mb-6 font-bold text-sm">
         <Home className="w-4 h-4" /> Accueil
       </Link>
@@ -418,7 +418,7 @@ export default function DevisPage() {
       </h1>
       
       {/* Card 1: Informations Client et Véhicule */}
-      <div className="tilt-card-3d bg-slate-900/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-6">
+      <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-6">
         <div className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-4">1. INFORMATIONS CLIENT & VÉHICULE</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col">
@@ -485,7 +485,7 @@ export default function DevisPage() {
       </div>
 
       {/* Card 2: Liste des Pièces & Format */}
-      <div className="tilt-card-3d bg-slate-900/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-6">
+      <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-6">
         <div className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-4">2. CHOIX DU FORMAT & PIÈCES DEMANDÉES</div>
         
         <div className="flex flex-col mb-6 bg-slate-950/40 p-4 border border-slate-800 rounded-2xl">
@@ -497,7 +497,7 @@ export default function DevisPage() {
                 name="docFormat" 
                 checked={selectedFormat === 'pdf'} 
                 onChange={() => setSelectedFormat('pdf')} 
-                className="text-red-500 focus:ring-red-500 bg-slate-900 border-slate-800" 
+                className="text-red-500 focus:ring-red-500 bg-slate-900/60 backdrop-blur-sm border-slate-800" 
               />
               Document PDF (.pdf)
             </label>
@@ -507,7 +507,7 @@ export default function DevisPage() {
                 name="docFormat" 
                 checked={selectedFormat === 'excel'} 
                 onChange={() => setSelectedFormat('excel')} 
-                className="text-red-500 focus:ring-red-500 bg-slate-900 border-slate-800" 
+                className="text-red-500 focus:ring-red-500 bg-slate-900/60 backdrop-blur-sm border-slate-800" 
               />
               Feuille de calcul Excel (.csv)
             </label>
@@ -629,7 +629,7 @@ export default function DevisPage() {
       </div>
 
       {/* Card 3: Chargement de Photos */}
-      <div className="tilt-card-3d bg-slate-900/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-8">
+      <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/80 rounded-[28px] p-6 md:p-8 backdrop-blur-md shadow-xl mb-8">
         <div className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-4">3. PHOTOS DU VÉHICULE OU DE LA PIÈCE (OPTIONNEL)</div>
         <input 
           type="file" 

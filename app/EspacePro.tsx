@@ -47,7 +47,7 @@ export default function EspacePro() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-950/60 backdrop-blur-md flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500" />
       </div>
     );
@@ -55,7 +55,7 @@ export default function EspacePro() {
 
   if (!session || !isPro) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-slate-950/60 backdrop-blur-md flex items-center justify-center px-4">
         <div className="text-center">
           <Wrench className="w-16 h-16 text-amber-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-white mb-2">Accès Réservé</h2>
@@ -119,7 +119,7 @@ export default function EspacePro() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-900/60 backdrop-blur-sm">
       {/* Header Pro */}
       <div className="bg-slate-800 border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
@@ -222,7 +222,7 @@ export default function EspacePro() {
             ) : (
               <div className="space-y-4">
                 {dbOrders.map((o) => (
-                  <div key={o.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                  <div key={o.id} className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-5">
                     <div className="flex justify-between items-start flex-wrap gap-4 border-b border-slate-800 pb-3 mb-3">
                       <div>
                         <h4 className="font-bold text-white font-mono text-sm">COMMANDE #{o.orderNumber}</h4>
@@ -289,7 +289,7 @@ export default function EspacePro() {
                           <select 
                             value={editStatus}
                             onChange={(e) => setEditStatus(e.target.value)}
-                            className="bg-slate-900 text-white text-xs p-2 rounded border border-slate-700 focus:outline-none"
+                            className="bg-slate-900/60 backdrop-blur-sm text-white text-xs p-2 rounded border border-slate-700 focus:outline-none"
                           >
                             <option value="PENDING">En attente de validation</option>
                             <option value="CONFIRMED">Confirmée / En préparation</option>
@@ -305,7 +305,7 @@ export default function EspacePro() {
                             type="text"
                             value={editTrackingNote}
                             onChange={(e) => setEditTrackingNote(e.target.value)}
-                            className="w-full bg-slate-900 text-white text-xs p-2.5 rounded border border-slate-700 focus:outline-none focus:border-amber-500"
+                            className="w-full bg-slate-900/60 backdrop-blur-sm text-white text-xs p-2.5 rounded border border-slate-700 focus:outline-none focus:border-amber-500"
                             placeholder="Entrez les instructions de livraison ou statut du colis..."
                           />
                         </div>

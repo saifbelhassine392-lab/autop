@@ -54,7 +54,7 @@ export default function PanierPage() {
   if (!session) {
     return (
       <div className="min-h-screen bg-[#070b13] text-white flex items-center justify-center p-4 text-center">
-        <div className="tilt-card-3d bg-slate-900/40 p-8 border border-slate-800 rounded-3xl max-w-md shadow-2xl backdrop-blur-md">
+        <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 p-8 border border-slate-800 rounded-3xl max-w-md shadow-2xl backdrop-blur-md">
           <ShoppingBag className="w-16 h-16 text-slate-500 mx-auto mb-4" />
           <h2 className="text-2xl font-black mb-3 uppercase tracking-wider text-3d-bold">Connexion Requise</h2>
           <p className="text-slate-400 mb-6 text-xs uppercase tracking-wide">Veuillez vous connecter pour accéder et commander votre panier.</p>
@@ -118,7 +118,7 @@ export default function PanierPage() {
   if (submittedOrder) {
     return (
       <div className="min-h-screen bg-[#070b13] text-white py-12 px-4 flex items-center justify-center">
-        <div className="neon-border-glow bg-slate-900/60 border border-slate-800 rounded-[32px] p-8 text-center shadow-2xl max-w-lg w-full backdrop-blur-md">
+        <div className="neon-border-glow bg-slate-900/60 backdrop-blur-sm/60 border border-slate-800 rounded-[32px] p-8 text-center shadow-2xl max-w-lg w-full backdrop-blur-md">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
           <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-widest text-3d-bold">Commande Enregistrée !</h2>
           <p className="text-xs text-slate-400 mb-6 uppercase tracking-wider">
@@ -176,7 +176,7 @@ export default function PanierPage() {
         </h1>
 
         {items.length === 0 ? (
-          <div className="tilt-card-3d bg-slate-900/40 p-12 border border-slate-800 rounded-[28px] text-center backdrop-blur-md shadow-2xl">
+          <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 p-12 border border-slate-800 rounded-[28px] text-center backdrop-blur-md shadow-2xl">
             <ShoppingBag className="w-16 h-16 text-slate-600 mx-auto mb-4" />
             <p className="text-slate-400 font-black uppercase tracking-wider text-xs">Votre panier est vide.</p>
             <Link href="/pieces" className="chrome-gloss inline-block bg-red-650 hover:bg-red-700 text-white px-6 py-3.5 rounded-xl font-black text-xs uppercase tracking-widest mt-6 transition-all shadow-md">
@@ -189,7 +189,7 @@ export default function PanierPage() {
             <div className="lg:col-span-2 space-y-6">
               
               {/* Items List */}
-              <div className="tilt-card-3d bg-slate-900/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl space-y-4">
+              <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl space-y-4">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">1. LISTE DES ARTICLES ({totalItems})</h3>
                 <div className="divide-y divide-slate-800/60">
                   {items.map((item) => (
@@ -245,7 +245,7 @@ export default function PanierPage() {
               </div>
 
               {/* Delivery method cards selection */}
-              <div className="tilt-card-3d bg-slate-900/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl">
+              <div className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">2. MODE DE LIVRAISON</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {[
@@ -281,7 +281,7 @@ export default function PanierPage() {
             <div className="space-y-6">
               
               {/* Shipping Form & Totals */}
-              <form onSubmit={handleCheckout} className="tilt-card-3d bg-slate-900/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl space-y-5">
+              <form onSubmit={handleCheckout} className="tilt-card-3d bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800 rounded-[28px] p-6 backdrop-blur-md shadow-xl space-y-5">
                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">3. INFORMATIONS DE COMMANDE</h3>
                 
                 {/* Address details */}
