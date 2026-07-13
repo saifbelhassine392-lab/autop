@@ -141,29 +141,28 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Insérer l'historique des fournisseurs
-    const historiqueData = [];
-    for (let i = 0; i < devis.items.length; i++) {
-      const createdItem = devis.items[i];
-      const sourceItem = items[i]; // correspond par index
-      
-      if (sourceItem.historique && (sourceItem.historique.oemSupplierId || sourceItem.historique.amSupplierId)) {
-        historiqueData.push({
-          devisId: devis.id,
-          devisItemId: createdItem.id,
-          oemSupplierId: sourceItem.historique.oemSupplierId || null,
-          oemPurchasePrice: sourceItem.historique.oemPurchasePrice || null,
-          oemSellingPrice: sourceItem.historique.oemSellingPrice || null,
-          amSupplierId: sourceItem.historique.amSupplierId || null,
-          amPurchasePrice: sourceItem.historique.amPurchasePrice || null,
-          amSellingPrice: sourceItem.historique.amSellingPrice || null,
-        });
+    // Insérer l'historique des prix via PartPriceHistory pour chaque offre
+    const priceHistoryData = [];
+    for (let i = 0; i < items.length; i++) {
+      const sourceItem = items[i];
+      if (sourceItem.reference && sourceItem.offres && Array.isArray(sourceItem.offres)) {
+        for (const offre of sourceItem.offres) {
+          if (offre.supplierId || offre.purchasePrice || offre.sellingPrice) {
+            priceHistoryData.push({
+              reference: sourceItem.reference.trim().toUpperCase(),
+              isConcessionnaire: offre.type === 'ORIGINE',
+              supplierId: offre.supplierId || null,
+              purchasePrice: parseFloat(offre.purchasePrice) || null,
+              sellingPrice: parseFloat(offre.sellingPrice) || null,
+            });
+          }
+        }
       }
     }
     
-    if (historiqueData.length > 0) {
-      await prisma.historiquePiece.createMany({
-        data: historiqueData
+    if (priceHistoryData.length > 0) {
+      await prisma.partPriceHistory.createMany({
+        data: priceHistoryData
       });
     }
 

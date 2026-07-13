@@ -1,7 +1,11 @@
+"use client"
 import Link from 'next/link'
-import { MapPin, Phone, Mail } from 'lucide-react'
+import { MapPin, Phone, Mail, User } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 
 export default function AccueilPage() {
+  const { data: session } = useSession();
+
   return (
     <div className="w-full h-screen flex items-center justify-center bg-slate-950 overflow-hidden">
       {/* Container taking full screen. Image will stretch to fill it, 
@@ -125,18 +129,39 @@ export default function AccueilPage() {
           style={{ top: '6%', left: '44%', width: '9%', height: '5%' }}
           title="Devis"
         />
-        <Link 
-          href="/connexion" 
-          className="absolute hover:bg-white/20 transition rounded-md"
-          style={{ top: '6%', left: '55%', width: '11%', height: '5%' }}
-          title="Connexion"
-        />
-        <Link 
-          href="/inscription" 
-          className="absolute hover:bg-white/20 transition rounded-md"
-          style={{ top: '6%', left: '67%', width: '11%', height: '5%' }}
-          title="S'inscrire"
-        />
+        
+        {session?.user ? (
+          <div 
+            className="absolute bg-white/10 backdrop-blur-md rounded-xl flex items-center px-[2%] gap-[5%] shadow-xl border border-white/20 hover:bg-white/20 transition"
+            style={{ top: '5%', left: '55%', width: '23%', height: '7%' }}
+          >
+            <div className="w-[15%] aspect-square bg-red-600 rounded-full flex items-center justify-center text-white font-black" style={{ fontSize: '1.2cqw' }}>
+              {session.user.name?.[0]?.toUpperCase() || <User className="w-1/2 h-1/2" />}
+            </div>
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <span className="text-white font-bold truncate tracking-wider" style={{ fontSize: '0.9cqw' }}>{session.user.name}</span>
+              <span className="text-red-400 font-black uppercase tracking-widest" style={{ fontSize: '0.6cqw' }}>En Ligne</span>
+            </div>
+            <Link href="/mes-devis" className="bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-lg transition flex items-center justify-center" style={{ fontSize: '0.7cqw', padding: '3% 6%' }}>
+              Espace
+            </Link>
+          </div>
+        ) : (
+          <>
+            <Link 
+              href="/connexion" 
+              className="absolute hover:bg-white/20 transition rounded-md"
+              style={{ top: '6%', left: '55%', width: '11%', height: '5%' }}
+              title="Connexion"
+            />
+            <Link 
+              href="/inscription" 
+              className="absolute hover:bg-white/20 transition rounded-md"
+              style={{ top: '6%', left: '67%', width: '11%', height: '5%' }}
+              title="S'inscrire"
+            />
+          </>
+        )}
 
         {/* The big bottom sign (SERVICE-OPTIONS) */}
         <div 

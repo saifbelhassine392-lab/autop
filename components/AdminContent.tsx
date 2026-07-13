@@ -234,22 +234,15 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       const res = await fetch(`/api/historique-prix?reference=${encodeURIComponent(reference)}`);
       const data = await res.json();
       if (data.success && data.data && data.data.length > 0) {
-        const conc = data.data.find((h: any) => h.isConcessionnaire);
-        const adapt = data.data.find((h: any) => !h.isConcessionnaire);
-        
         setItems(prev => prev.map((it, idx) => {
           if (idx !== index) return it;
-          const newHist = { ...it.historique };
-          if (conc) {
-            newHist.oemPurchasePrice = conc.purchasePrice || 0;
-            newHist.oemSellingPrice = conc.sellingPrice || 0;
-          }
-          if (adapt) {
-            newHist.amSupplierId = adapt.supplierId || '';
-            newHist.amPurchasePrice = adapt.purchasePrice || 0;
-            newHist.amSellingPrice = adapt.sellingPrice || 0;
-          }
-          return { ...it, historique: newHist };
+          const loadedOffres = data.data.map((h: any) => ({
+            type: h.isConcessionnaire ? 'ORIGINE' : 'ADAPTABLE',
+            supplierId: h.supplierId || '',
+            purchasePrice: h.purchasePrice || 0,
+            sellingPrice: h.sellingPrice || 0,
+          }));
+          return { ...it, offres: loadedOffres };
         }));
       }
     } catch (e) {
@@ -272,27 +265,39 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
   const handleB2BSearch = async (index: number) => {
     const it = items[index];
-    if (!it.reference || !it.historique?.amSupplierId) {
-      alert("Veuillez renseigner la référence et choisir un fournisseur adaptable (ex: STEQ).");
+    if (!it.reference) {
+      alert("Veuillez renseigner la référence de la pièce.");
       return;
     }
-    try {
-      const sup = suppliers.find(s => s.id === it.historique.amSupplierId);
-      if (!sup) return;
+    
+    // Trouver STEQ dans la liste des fournisseurs
+    const steqSupplier = suppliers.find(s => s.name.toUpperCase().includes('STEQ'));
+    if (!steqSupplier) {
+      alert("Le fournisseur STEQ n'a pas été trouvé dans votre base de données.");
+      return;
+    }
 
+    try {
       const res = await fetch('/api/b2b/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId: sup.id, reference: it.reference })
+        body: JSON.stringify({ supplierId: steqSupplier.id, reference: it.reference })
       });
       const data = await res.json();
+      
       if (data.success && data.data && !data.data.error) {
         const pPrice = data.data.price;
-        setItems(prev => prev.map((item, idx) => 
-          idx === index ? { ...item, historique: { ...item.historique, amPurchasePrice: pPrice } } : item
-        ));
-        savePriceHistory(it.reference, false, { supplierId: sup.id, purchasePrice: pPrice });
-        alert(`Prix B2B trouvé : ${pPrice} TND. Enregistré dans l'historique.`);
+        
+        // Ajouter la nouvelle offre trouvée
+        const newOffres = [...(it.offres || []), { 
+          type: 'ADAPTABLE', 
+          supplierId: steqSupplier.id, 
+          purchasePrice: pPrice, 
+          sellingPrice: pPrice * 1.3 // Suggestion: marge de 30% par défaut
+        }];
+        
+        updateLine(index, 'offres', newOffres);
+        alert(`Prix B2B trouvé chez STEQ : ${pPrice} TND. Ajouté aux offres.`);
       } else {
         alert(data.error || data.data?.error || "Erreur lors de la recherche B2B.");
       }
@@ -322,7 +327,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     }
   }, [quoteToLoad]);
 
-  const addLine = () => setItems(prev => [...prev, { designation: '', reference: '', qty: 1, puHT: 0, discount: 0 }]);
+  const addLine = () => setItems(prev => [...prev, { designation: '', reference: '', qty: 1, puHT: 0, discount: 0, offres: [] }]);
   const removeLine = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
   const updateLine = (i: number, field: string, val: any) =>
     setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it));
@@ -386,7 +391,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       setVehicle('');
       setVin('');
       setNotes('');
-      setItems([{ designation: '', reference: '', qty: 1, puHT: 0, discount: 0 }]);
+      setItems([{ designation: '', reference: '', qty: 1, puHT: 0, discount: 0, offres: [] }]);
       setGlobalDiscount(0);
       
       if (onClearQuote) onClearQuote();
@@ -558,62 +563,112 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                           )}
                         </div>
                         <div className="grid grid-cols-2 gap-6">
-                          {/* CONCESSIONNAIRE */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] text-amber-500 font-bold uppercase">CONCESSIONNAIRE (DAR)</span>
-                            <div className="flex gap-2">
-                              <select 
-                                className="flex-1 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-amber-500 focus:outline-none"
-                                value={it.historique?.oemSupplierId || ''}
-                                onChange={e => updateLine(i, 'historique', { ...it.historique, oemSupplierId: e.target.value })}
-                              >
-                                <option value="">Choisir fournisseur...</option>
-                                {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                              </select>
-                              <input type="number" placeholder="Prix Achat" className="w-20 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-amber-500 focus:outline-none"
-                                value={it.historique?.oemPurchasePrice || ''} onChange={e => updateLine(i, 'historique', { ...it.historique, oemPurchasePrice: parseFloat(e.target.value) || 0 })} />
-                              <input type="number" placeholder="Prix Vente" className="w-20 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-amber-500 focus:outline-none"
-                                value={it.historique?.oemSellingPrice || ''} onChange={e => updateLine(i, 'historique', { ...it.historique, oemSellingPrice: parseFloat(e.target.value) || 0 })} />
-                              <button 
-                                onClick={() => savePriceHistory(it.reference, true, { purchasePrice: it.historique?.oemPurchasePrice, sellingPrice: it.historique?.oemSellingPrice, supplierId: it.historique?.oemSupplierId })}
-                                title="Sauvegarder cet historique"
-                                className="px-2 bg-slate-800 text-slate-300 hover:text-green-400 rounded transition flex items-center justify-center"
-                              >
-                                ✓
-                              </button>
-                            </div>
-                          </div>
-                          {/* AFTERMARKET */}
-                          <div className="space-y-1.5">
-                            <span className="text-[10px] text-cyan-400 font-bold uppercase">ADAPTABLE (AFTERMARKET)</span>
+                          <div className="col-span-2">
                             <div className="flex flex-col gap-2">
-                              <div className="flex gap-2">
-                                <select 
-                                  className="flex-1 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-cyan-400 focus:outline-none"
-                                  value={it.historique?.amSupplierId || ''}
-                                  onChange={e => updateLine(i, 'historique', { ...it.historique, amSupplierId: e.target.value })}
-                                >
-                                  <option value="">Choisir fournisseur...</option>
-                                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                                <input type="number" placeholder="Prix Achat" className="w-20 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-cyan-400 focus:outline-none"
-                                  value={it.historique?.amPurchasePrice || ''} onChange={e => updateLine(i, 'historique', { ...it.historique, amPurchasePrice: parseFloat(e.target.value) || 0 })} />
-                                <input type="number" placeholder="Prix Vente" className="w-20 bg-slate-900 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-cyan-400 focus:outline-none"
-                                  value={it.historique?.amSellingPrice || ''} onChange={e => updateLine(i, 'historique', { ...it.historique, amSellingPrice: parseFloat(e.target.value) || 0 })} />
+                              {/* Header array */}
+                              {it.offres && it.offres.length > 0 && (
+                                <div className="grid grid-cols-12 gap-2 text-[9px] font-black uppercase text-slate-500 px-2 pb-1 border-b border-slate-800">
+                                  <div className="col-span-3">TYPE</div>
+                                  <div className="col-span-3">FOURNISSEUR</div>
+                                  <div className="col-span-2">PRIX ACHAT</div>
+                                  <div className="col-span-2">PRIX VENTE</div>
+                                  <div className="col-span-2 text-center">ACTION</div>
+                                </div>
+                              )}
+                              {/* Rows */}
+                              {it.offres?.map((offre: any, oIdx: number) => (
+                                <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-800 hover:border-slate-700 transition">
+                                  <div className="col-span-3">
+                                    <select 
+                                      className={`w-full text-xs px-2 py-1.5 rounded border focus:outline-none ${offre.type === 'ORIGINE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'}`}
+                                      value={offre.type}
+                                      onChange={(e) => {
+                                        const newOffres = [...it.offres];
+                                        newOffres[oIdx].type = e.target.value;
+                                        updateLine(i, 'offres', newOffres);
+                                      }}
+                                    >
+                                      <option value="ORIGINE">ORIGINE (DAR)</option>
+                                      <option value="ADAPTABLE">ADAPTABLE</option>
+                                    </select>
+                                  </div>
+                                  <div className="col-span-3">
+                                    <select 
+                                      className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none"
+                                      value={offre.supplierId}
+                                      onChange={(e) => {
+                                        const newOffres = [...it.offres];
+                                        newOffres[oIdx].supplierId = e.target.value;
+                                        updateLine(i, 'offres', newOffres);
+                                      }}
+                                    >
+                                      <option value="">Fournisseur...</option>
+                                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <input type="number" placeholder="Achat HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right"
+                                      value={offre.purchasePrice || ''} 
+                                      onChange={(e) => {
+                                        const newOffres = [...it.offres];
+                                        newOffres[oIdx].purchasePrice = parseFloat(e.target.value) || 0;
+                                        updateLine(i, 'offres', newOffres);
+                                      }} />
+                                  </div>
+                                  <div className="col-span-2">
+                                    <input type="number" placeholder="Vente HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-bold text-green-400"
+                                      value={offre.sellingPrice || ''} 
+                                      onChange={(e) => {
+                                        const newOffres = [...it.offres];
+                                        newOffres[oIdx].sellingPrice = parseFloat(e.target.value) || 0;
+                                        updateLine(i, 'offres', newOffres);
+                                      }} />
+                                  </div>
+                                  <div className="col-span-2 flex items-center justify-end gap-1">
+                                    <button 
+                                      onClick={() => {
+                                        updateLine(i, 'puHT', offre.sellingPrice);
+                                        const extra = offre.type === 'ORIGINE' ? ' (ORIGINE)' : ' (ADAPTABLE)';
+                                        if (!it.designation.includes(extra)) {
+                                          updateLine(i, 'designation', it.designation.replace(/ \(ORIGINE\)| \(ADAPTABLE\)/g, '') + extra);
+                                        }
+                                      }}
+                                      title="Appliquer ce prix de vente au devis"
+                                      className="flex-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white text-[9px] font-black px-2 py-1.5 rounded transition uppercase text-center border border-green-600/30"
+                                    >
+                                      CHOISIR
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        const newOffres = it.offres.filter((_: any, idx: number) => idx !== oIdx);
+                                        updateLine(i, 'offres', newOffres);
+                                      }}
+                                      className="p-1.5 bg-red-950/50 hover:bg-red-900 text-red-400 rounded transition border border-red-900/30"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* Controls */}
+                              <div className="flex gap-2 mt-1">
                                 <button 
-                                  onClick={() => savePriceHistory(it.reference, false, { purchasePrice: it.historique?.amPurchasePrice, sellingPrice: it.historique?.amSellingPrice, supplierId: it.historique?.amSupplierId })}
-                                  title="Sauvegarder cet historique"
-                                  className="px-2 bg-slate-800 text-slate-300 hover:text-green-400 rounded transition flex items-center justify-center"
+                                  onClick={() => {
+                                    const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, sellingPrice: 0 }];
+                                    updateLine(i, 'offres', newOffres);
+                                  }}
+                                  className="text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1"
                                 >
-                                  ✓
+                                  <Plus className="w-3 h-3" /> AJOUTER OFFRE FOURNISSEUR
+                                </button>
+                                <button 
+                                  onClick={() => handleB2BSearch(i)}
+                                  className="text-[10px] bg-indigo-900/40 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-white px-3 py-1.5 rounded font-bold uppercase transition text-center"
+                                >
+                                  CHERCHER AUTO B2B
                                 </button>
                               </div>
-                              <button 
-                                onClick={() => handleB2BSearch(i)}
-                                className="w-full text-[9px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-2 py-1.5 rounded font-bold uppercase transition text-center"
-                              >
-                                Chercher prix B2B (Auto-Save)
-                              </button>
                             </div>
                           </div>
                         </div>
