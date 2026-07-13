@@ -216,7 +216,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       setCatalogue(Array.isArray(d) ? d : d.data || []);
     }).catch(() => {});
     fetch('/api/suppliers').then(r => r.json()).then(d => {
-      setSuppliers(Array.isArray(d) ? d : []);
+      setSuppliers(Array.isArray(d) ? d : (d.data || []));
     }).catch(() => {});
   }, []);
 
@@ -588,7 +588,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                         updateLine(i, 'offres', newOffres);
                                       }}
                                     >
-                                      <option value="ORIGINE">ORIGINE (DAR)</option>
+                                      <option value="ORIGINE">CONCESSIONNAIRE</option>
                                       <option value="ADAPTABLE">ADAPTABLE</option>
                                     </select>
                                   </div>
@@ -628,10 +628,6 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                     <button 
                                       onClick={() => {
                                         updateLine(i, 'puHT', offre.sellingPrice);
-                                        const extra = offre.type === 'ORIGINE' ? ' (ORIGINE)' : ' (ADAPTABLE)';
-                                        if (!it.designation.includes(extra)) {
-                                          updateLine(i, 'designation', it.designation.replace(/ \(ORIGINE\)| \(ADAPTABLE\)/g, '') + extra);
-                                        }
                                       }}
                                       title="Appliquer ce prix de vente au devis"
                                       className="flex-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white text-[9px] font-black px-2 py-1.5 rounded transition uppercase text-center border border-green-600/30"
