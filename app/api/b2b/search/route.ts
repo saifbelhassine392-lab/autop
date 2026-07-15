@@ -174,6 +174,40 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: searchResult.error }, { status: 400 });
     }
 
+    if (searchResult && !searchResult.error && searchResult.items && searchResult.items.length > 0) {
+      try {
+        let category = await prisma.category.findFirst();
+        if (!category) {
+          category = await prisma.category.create({ data: { name: 'Général', slug: 'general' } });
+        }
+        for (const item of searchResult.items) {
+          if (!item.name) continue;
+          const ref = item.name.toUpperCase();
+          const existing = await prisma.product.findFirst({
+            where: { OR: [{ reference: ref }, { sku: ref }] }
+          });
+          if (!existing) {
+            await prisma.product.create({
+              data: {
+                sku: ref,
+                reference: ref,
+                name: `ARTICLE ${ref}`,
+                slug: `article-${ref.toLowerCase()}-${Date.now()}`,
+                price: item.price || 0,
+                costPrice: (item.price || 0) * 0.8,
+                stock: 0,
+                brand: item.brand || null,
+                categoryId: category.id,
+                status: 'ACTIVE'
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Auto-register error:", e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       data: searchResult

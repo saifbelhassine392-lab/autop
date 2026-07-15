@@ -568,17 +568,18 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                               {/* Header array */}
                               {it.offres && it.offres.length > 0 && (
                                 <div className="grid grid-cols-12 gap-2 text-[9px] font-black uppercase text-slate-500 px-2 pb-1 border-b border-slate-800">
-                                  <div className="col-span-3">TYPE</div>
+                                  <div className="col-span-2">TYPE</div>
                                   <div className="col-span-3">FOURNISSEUR</div>
-                                  <div className="col-span-2">PRIX ACHAT</div>
-                                  <div className="col-span-2">PRIX VENTE</div>
+                                  <div className="col-span-2">ACHAT HT</div>
+                                  <div className="col-span-1 text-center">REM %</div>
+                                  <div className="col-span-2">VENTE HT</div>
                                   <div className="col-span-2 text-center">ACTION</div>
                                 </div>
                               )}
                               {/* Rows */}
                               {it.offres?.map((offre: any, oIdx: number) => (
                                 <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-800 hover:border-slate-700 transition">
-                                  <div className="col-span-3">
+                                  <div className="col-span-2">
                                     <select 
                                       className={`w-full text-xs px-2 py-1.5 rounded border focus:outline-none ${offre.type === 'ORIGINE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'}`}
                                       value={offre.type}
@@ -612,6 +613,15 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                       onChange={(e) => {
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].purchasePrice = parseFloat(e.target.value) || 0;
+                                        updateLine(i, 'offres', newOffres);
+                                      }} />
+                                  </div>
+                                  <div className="col-span-1">
+                                    <input type="number" placeholder="%" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-center"
+                                      value={offre.discount || ''} 
+                                      onChange={(e) => {
+                                        const newOffres = [...it.offres];
+                                        newOffres[oIdx].discount = parseFloat(e.target.value) || 0;
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
@@ -651,7 +661,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                               <div className="flex gap-2 mt-1">
                                 <button 
                                   onClick={() => {
-                                    const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, sellingPrice: 0 }];
+                                    const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, discount: 0, sellingPrice: 0 }];
                                     updateLine(i, 'offres', newOffres);
                                   }}
                                   className="text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1"

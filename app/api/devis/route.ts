@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
       let productId = null;
 
       if (reference) {
-        let product = await prisma.product.findUnique({
-          where: { reference }
+        let product = await prisma.product.findFirst({
+          where: { OR: [{ reference }, { sku: reference }] }
         });
 
         if (!product) {
