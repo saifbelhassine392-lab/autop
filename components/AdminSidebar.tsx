@@ -244,20 +244,20 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                 <button
                   key={item.id}
                   onClick={() => setAdminSection(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide mb-0.5 transition-all duration-150 group ${
+                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider mb-1.5 transition-all duration-150 border group ${
                     isActive
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-500/20'
-                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-600/30 font-black'
+                      : 'bg-slate-900/90 text-slate-100 border-slate-800 hover:bg-slate-800 hover:text-white hover:border-slate-600'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
-                  <span className="flex-1 text-left">{item.label}</span>
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-red-400 group-hover:text-red-300'}`} />
+                  <span className={`flex-1 text-left font-black tracking-wide ${isActive ? 'text-white' : 'text-slate-100'}`}>{item.label}</span>
                   {badgeVal !== undefined && badgeVal > 0 && (
-                    <span className={`${item.badgeColor} text-white text-[9px] px-1.5 py-0.5 rounded-full font-black min-w-[18px] text-center`}>
+                    <span className={`${item.badgeColor || 'bg-red-600'} text-white text-[9px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow`}>
                       {badgeVal}
                     </span>
                   )}
-                  {isActive && <ChevronRight className="w-3 h-3 ml-auto flex-shrink-0" />}
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0 text-white" />}
                 </button>
               );
             })}

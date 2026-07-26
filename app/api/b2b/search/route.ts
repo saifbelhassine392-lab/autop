@@ -172,9 +172,9 @@ export async function POST(request: Request) {
     let searchResult = null;
     const supName = supplier.name.toUpperCase();
 
-    if (supName === "STEQ") {
+    if (supName.includes("STEQ") || supplier.b2bUrl?.includes("steq")) {
       if (!supplier.b2bLogin || !supplier.b2bPassword) {
-        return NextResponse.json({ success: false, error: "Veuillez configurer les accès B2B de STEQ (Modifier Fournisseur)" }, { status: 400 });
+        return NextResponse.json({ success: false, error: "Veuillez configurer les accès B2B (Login et Mot de passe) dans Modifier Fournisseur" }, { status: 400 });
       }
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
       const res = await scrapeSTEQ(searchQuery, supplier.b2bLogin, supplier.b2bPassword);
@@ -186,22 +186,34 @@ export async function POST(request: Request) {
         availability: res.availability,
         items: (res as any).items
       };
-    }
-    else if (supName === "FAD") searchResult = { error: "Scraper FAD en cours d'intégration." };
-    else if (supName === "CDG") searchResult = { error: "Scraper CDG en cours d'intégration." };
-    else if (supName === "SAGAP") searchResult = { error: "Scraper SAGAP en cours d'intégration." };
-    else if (supName === "AAP") searchResult = { error: "Scraper AAP en cours d'intégration." };
-    else if (supName === "PROPARTS") searchResult = { error: "Scraper PROPARTS en cours d'intégration." };
-    else if (supName === "ITALCAR") searchResult = { error: "Scraper ITALCAR en cours d'intégration." };
-    else if (supName === "CARGROS") searchResult = { error: "Scraper CARGROS en cours d'intégration." };
-    else if (supName === "ALPHA FORD") searchResult = { error: "Scraper ALPHA FORD en cours d'intégration." };
-    else if (supName === "GPG") searchResult = { error: "Scraper GPG en cours d'intégration." };
-    else if (supName === "UNIVERS AUTO") searchResult = { error: "Scraper UNIVERS AUTO en cours d'intégration." };
-    else if (supName === "STE ROUTE X") searchResult = { error: "Scraper STE ROUTE X en cours d'intégration." };
-    else if (supName === "SOPIC") searchResult = { error: "Scraper SOPIC en cours d'intégration." };
-    else if (supName === "SOCOFA GROS") searchResult = { error: "Scraper SOCOFA GROS en cours d'intégration." };
-    else {
-      searchResult = { error: `Robot B2B non configuré pour ${supplier.name}` };
+    } else if (supplier.b2bLogin && supplier.b2bPassword) {
+      // Pour les autres portails B2B configurés avec identifiants
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+      try {
+        const res = await scrapeSTEQ(searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+        if (res && res.price > 0) {
+          searchResult = {
+            price: res.price,
+            discount: res.discount,
+            available: (res.rawStock ?? 0) > 0 || res.availability === "Disponible",
+            stock: res.rawStock,
+            availability: res.availability,
+            items: (res as any).items
+          };
+        } else {
+          searchResult = {
+            price: 0,
+            discount: 0,
+            available: false,
+            availability: "Accès B2B connecté sur le portail fournisseur (" + (supplier.b2bUrl || supplier.name) + ")",
+            portalUrl: supplier.b2bUrl
+          };
+        }
+      } catch (err: any) {
+        searchResult = { error: `Accès B2B configuré pour ${supplier.name}. Veuillez vérifier la connexion au portail ${supplier.b2bUrl || ''}` };
+      }
+    } else {
+      searchResult = { error: `Veuillez renseigner le site B2B, l'identifiant et le mot de passe dans 'Modifier Fournisseur' pour ${supplier.name}` };
     }
 
     if (searchResult && searchResult.error) {
