@@ -367,39 +367,26 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
   const handleApplySynthese = (updatedRows: any[]) => {
     setItems(prev => prev.map(it => {
-      if (!it.reference) return it;
-      const refUpper = it.reference.trim().toUpperCase();
-      const match = updatedRows.find((r: any) => r.reference === refUpper);
+      const refUpper = (it.reference || '').trim().toUpperCase();
+      const match = updatedRows.find((r: any) => (refUpper && r.reference === refUpper) || (r.designation && r.designation === it.designation));
       if (!match) return it;
 
-      let newPuHT = it.puHT;
-      if (match.selectOem && match.bestOemPrice) {
-        newPuHT = parseFloat(match.bestOemPrice) || it.puHT;
-      } else if (match.selectAdaptable && match.bestAdaptablePrice) {
-        newPuHT = parseFloat(match.bestAdaptablePrice) || it.puHT;
-      }
+      const newPuHT = parseFloat(String(match.sellingPrice)) || it.puHT;
+      const purchasePrice = parseFloat(String(match.purchasePrice)) || 0;
 
       const updatedOffres = [...(it.offres || [])];
-      if (match.bestOemPrice) {
-        const oIdx = updatedOffres.findIndex((o: any) => o.type === 'ORIGINE');
-        if (oIdx >= 0) {
-          updatedOffres[oIdx].sellingPrice = parseFloat(match.bestOemPrice);
-        } else {
-          updatedOffres.push({ type: 'ORIGINE', supplierId: '', purchasePrice: parseFloat(match.bestOemPrice), sellingPrice: parseFloat(match.bestOemPrice) });
-        }
-      }
-      if (match.bestAdaptablePrice) {
-        const aIdx = updatedOffres.findIndex((o: any) => o.type === 'ADAPTABLE');
-        if (aIdx >= 0) {
-          updatedOffres[aIdx].sellingPrice = parseFloat(match.bestAdaptablePrice);
-        } else {
-          updatedOffres.push({ type: 'ADAPTABLE', supplierId: '', purchasePrice: parseFloat(match.bestAdaptablePrice), sellingPrice: parseFloat(match.bestAdaptablePrice) });
-        }
+      const type = match.selectOem ? 'ORIGINE' : 'ADAPTABLE';
+      const oIdx = updatedOffres.findIndex((o: any) => o.type === type);
+      if (oIdx >= 0) {
+        updatedOffres[oIdx].sellingPrice = newPuHT;
+        updatedOffres[oIdx].purchasePrice = purchasePrice;
+      } else {
+        updatedOffres.push({ type, supplierId: '', purchasePrice, sellingPrice: newPuHT });
       }
 
       return { ...it, puHT: newPuHT, offres: updatedOffres };
     }));
-    alert("✅ Synthèse enregistrée en base de données d'articles et appliquée au devis !");
+    alert("✅ Rapport de devis validé ! Prix d'achat, prix de vente et offres enregistrés en base d'articles.");
   };
 
   const handlePrintPDF = () => {
@@ -824,6 +811,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
       {showSynthese && (
         <ModalSyntheseOffres
+          quoteNumber={quoteToLoad?.id ? quoteToLoad.id.slice(-6).toUpperCase() : undefined}
           items={items}
           suppliers={suppliers}
           onClose={() => setShowSynthese(false)}

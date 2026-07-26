@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, ArrowLeft, ArrowRight, BarChart2, Save } from 'lucide-react';
+import { X, Check, ArrowLeft, BarChart2, Save, TrendingUp, DollarSign } from 'lucide-react';
 
 export interface SyntheseRowData {
   reference: string;
   designation: string;
   pvp: number | string;
+  purchasePrice: number | string;  // Prix d'achat fournisseur HT
+  sellingPrice: number | string;   // Prix de vente client HT
+  supplierName: string;            // Fournisseur sélectionné
   bestOemPrice: number | string;
   oemSupplierName: string;
   bestAdaptablePrice: number | string;
@@ -16,13 +19,14 @@ export interface SyntheseRowData {
 }
 
 interface ModalSyntheseOffresProps {
+  quoteNumber?: string;
   items: any[];
   suppliers: any[];
   onClose: () => void;
   onApply: (updatedRows: SyntheseRowData[]) => void;
 }
 
-export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply }: ModalSyntheseOffresProps) {
+export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onClose, onApply }: ModalSyntheseOffresProps) {
   const [rows, setRows] = useState<SyntheseRowData[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,8 +34,8 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      const validItems = items.filter(it => it.reference?.trim());
-      const refs = validItems.map(it => it.reference.trim().toUpperCase());
+      const validItems = items.filter(it => it.reference?.trim() || it.designation?.trim());
+      const refs = validItems.map(it => it.reference?.trim().toUpperCase()).filter(Boolean);
 
       let historyData: Record<string, any[]> = {};
 
@@ -52,7 +56,7 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
       }
 
       const initialRows: SyntheseRowData[] = validItems.map(it => {
-        const ref = it.reference.trim().toUpperCase();
+        const ref = (it.reference || '').trim().toUpperCase();
         const histories = historyData[ref] || [];
 
         // Extraire PVP (Concessionnaire)
@@ -65,7 +69,6 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
           ? oemHistories.reduce((min: any, cur: any) => ((cur.sellingPrice || cur.purchasePrice || 999999) < (min.sellingPrice || min.purchasePrice || 999999) ? cur : min), oemHistories[0])
           : null;
         
-        // Extraire depuis it.offres local si non trouvé
         const localOemOffre = it.offres?.find((o: any) => o.type === 'ORIGINE');
         const bestOemPrice = bestOemRecord?.sellingPrice || bestOemRecord?.purchasePrice || localOemOffre?.sellingPrice || localOemOffre?.purchasePrice || '';
         const oemSupplierName = bestOemRecord?.supplierName || bestOemRecord?.supplier?.name || (suppliers.find(s => s.id === localOemOffre?.supplierId)?.name) || 'SOPIQ';
@@ -80,16 +83,24 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
         const bestAdaptablePrice = bestAdaptableRecord?.sellingPrice || bestAdaptableRecord?.purchasePrice || localAdaptableOffre?.sellingPrice || localAdaptableOffre?.purchasePrice || '';
         const adaptableSupplierName = bestAdaptableRecord?.supplierName || bestAdaptableRecord?.supplier?.name || (suppliers.find(s => s.id === localAdaptableOffre?.supplierId)?.name) || 'SOPIQ';
 
+        // Prix d'achat & vente actuels de la ligne
+        const currentSelling = it.puHT || bestAdaptablePrice || bestOemPrice || 0;
+        const currentPurchase = localAdaptableOffre?.purchasePrice || localOemOffre?.purchasePrice || (currentSelling * 0.7) || 0;
+        const currentSupplier = (localAdaptableOffre ? adaptableSupplierName : oemSupplierName) || 'SOPIQ';
+
         return {
-          reference: ref,
+          reference: ref || 'SANS-REF',
           designation: it.designation || 'Article',
           pvp: pvpVal,
+          purchasePrice: currentPurchase ? Number(currentPurchase).toFixed(2) : '',
+          sellingPrice: currentSelling ? Number(currentSelling).toFixed(2) : '',
+          supplierName: currentSupplier,
           bestOemPrice: bestOemPrice,
           oemSupplierName: bestOemPrice ? oemSupplierName : '',
           bestAdaptablePrice: bestAdaptablePrice,
           adaptableSupplierName: bestAdaptablePrice ? adaptableSupplierName : '',
           selectOem: false,
-          selectAdaptable: false,
+          selectAdaptable: true,
         };
       });
 
@@ -104,11 +115,20 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
     setRows(prev => prev.map((r, idx) => {
       if (idx !== index) return r;
       const updated = { ...r, [field]: value };
+      
       if (field === 'selectOem' && value === true) {
         updated.selectAdaptable = false;
+        if (updated.bestOemPrice) {
+          updated.sellingPrice = updated.bestOemPrice;
+          if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
+        }
       }
       if (field === 'selectAdaptable' && value === true) {
         updated.selectOem = false;
+        if (updated.bestAdaptablePrice) {
+          updated.sellingPrice = updated.bestAdaptablePrice;
+          if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
+        }
       }
       return updated;
     }));
@@ -138,160 +158,225 @@ export default function ModalSyntheseOffres({ items, suppliers, onClose, onApply
     }
   };
 
+  // Calculs du rapport global de devis
+  const totalAchat = rows.reduce((sum, r) => sum + (parseFloat(String(r.purchasePrice)) || 0), 0);
+  const totalVente = rows.reduce((sum, r) => sum + (parseFloat(String(r.sellingPrice)) || 0), 0);
+  const margeTND = totalVente - totalAchat;
+  const margePourcent = totalVente > 0 ? (margeTND / totalVente) * 100 : 0;
+
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 font-sans animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-5xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header (Fidèle à la photo) */}
-        <div className="bg-gradient-to-r from-slate-950 via-blue-950 to-slate-950 px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+    <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-3 font-sans animate-fadeIn">
+      <div className="bg-slate-900 border-2 border-blue-500/80 rounded-2xl max-w-6xl w-full overflow-hidden shadow-[0_0_50px_rgba(37,99,235,0.3)] flex flex-col max-h-[92vh]">
+        
+        {/* Header Ultra-Lisible */}
+        <div className="bg-blue-600 px-6 py-4 border-b border-blue-500 flex items-center justify-between shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <BarChart2 className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shadow-inner">
+              <BarChart2 className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-white tracking-wide">
-              Synthèse meilleures offres
-            </h3>
+            <div>
+              <h3 className="text-xl font-black text-white uppercase tracking-wider">
+                SYNTHÈSE & RAPPORT DES OFFRES DEVIS {quoteNumber ? `#${quoteNumber}` : ''}
+              </h3>
+              <p className="text-blue-100 text-xs font-bold uppercase tracking-wide">
+                Examinez les offres, validez le prix d'achat et de vente et enregistrez en base d'articles
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+            className="text-white hover:bg-white/20 p-2 rounded-xl transition font-black text-lg"
+            title="Fermer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
+        {/* Dynamic Profit Margin Summary Banner */}
+        <div className="bg-slate-950 px-6 py-3 border-b border-slate-800 grid grid-cols-3 gap-4 text-center">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+            <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">TOTAL ACHAT FOURNISSEUR HT</span>
+            <span className="block font-mono font-black text-amber-400 text-base">{totalAchat.toFixed(2)} TND</span>
+          </div>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-2.5">
+            <span className="block text-[10px] font-black uppercase tracking-widest text-slate-400">TOTAL VENTE CLIENT HT</span>
+            <span className="block font-mono font-black text-cyan-400 text-base">{totalVente.toFixed(2)} TND</span>
+          </div>
+          <div className="bg-slate-900 border border-emerald-500/40 bg-emerald-950/20 rounded-xl p-2.5">
+            <span className="block text-[10px] font-black uppercase tracking-widest text-emerald-400">MARGE BENÉFICIAIRE GLOALE</span>
+            <span className="block font-mono font-black text-emerald-400 text-base">
+              +{margeTND.toFixed(2)} TND ({margePourcent.toFixed(1)}%)
+            </span>
+          </div>
+        </div>
+
         {/* Content Body */}
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-5 overflow-y-auto flex-1 bg-slate-950">
           {loading ? (
-            <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-widest text-xs animate-pulse">
-              Chargement de l'historique et des meilleures offres...
+            <div className="text-center py-16 text-blue-400 font-black uppercase tracking-widest text-sm animate-pulse">
+              Chargement de l'historique des prix et synthèses d'offres...
             </div>
           ) : rows.length === 0 ? (
-            <div className="text-center py-16 text-slate-500 font-bold uppercase tracking-wider text-xs">
-              Veuillez renseigner au moins une référence dans le devis pour afficher la synthèse.
+            <div className="text-center py-16 text-slate-400 font-bold uppercase tracking-wider text-xs">
+              Veuillez renseigner au moins une référence dans le devis pour générer la synthèse.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-blue-900/50 shadow-inner">
+            <div className="overflow-x-auto rounded-xl border border-slate-700 shadow-2xl">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-blue-600 text-white font-bold uppercase tracking-wider border-b border-blue-700">
-                    <th className="py-3 px-4">Référence</th>
-                    <th className="py-3 px-3 text-right">PVP</th>
-                    <th className="py-3 px-3 text-right">Meilleur OEM</th>
-                    <th className="py-3 px-3">Fourn. OEM</th>
-                    <th className="py-3 px-3 text-right">Meilleur Adaptable</th>
-                    <th className="py-3 px-3">Fourn. Adaptable</th>
+                  <tr className="bg-blue-600 text-white font-black text-xs uppercase tracking-wider border-b border-blue-500">
+                    <th className="py-3 px-3">RÉFÉRENCE</th>
+                    <th className="py-3 px-3 text-right">PVP (TND)</th>
+                    <th className="py-3 px-3 text-right bg-amber-600/30">MEILLEUR OEM</th>
+                    <th className="py-3 px-3 bg-amber-600/30">FOURN. OEM</th>
+                    <th className="py-3 px-3 text-right bg-cyan-600/30">MEILLEUR ADAPTABLE</th>
+                    <th className="py-3 px-3 bg-cyan-600/30">FOURN. ADAPTABLE</th>
+                    <th className="py-3 px-3 text-right bg-emerald-600/40">P. ACHAT HT</th>
+                    <th className="py-3 px-3 text-right bg-emerald-600/40">P. VENTE HT</th>
                     <th className="py-3 px-2 text-center">☑ OEM</th>
-                    <th className="py-3 px-2 text-center">☑ Adaptable</th>
+                    <th className="py-3 px-2 text-center">☑ ADAPTABLE</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 bg-slate-950/60">
-                  {rows.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-blue-950/20 transition-colors">
-                      {/* Référence */}
-                      <td className="py-3 px-4 font-mono font-bold text-white tracking-wide">
-                        {row.reference}
-                      </td>
+                <tbody className="divide-y divide-slate-800 bg-slate-900 text-slate-100">
+                  {rows.map((row, idx) => {
+                    const lineAchat = parseFloat(String(row.purchasePrice)) || 0;
+                    const lineVente = parseFloat(String(row.sellingPrice)) || 0;
+                    const lineMarge = lineVente - lineAchat;
 
-                      {/* PVP */}
-                      <td className="py-3 px-3 text-right">
-                        <input
-                          type="number"
-                          step={0.01}
-                          placeholder="-"
-                          value={row.pvp}
-                          onChange={e => updateRow(idx, 'pvp', e.target.value)}
-                          className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-slate-200 font-mono focus:outline-none focus:border-blue-500"
-                        />
-                      </td>
+                    return (
+                      <tr key={idx} className="hover:bg-slate-800/80 transition-colors">
+                        {/* Référence */}
+                        <td className="py-3 px-3">
+                          <span className="font-mono font-black text-white block text-xs">{row.reference}</span>
+                          <span className="text-[10px] text-slate-400 truncate max-w-[130px] block">{row.designation}</span>
+                        </td>
 
-                      {/* Meilleur OEM */}
-                      <td className="py-3 px-3 text-right font-mono font-bold text-amber-400">
-                        <input
-                          type="number"
-                          step={0.01}
-                          placeholder="-"
-                          value={row.bestOemPrice}
-                          onChange={e => updateRow(idx, 'bestOemPrice', e.target.value)}
-                          className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-amber-400 font-mono focus:outline-none focus:border-blue-500"
-                        />
-                      </td>
+                        {/* PVP */}
+                        <td className="py-3 px-3 text-right">
+                          <input
+                            type="number"
+                            step={0.01}
+                            placeholder="0.00"
+                            value={row.pvp}
+                            onChange={e => updateRow(idx, 'pvp', e.target.value)}
+                            className="w-20 bg-slate-950 text-white font-mono font-bold border border-slate-700 rounded px-2 py-1.5 text-right focus:border-blue-400 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* Fourn. OEM */}
-                      <td className="py-3 px-3">
-                        <input
-                          type="text"
-                          placeholder="Ex: SOPIQ"
-                          value={row.oemSupplierName}
-                          onChange={e => updateRow(idx, 'oemSupplierName', e.target.value)}
-                          className="w-28 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 uppercase font-semibold focus:outline-none focus:border-blue-500"
-                        />
-                      </td>
+                        {/* Meilleur OEM */}
+                        <td className="py-3 px-3 text-right bg-amber-950/20">
+                          <input
+                            type="number"
+                            step={0.01}
+                            placeholder="0.00"
+                            value={row.bestOemPrice}
+                            onChange={e => updateRow(idx, 'bestOemPrice', e.target.value)}
+                            className="w-20 bg-slate-950 text-amber-400 font-mono font-bold border border-amber-500/40 rounded px-2 py-1.5 text-right focus:border-amber-400 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* Meilleur Adaptable */}
-                      <td className="py-3 px-3 text-right font-mono font-bold text-cyan-400">
-                        <input
-                          type="number"
-                          step={0.01}
-                          placeholder="-"
-                          value={row.bestAdaptablePrice}
-                          onChange={e => updateRow(idx, 'bestAdaptablePrice', e.target.value)}
-                          className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-right text-cyan-400 font-mono focus:outline-none focus:border-blue-500"
-                        />
-                      </td>
+                        {/* Fourn. OEM */}
+                        <td className="py-3 px-3 bg-amber-950/20">
+                          <input
+                            type="text"
+                            placeholder="SOPIQ"
+                            value={row.oemSupplierName}
+                            onChange={e => updateRow(idx, 'oemSupplierName', e.target.value)}
+                            className="w-24 bg-slate-950 text-slate-200 uppercase font-bold text-xs border border-slate-700 rounded px-2 py-1.5 focus:border-blue-400 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* Fourn. Adaptable */}
-                      <td className="py-3 px-3">
-                        <input
-                          type="text"
-                          placeholder="Ex: SOPIQ"
-                          value={row.adaptableSupplierName}
-                          onChange={e => updateRow(idx, 'adaptableSupplierName', e.target.value)}
-                          className="w-28 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 uppercase font-semibold focus:outline-none focus:border-blue-500"
-                        />
-                      </td>
+                        {/* Meilleur Adaptable */}
+                        <td className="py-3 px-3 text-right bg-cyan-950/20">
+                          <input
+                            type="number"
+                            step={0.01}
+                            placeholder="0.00"
+                            value={row.bestAdaptablePrice}
+                            onChange={e => updateRow(idx, 'bestAdaptablePrice', e.target.value)}
+                            className="w-20 bg-slate-950 text-cyan-400 font-mono font-bold border border-cyan-500/40 rounded px-2 py-1.5 text-right focus:border-cyan-400 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* Checkbox OEM */}
-                      <td className="py-3 px-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={row.selectOem}
-                          onChange={e => updateRow(idx, 'selectOem', e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded bg-slate-900 border-slate-700 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </td>
+                        {/* Fourn. Adaptable */}
+                        <td className="py-3 px-3 bg-cyan-950/20">
+                          <input
+                            type="text"
+                            placeholder="SOPIQ"
+                            value={row.adaptableSupplierName}
+                            onChange={e => updateRow(idx, 'adaptableSupplierName', e.target.value)}
+                            className="w-24 bg-slate-950 text-slate-200 uppercase font-bold text-xs border border-slate-700 rounded px-2 py-1.5 focus:border-blue-400 focus:outline-none"
+                          />
+                        </td>
 
-                      {/* Checkbox Adaptable */}
-                      <td className="py-3 px-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={row.selectAdaptable}
-                          onChange={e => updateRow(idx, 'selectAdaptable', e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded bg-slate-900 border-slate-700 focus:ring-blue-500 cursor-pointer"
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Prix Achat HT retenu */}
+                        <td className="py-3 px-3 text-right bg-emerald-950/20">
+                          <input
+                            type="number"
+                            step={0.01}
+                            placeholder="0.00"
+                            value={row.purchasePrice}
+                            onChange={e => updateRow(idx, 'purchasePrice', e.target.value)}
+                            className="w-20 bg-slate-950 text-amber-300 font-mono font-bold border border-emerald-500/50 rounded px-2 py-1.5 text-right focus:border-emerald-400 focus:outline-none"
+                          />
+                        </td>
+
+                        {/* Prix Vente HT retenu */}
+                        <td className="py-3 px-3 text-right bg-emerald-950/20">
+                          <input
+                            type="number"
+                            step={0.01}
+                            placeholder="0.00"
+                            value={row.sellingPrice}
+                            onChange={e => updateRow(idx, 'sellingPrice', e.target.value)}
+                            className="w-20 bg-slate-950 text-green-400 font-mono font-black border border-emerald-500/50 rounded px-2 py-1.5 text-right focus:border-emerald-400 focus:outline-none"
+                          />
+                        </td>
+
+                        {/* Checkbox OEM */}
+                        <td className="py-3 px-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={row.selectOem}
+                            onChange={e => updateRow(idx, 'selectOem', e.target.checked)}
+                            className="w-5 h-5 text-blue-600 rounded bg-slate-950 border-slate-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+
+                        {/* Checkbox Adaptable */}
+                        <td className="py-3 px-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={row.selectAdaptable}
+                            onChange={e => updateRow(idx, 'selectAdaptable', e.target.checked)}
+                            className="w-5 h-5 text-blue-600 rounded bg-slate-950 border-slate-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
 
-        {/* Footer Actions (Identique à la photo) */}
-        <div className="px-6 py-4 bg-slate-950 border-t border-slate-800 flex justify-between items-center">
+        {/* Footer Actions Ultra-Lisibles */}
+        <div className="px-6 py-4 bg-slate-900 border-t border-slate-800 flex justify-between items-center shadow-lg">
           <button
             onClick={onClose}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold text-xs uppercase tracking-wide transition border border-slate-700"
+            className="flex items-center gap-2 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition border border-slate-600 shadow-md"
           >
-            <ArrowLeft className="w-4 h-4" /> ← Retour
+            <ArrowLeft className="w-4 h-4 text-slate-300" /> ← RETOUR AU DEVIS
           </button>
 
           <button
             onClick={handleSaveAndApply}
             disabled={saving || rows.length === 0}
-            className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs uppercase tracking-wide transition shadow-lg shadow-blue-600/30 disabled:opacity-50"
+            className="flex items-center gap-2 px-7 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs uppercase tracking-wider transition shadow-lg shadow-emerald-600/40 disabled:opacity-50 border border-emerald-400/30"
           >
-            {saving ? 'ENREGISTREMENT...' : 'Suivant → (Enregistrer en Base)'}
+            <Save className="w-4 h-4" />
+            {saving ? 'ENREGISTREMENT DU RAPPORT...' : 'VALIDER ET ENREGISTRER LE RAPPORT (BASE & DEVIS)'}
           </button>
         </div>
       </div>
