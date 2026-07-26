@@ -330,21 +330,24 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     }
   };
 
-  // Charger la demande de devis si elle est sélectionnée
+  // Charger la demande de devis ou devis généré si sélectionné
   useEffect(() => {
     if (quoteToLoad) {
-      setClientName(quoteToLoad.clientName || '');
-      setClientEmail(quoteToLoad.clientEmail || '');
-      setVehicle(`${quoteToLoad.brand || ''} ${quoteToLoad.model || ''}`.trim());
-      setVin(quoteToLoad.vin || '');
-      setNotes(`Proposition commerciale pour la demande #${quoteToLoad.id.slice(-6).toUpperCase()}`);
+      setClientName(quoteToLoad.clientName || quoteToLoad.user?.name || '');
+      setClientEmail(quoteToLoad.clientEmail || quoteToLoad.user?.email || '');
+      const vBrand = quoteToLoad.vehicleBrand || quoteToLoad.brand || '';
+      const vModel = quoteToLoad.vehicleModel || quoteToLoad.model || '';
+      setVehicle(`${vBrand} ${vModel}`.trim());
+      setVin(quoteToLoad.vehicleVin || quoteToLoad.vin || '');
+      setNotes(quoteToLoad.notes || `Devis #${quoteToLoad.id?.slice(-6).toUpperCase()}`);
       if (Array.isArray(quoteToLoad.items) && quoteToLoad.items.length > 0) {
         setItems(quoteToLoad.items.map((it: any) => ({
-          designation: it.designation || '',
+          designation: it.designation || it.name || '',
           reference: it.reference || '',
-          qty: it.quantity || 1,
-          puHT: 0,
-          discount: 0
+          qty: it.quantity || it.qty || 1,
+          puHT: it.price || it.puHT || 0,
+          discount: it.discount || 0,
+          offres: it.offres || []
         })));
       }
     }
@@ -2269,7 +2272,11 @@ function SectionGestionArticles() {
 }
 
 // ─── SECTION: DEVIS GÉNÉRÉS (HISTORIQUE ET TÉLÉCHARGEMENT) ───────────────────
-function SectionDevisGeneres() {
+interface SectionDevisGeneresProps {
+  onEditDevis?: (d: any) => void;
+}
+
+function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
   const [devisList, setDevisList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -2309,6 +2316,15 @@ function SectionDevisGeneres() {
     const autoTable = (await import("jspdf-autotable")).default;
     const doc = new jsPDF();
 
+    const devisSorted = [...devisList].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+    const devisIndex = devisSorted.findIndex(x => x.id === devis.id);
+    const devisSeqNum = devisIndex !== -1 ? String(devisIndex + 1).padStart(6, '0') : devis.id.slice(-6).toUpperCase();
+
+    // Calculs financiers du devis
+    const subtotal = devis.items?.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0) || 0;
+    const tax = subtotal * 0.19;
+    const totalTTC = devis.totalPrice || (subtotal + tax);
+
     doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, 210, 40, "F");
     doc.setTextColor(255, 255, 255);
@@ -2317,29 +2333,21 @@ function SectionDevisGeneres() {
     doc.setFontSize(10);
     doc.text("PROPOSITION COMMERCIALE / DEVIS", 20, 31);
     
-    const localDevisSorted = [...devisList].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
-    const devisSeqIdx = localDevisSorted.findIndex(x => x.id === devis.id);
-    const devisSeqNum = devisSeqIdx !== -1 ? String(devisSeqIdx + 1).padStart(6, '0') : devis.id.slice(-6).toUpperCase();
     doc.setTextColor(0, 0, 0);
     doc.text(`Devis : #DEV-${devisSeqNum}`, 140, 20);
     doc.text(`Date : ${new Date(devis.createdAt).toLocaleDateString('fr-FR')}`, 140, 26);
 
     autoTable(doc, {
-      startY: 65,
+      startY: 50,
       head: [["Information Client", "Détail"]],
       body: [
-        ["Email du Client", devis.clientEmail || ""],
-        ["Véhicule", `${devis.vehicleBrand || ''} ${devis.vehicleModel || ''}`.trim() || "Générique"],
-        ["Numéro VIN", devis.vehicleVin || "N/A"],
-        ["Notes / Observations", devis.notes || "N/A"],
+        ["Email Client", devis.clientEmail || "N/A"],
+        ["Véhicule", `${devis.vehicleBrand || ''} ${devis.vehicleModel || ''}`.trim() || "N/A"],
+        ["Immatriculation / VIN", devis.vehicleVin || "N/A"],
       ],
       theme: "striped",
       headStyles: { fillColor: [30, 41, 59] },
     });
-
-    const subtotal = devis.items?.reduce((sum: number, it: any) => sum + (it.price * it.quantity), 0) || 0;
-    const tax = subtotal * 0.19;
-    const totalTTC = devis.totalPrice || (subtotal + tax);
 
     autoTable(doc, {
       startY: (doc as any).lastAutoTable?.finalY + 15,
@@ -2406,7 +2414,7 @@ function SectionDevisGeneres() {
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
         <FileText className="w-5 h-5 text-red-400" /> DEVIS GÉNÉRÉS & TRAITÉS
       </h2>
-      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">CONSULTEZ ET EXPÉDIEZ VOS DEVIS DÉJÀ CHIFFRÉS</p>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">CONSULTEZ, MODIFIEZ ET EXPÉDIEZ VOS DEVIS DÉJÀ CHIFFRÉS</p>
 
       <div className="flex gap-2 mb-5">
         <div className="relative flex-1">
@@ -2466,7 +2474,15 @@ function SectionDevisGeneres() {
                 ))}
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                {onEditDevis && (
+                  <button 
+                    onClick={() => onEditDevis(d)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase rounded-xl transition shadow shadow-amber-600/20"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" /> MODIFIER LE DEVIS
+                  </button>
+                )}
                 <button onClick={() => handleDownloadPDF(d)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition">
                   <Download className="w-3.5 h-3.5" /> PDF
                 </button>
@@ -3348,11 +3364,11 @@ export default function AdminContent() {
   const sectionMap: Record<string, React.ReactNode> = {
     'reception': <SectionReception onTreatQuote={(q) => { setSelectedQuote(q); setAdminSection('creer-devis'); }} />,
     'traitement': <SectionReception onTreatQuote={(q) => { setSelectedQuote(q); setAdminSection('creer-devis'); }} />,
-    'devis-gen': <SectionDevisGeneres />,
+    'devis-gen': <SectionDevisGeneres onEditDevis={(d) => { setSelectedQuote(d); setAdminSection('creer-devis'); }} />,
     'bons': <SectionBonsEtLivraisons />,
     'creer-devis': <SectionCreerDevis quoteToLoad={selectedQuote} onClearQuote={() => setSelectedQuote(null)} />,
-    'generer-pdf': <SectionDevisGeneres />,
-    'envoi': <SectionDevisGeneres />,
+    'generer-pdf': <SectionDevisGeneres onEditDevis={(d) => { setSelectedQuote(d); setAdminSection('creer-devis'); }} />,
+    'envoi': <SectionDevisGeneres onEditDevis={(d) => { setSelectedQuote(d); setAdminSection('creer-devis'); }} />,
     'ajouter-fournisseur': <SectionAjouterFournisseur />,
     'liste-fournisseurs': <SectionListeFournisseurs />,
     'consultation-fournisseur': <SectionConsultationFournisseur />,
