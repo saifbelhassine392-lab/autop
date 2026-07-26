@@ -416,6 +416,7 @@ model HistoriquePiece {
 model PartPriceHistory {
   id              String    @id @default(cuid())
   reference       String
+  type            String    @default("ADAPTABLE") // OEM, ADAPTABLE, PVP
   supplierId      String?
   supplier        Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierName    String?   // Utile pour 'Concessionnaire' ou autres hors base

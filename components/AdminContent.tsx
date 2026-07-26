@@ -3,6 +3,7 @@
 import { useApp } from '@/lib/context';
 import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ModalSyntheseOffres from './ModalSyntheseOffres';
 import {
   Search, Edit3, MessageSquare, FileText, Mail, Phone,
   Plus, Trash2, Save, X, Send,
@@ -231,6 +232,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [activeSuggestRow, setActiveSuggestRow] = useState<number | null>(null);
   const [activeSuggestField, setActiveSuggestField] = useState<'ref' | 'desc' | null>(null);
+  const [showSynthese, setShowSynthese] = useState(false);
 
   useEffect(() => {
     fetch('/api/products').then(r => r.json()).then(d => {
@@ -363,6 +365,43 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
   const tva = afterDiscount * 0.19;
   const totalTTC = afterDiscount + tva;
 
+  const handleApplySynthese = (updatedRows: any[]) => {
+    setItems(prev => prev.map(it => {
+      if (!it.reference) return it;
+      const refUpper = it.reference.trim().toUpperCase();
+      const match = updatedRows.find((r: any) => r.reference === refUpper);
+      if (!match) return it;
+
+      let newPuHT = it.puHT;
+      if (match.selectOem && match.bestOemPrice) {
+        newPuHT = parseFloat(match.bestOemPrice) || it.puHT;
+      } else if (match.selectAdaptable && match.bestAdaptablePrice) {
+        newPuHT = parseFloat(match.bestAdaptablePrice) || it.puHT;
+      }
+
+      const updatedOffres = [...(it.offres || [])];
+      if (match.bestOemPrice) {
+        const oIdx = updatedOffres.findIndex((o: any) => o.type === 'ORIGINE');
+        if (oIdx >= 0) {
+          updatedOffres[oIdx].sellingPrice = parseFloat(match.bestOemPrice);
+        } else {
+          updatedOffres.push({ type: 'ORIGINE', supplierId: '', purchasePrice: parseFloat(match.bestOemPrice), sellingPrice: parseFloat(match.bestOemPrice) });
+        }
+      }
+      if (match.bestAdaptablePrice) {
+        const aIdx = updatedOffres.findIndex((o: any) => o.type === 'ADAPTABLE');
+        if (aIdx >= 0) {
+          updatedOffres[aIdx].sellingPrice = parseFloat(match.bestAdaptablePrice);
+        } else {
+          updatedOffres.push({ type: 'ADAPTABLE', supplierId: '', purchasePrice: parseFloat(match.bestAdaptablePrice), sellingPrice: parseFloat(match.bestAdaptablePrice) });
+        }
+      }
+
+      return { ...it, puHT: newPuHT, offres: updatedOffres };
+    }));
+    alert("✅ Synthèse enregistrée en base de données d'articles et appliquée au devis !");
+  };
+
   const handlePrintPDF = () => {
     window.print();
   };
@@ -460,11 +499,19 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
       {/* Items Table */}
       <div className={cardCls}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
-          <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase rounded-lg transition">
-            <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowSynthese(true)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-blue-600/30 border border-blue-400/30"
+            >
+              <BarChart2 className="w-3.5 h-3.5" /> SYNTHÈSE MEILLEURES OFFRES
+            </button>
+            <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase rounded-lg transition">
+              <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -774,6 +821,15 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           </button>
         </div>
       </div>
+
+      {showSynthese && (
+        <ModalSyntheseOffres
+          items={items}
+          suppliers={suppliers}
+          onClose={() => setShowSynthese(false)}
+          onApply={handleApplySynthese}
+        />
+      )}
     </div>
   );
 }
