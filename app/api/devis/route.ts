@@ -131,15 +131,62 @@ export async function POST(req: NextRequest) {
       include: { items: true },
     })
 
-    // Mettre à jour la demande de devis d'origine en statut TREATED et l'assigner à l'admin
+    // Si quoteId est transmis, vérifier s'il s'agit d'une demande de devis (Quote) ou d'un devis existant (Devis)
     if (quoteId) {
-      await prisma.quote.update({
-        where: { id: quoteId },
-        data: { 
-          status: 'TREATED',
-          ...(managedById ? { managedById } : {})
+      const existingQuote = await prisma.quote.findUnique({ where: { id: quoteId } });
+      if (existingQuote) {
+        await prisma.quote.update({
+          where: { id: quoteId },
+          data: { 
+            status: 'TREATED',
+            ...(managedById ? { managedById } : {})
+          }
+        });
+      } else {
+        const existingDevis = await prisma.devis.findUnique({ where: { id: quoteId } });
+        if (existingDevis) {
+          await prisma.devisItem.deleteMany({ where: { devisId: quoteId } });
+          const updatedDevis = await prisma.devis.update({
+            where: { id: quoteId },
+            data: {
+              vehicleBrand,
+              vehicleModel,
+              vehicleYear: parseInt(vehicleYear) || null,
+              vehicleVin,
+              notes,
+              totalPrice: user.role === 'ADMIN' ? parseFloat(body.totalPrice) || 0 : 0,
+              responseNote: user.role === 'ADMIN' ? body.responseNote || 'Proposition commerciale mise à jour par l\'administrateur.' : null,
+              items: { create: devisItems },
+              ...(managedById ? { managedById } : {})
+            },
+            include: { items: true }
+          });
+          
+          // Enregistrer aussi les offres dans PartPriceHistory lors d'une modification
+          const priceHistoryData = [];
+          for (let i = 0; i < items.length; i++) {
+            const sourceItem = items[i];
+            if (sourceItem.reference && sourceItem.offres && Array.isArray(sourceItem.offres)) {
+              for (const offre of sourceItem.offres) {
+                if (offre.supplierId || offre.purchasePrice || offre.sellingPrice) {
+                  priceHistoryData.push({
+                    reference: sourceItem.reference.trim().toUpperCase(),
+                    isConcessionnaire: offre.type === 'ORIGINE',
+                    supplierId: offre.supplierId || null,
+                    purchasePrice: parseFloat(offre.purchasePrice) || null,
+                    sellingPrice: parseFloat(offre.sellingPrice) || null,
+                  });
+                }
+              }
+            }
+          }
+          if (priceHistoryData.length > 0) {
+            await prisma.partPriceHistory.createMany({ data: priceHistoryData }).catch(() => {});
+          }
+
+          return NextResponse.json(updatedDevis, { status: 200 });
         }
-      })
+      }
     }
 
     // Insérer l'historique des prix via PartPriceHistory pour chaque offre

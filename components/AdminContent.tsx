@@ -753,13 +753,65 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                   </div>
                                   <div className="col-span-2 flex items-center justify-end gap-1">
                                     <button 
-                                      onClick={() => {
+                                      onClick={async () => {
                                         updateLine(i, 'puHT', offre.sellingPrice);
+                                        if (it.reference) {
+                                          const supp = suppliers.find(s => s.id === offre.supplierId);
+                                          const suppName = supp?.name || offre.supplierName || 'Fournisseur';
+                                          fetch('/api/historique-prix', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              reference: it.reference.trim().toUpperCase(),
+                                              supplierId: offre.supplierId || null,
+                                              supplierName: suppName,
+                                              type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
+                                              isConcessionnaire: offre.type === 'ORIGINE',
+                                              purchasePrice: parseFloat(offre.purchasePrice) || 0,
+                                              sellingPrice: parseFloat(offre.sellingPrice) || 0
+                                            })
+                                          }).catch(err => console.error(err));
+                                        }
                                       }}
-                                      title="Appliquer ce prix de vente au devis"
-                                      className="flex-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white text-[9px] font-black px-2 py-1.5 rounded transition uppercase text-center border border-green-600/30"
+                                      title="Appliquer et enregistrer en historique"
+                                      className="flex-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-white text-[9px] font-black px-1.5 py-1.5 rounded transition uppercase text-center border border-green-600/30"
                                     >
                                       CHOISIR
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (!it.reference) {
+                                          alert("Veuillez d'abord renseigner la référence de l'article.");
+                                          return;
+                                        }
+                                        const supp = suppliers.find(s => s.id === offre.supplierId);
+                                        const suppName = supp?.name || offre.supplierName || 'Fournisseur';
+                                        try {
+                                          const res = await fetch('/api/historique-prix', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                              reference: it.reference.trim().toUpperCase(),
+                                              supplierId: offre.supplierId || null,
+                                              supplierName: suppName,
+                                              type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
+                                              isConcessionnaire: offre.type === 'ORIGINE',
+                                              purchasePrice: parseFloat(offre.purchasePrice) || 0,
+                                              sellingPrice: parseFloat(offre.sellingPrice) || 0
+                                            })
+                                          });
+                                          const data = await res.json();
+                                          if (data.success) {
+                                            alert(`✅ Offre (${suppName} - ${offre.purchasePrice || 0} TND) enregistrée dans l'historique et la synthèse !`);
+                                          }
+                                        } catch (err) {
+                                          console.error(err);
+                                        }
+                                      }}
+                                      title="Enregistrer cette offre dans l'historique et la synthèse"
+                                      className="p-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded transition border border-blue-600/30"
+                                    >
+                                      <Save className="w-3.5 h-3.5" />
                                     </button>
                                     <button 
                                       onClick={() => {
