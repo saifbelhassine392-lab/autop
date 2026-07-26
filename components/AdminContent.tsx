@@ -550,12 +550,57 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       <div className={cardCls}>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button 
               onClick={handleOpenSynthese}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-blue-600/30 border border-blue-400/30"
             >
               <BarChart2 className="w-3.5 h-3.5" /> SYNTHÈSE MEILLEURES OFFRES
+            </button>
+            <button 
+              onClick={async () => {
+                const allOffresToSave: any[] = [];
+                items.forEach(it => {
+                  if (it.reference && it.offres && it.offres.length > 0) {
+                    it.offres.forEach((o: any) => {
+                      const supp = suppliers.find(s => s.id === o.supplierId);
+                      allOffresToSave.push({
+                        reference: it.reference,
+                        type: o.type,
+                        supplierId: o.supplierId,
+                        supplierName: supp?.name || o.supplierName || 'Fournisseur',
+                        purchasePrice: o.purchasePrice,
+                        sellingPrice: o.sellingPrice
+                      });
+                    });
+                  }
+                });
+
+                if (allOffresToSave.length === 0) {
+                  alert("Aucune offre fournisseur renseignée dans les lignes du devis.");
+                  return;
+                }
+
+                try {
+                  const res = await fetch('/api/historique-prix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ offresList: allOffresToSave })
+                  });
+                  const data = await res.json();
+                  if (data.success) {
+                    alert(`✅ ${allOffresToSave.length} offre(s) enregistrée(s) avec succès dans l'historique et la synthèse !`);
+                  } else {
+                    alert(data.error || "Erreur lors de l'enregistrement des offres");
+                  }
+                } catch (err) {
+                  console.error(err);
+                  alert("Erreur de connexion.");
+                }
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-emerald-600/30 border border-emerald-400/30"
+            >
+              <Save className="w-3.5 h-3.5" /> ENREGISTRER TOUTES LES OFFRES
             </button>
             <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase rounded-lg transition">
               <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
@@ -827,7 +872,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                               ))}
 
                               {/* Controls */}
-                              <div className="flex gap-2 mt-1">
+                              <div className="flex gap-2 mt-1 flex-wrap">
                                 <button 
                                   onClick={() => {
                                     const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, discount: 0, sellingPrice: 0 }];
@@ -836,6 +881,50 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                   className="text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1"
                                 >
                                   <Plus className="w-3 h-3" /> AJOUTER OFFRE FOURNISSEUR
+                                </button>
+                                <button 
+                                  onClick={async () => {
+                                    if (!it.reference) {
+                                      alert("Veuillez d'abord renseigner la référence de l'article.");
+                                      return;
+                                    }
+                                    if (!it.offres || it.offres.length === 0) {
+                                      alert("Aucune offre à enregistrer pour cet article.");
+                                      return;
+                                    }
+
+                                    const offresToSave = it.offres.map((o: any) => {
+                                      const supp = suppliers.find(s => s.id === o.supplierId);
+                                      return {
+                                        reference: it.reference.trim().toUpperCase(),
+                                        type: o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE'),
+                                        supplierId: o.supplierId || null,
+                                        supplierName: supp?.name || o.supplierName || 'Fournisseur',
+                                        purchasePrice: parseFloat(o.purchasePrice) || 0,
+                                        sellingPrice: parseFloat(o.sellingPrice) || 0
+                                      };
+                                    });
+
+                                    try {
+                                      const res = await fetch('/api/historique-prix', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ offresList: offresToSave })
+                                      });
+                                      const data = await res.json();
+                                      if (data.success) {
+                                        alert(`✅ ${it.offres.length} offre(s) de l'article (${it.reference}) enregistrée(s) dans l'historique et la synthèse !`);
+                                      } else {
+                                        alert(data.error || "Erreur lors de l'enregistrement des offres");
+                                      }
+                                    } catch (err) {
+                                      console.error(err);
+                                      alert("Erreur de connexion.");
+                                    }
+                                  }}
+                                  className="text-[10px] bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/30 text-white px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1 shadow shadow-emerald-700/20"
+                                >
+                                  <Save className="w-3 h-3" /> ENREGISTRER OFFRES DE CET ARTICLE
                                 </button>
                                 <button 
                                   onClick={() => handleB2BSearch(i)}
