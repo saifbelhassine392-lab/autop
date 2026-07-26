@@ -24,7 +24,15 @@ export async function GET(request: Request) {
     }
 
     if (!reference) {
-      return NextResponse.json({ success: false, error: "Référence requise" }, { status: 400 });
+      const histories = await prisma.partPriceHistory.findMany({
+        include: {
+          supplier: true
+        },
+        orderBy: {
+          updatedAt: 'desc'
+        }
+      });
+      return NextResponse.json({ success: true, data: histories });
     }
 
     const histories = await prisma.partPriceHistory.findMany({
@@ -211,5 +219,53 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Erreur API historique-prix POST:", error);
     return NextResponse.json({ success: false, error: "Erreur interne du serveur" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const data = await request.json();
+    const { id, reference, supplierId, supplierName, purchasePrice, sellingPrice, type } = data;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 });
+    }
+
+    const updated = await prisma.partPriceHistory.update({
+      where: { id },
+      data: {
+        ...(reference ? { reference: reference.trim().toUpperCase() } : {}),
+        ...(supplierId !== undefined ? { supplierId } : {}),
+        ...(supplierName !== undefined ? { supplierName } : {}),
+        ...(purchasePrice !== undefined ? { purchasePrice: parseFloat(purchasePrice) || 0 } : {}),
+        ...(sellingPrice !== undefined ? { sellingPrice: parseFloat(sellingPrice) || 0 } : {}),
+        ...(type !== undefined ? { type, isConcessionnaire: type === 'OEM' || type === 'PVP' || type === 'CONCESSIONNAIRE' } : {})
+      }
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error) {
+    console.error("Erreur API historique-prix PATCH:", error);
+    return NextResponse.json({ success: false, error: "Erreur lors de la mise à jour" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "ID requis" }, { status: 400 });
+    }
+
+    await prisma.partPriceHistory.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true, message: "Entrée supprimée" });
+  } catch (error) {
+    console.error("Erreur API historique-prix DELETE:", error);
+    return NextResponse.json({ success: false, error: "Erreur lors de la suppression" }, { status: 500 });
   }
 }

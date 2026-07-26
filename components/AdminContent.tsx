@@ -481,6 +481,39 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     }
   };
 
+  const handleOpenSynthese = async () => {
+    const allOffresToSave: any[] = [];
+    items.forEach(it => {
+      if (it.reference && it.offres && it.offres.length > 0) {
+        it.offres.forEach((o: any) => {
+          const supp = suppliers.find(s => s.id === o.supplierId);
+          allOffresToSave.push({
+            reference: it.reference,
+            type: o.type,
+            supplierId: o.supplierId,
+            supplierName: supp?.name || o.supplierName || 'Fournisseur',
+            purchasePrice: o.purchasePrice,
+            sellingPrice: o.sellingPrice
+          });
+        });
+      }
+    });
+
+    if (allOffresToSave.length > 0) {
+      try {
+        await fetch('/api/historique-prix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offresList: allOffresToSave })
+        });
+      } catch (err) {
+        console.error("Erreur sauvegarde des offres avant synthèse:", err);
+      }
+    }
+
+    setShowSynthese(true);
+  };
+
   return (
     <div>
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1">CRÉER / MODIFIER DEVIS</h2>
@@ -519,7 +552,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
           <div className="flex items-center gap-2">
             <button 
-              onClick={() => setShowSynthese(true)}
+              onClick={handleOpenSynthese}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-blue-600/30 border border-blue-400/30"
             >
               <BarChart2 className="w-3.5 h-3.5" /> SYNTHÈSE MEILLEURES OFFRES
@@ -3356,6 +3389,294 @@ function SectionRobotB2B() {
   );
 }
 
+// ─── SECTION: HISTORIQUE DES PRIX ET OFFRES DES ARTICLES ──────────────────────
+function SectionHistoriquePrixArticles() {
+  const [histories, setHistories] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('TOUS');
+
+  // Modals state
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newItem, setNewItem] = useState({
+    reference: '',
+    supplierName: '',
+    type: 'ADAPTABLE',
+    purchasePrice: 0,
+    sellingPrice: 0
+  });
+
+  const fetchHistories = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/historique-prix');
+      const data = await res.json();
+      if (data.success) {
+        setHistories(data.data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchHistories();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Voulez-vous vraiment supprimer cette offre enregistrée de l'historique ?")) return;
+    try {
+      const res = await fetch(`/api/historique-prix?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setHistories(prev => prev.filter(h => h.id !== id));
+      } else {
+        alert("Erreur lors de la suppression");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleUpdate = async () => {
+    if (!editingItem) return;
+    try {
+      const res = await fetch('/api/historique-prix', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingItem)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditingItem(null);
+        fetchHistories();
+      } else {
+        alert(data.error || "Erreur de mise à jour");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newItem.reference.trim()) { alert("La référence est requise"); return; }
+    try {
+      const res = await fetch('/api/historique-prix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: newItem.reference.trim(),
+          supplierName: newItem.supplierName.trim() || 'Fournisseur',
+          purchasePrice: parseFloat(String(newItem.purchasePrice)) || 0,
+          sellingPrice: parseFloat(String(newItem.sellingPrice)) || 0,
+          type: newItem.type,
+          isConcessionnaire: newItem.type === 'OEM' || newItem.type === 'PVP'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowAddModal(false);
+        setNewItem({ reference: '', supplierName: '', type: 'ADAPTABLE', purchasePrice: 0, sellingPrice: 0 });
+        fetchHistories();
+      } else {
+        alert(data.error || "Erreur lors de l'ajout");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const filtered = histories.filter(h => {
+    const s = search.toLowerCase();
+    const matchSearch = h.reference?.toLowerCase().includes(s) ||
+      h.supplierName?.toLowerCase().includes(s) ||
+      h.type?.toLowerCase().includes(s);
+
+    let matchType = true;
+    if (typeFilter === 'OEM') matchType = h.type === 'OEM' || h.isConcessionnaire;
+    else if (typeFilter === 'ADAPTABLE') matchType = h.type === 'ADAPTABLE' && !h.isConcessionnaire;
+
+    return matchSearch && matchType;
+  });
+
+  return (
+    <div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+        <div>
+          <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
+            <ClipboardList className="w-5 h-5 text-cyan-400" /> HISTORIQUE PRIX ARTICLES & OFFRES
+          </h2>
+          <p className="text-slate-400 text-xs uppercase tracking-wider">BANQUE DE DONNÉES DES TARIFS ET OFFRES FOURNISSEURS CONSERVÉS PAR RÉFÉRENCE</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-cyan-600/20"
+        >
+          <Plus className="w-4 h-4" /> AJOUTER OFFRE ARTICLE
+        </button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2 mb-5">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input type="text" placeholder="RECHERCHER PAR RÉFÉRENCE ARTICLE, FOURNISSEUR..."
+            value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:normal-case placeholder:font-normal" />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+          className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer uppercase"
+        >
+          <option value="TOUS">TOUS LES TYPES</option>
+          <option value="OEM">ORIGINE / OEM / PVP</option>
+          <option value="ADAPTABLE">ADAPTABLE</option>
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-10 text-slate-500 font-bold uppercase">CHARGEMENT DE L'HISTORIQUE PRIX...</div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-10 text-slate-600 font-bold uppercase">AUCUNE OFFRE ENREGISTRÉE DANS L'HISTORIQUE</div>
+      ) : (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800">
+                  <th className="px-4 py-3">RÉFÉRENCE ARTICLE</th>
+                  <th className="px-4 py-3">TYPE OFFRE</th>
+                  <th className="px-4 py-3">FOURNISSEUR</th>
+                  <th className="px-4 py-3 text-right text-amber-400">PRIX ACHAT (HT)</th>
+                  <th className="px-4 py-3 text-right text-green-400">PRIX VENTE (HT)</th>
+                  <th className="px-4 py-3 text-center">DATE MAJ</th>
+                  <th className="px-4 py-3 text-center">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(h => (
+                  <tr key={h.id} className="border-b border-slate-800/60 hover:bg-slate-950/40 transition">
+                    <td className="px-4 py-3 font-mono font-black text-cyan-400 uppercase text-sm">{h.reference}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
+                        h.type === 'OEM' || h.isConcessionnaire ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                      }`}>
+                        {h.type === 'OEM' || h.isConcessionnaire ? 'ORIGINE / OEM' : 'ADAPTABLE'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-black text-white uppercase">{h.supplierName || h.supplier?.name || 'Inconnu'}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-200">{h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : '-'}</td>
+                    <td className="px-4 py-3 text-right font-mono font-black text-green-400">{h.sellingPrice ? `${h.sellingPrice.toFixed(3)} TND` : '-'}</td>
+                    <td className="px-4 py-3 text-center text-slate-500 font-sans text-[11px]">{new Date(h.updatedAt || h.createdAt).toLocaleDateString('fr-FR')}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => setEditingItem(h)} className="p-1.5 text-slate-400 hover:text-cyan-400 transition" title="Modifier">
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleDelete(h.id)} className="p-1.5 text-slate-400 hover:text-red-400 transition" title="Supprimer">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full relative text-left">
+            <button onClick={() => setShowAddModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-white uppercase tracking-wider mb-4 text-cyan-400">AJOUTER OFFRE HISTORIQUE</h3>
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>RÉFÉRENCE ARTICLE *</label>
+                <input type="text" className={inputCls} placeholder="EX: 1440TV" value={newItem.reference} onChange={e => setNewItem({ ...newItem, reference: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>FOURNISSEUR</label>
+                <input type="text" className={inputCls} placeholder="EX: STEQ, CDG, SAGAP" value={newItem.supplierName} onChange={e => setNewItem({ ...newItem, supplierName: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>TYPE D'OFFRE</label>
+                <select className="w-full bg-white text-black font-bold text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none uppercase" value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}>
+                  <option value="ADAPTABLE">ADAPTABLE</option>
+                  <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>PRIX ACHAT HT (TND)</label>
+                  <input type="number" step="0.001" className={inputCls} value={newItem.purchasePrice} onChange={e => setNewItem({ ...newItem, purchasePrice: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <label className={labelCls}>PRIX VENTE HT (TND)</label>
+                  <input type="number" step="0.001" className={inputCls} value={newItem.sellingPrice} onChange={e => setNewItem({ ...newItem, sellingPrice: parseFloat(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-3">
+                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 bg-slate-950 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={handleCreate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase rounded-xl">ENREGISTRER</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Edition */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full relative text-left">
+            <button onClick={() => setEditingItem(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-white uppercase tracking-wider mb-4 text-cyan-400">MODIFIER OFFRE ARTICLE</h3>
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>RÉFÉRENCE ARTICLE</label>
+                <input type="text" className={inputCls} value={editingItem.reference} onChange={e => setEditingItem({ ...editingItem, reference: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>FOURNISSEUR</label>
+                <input type="text" className={inputCls} value={editingItem.supplierName || ''} onChange={e => setEditingItem({ ...editingItem, supplierName: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>TYPE D'OFFRE</label>
+                <select className="w-full bg-white text-black font-bold text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none uppercase" value={editingItem.type} onChange={e => setEditingItem({ ...editingItem, type: e.target.value })}>
+                  <option value="ADAPTABLE">ADAPTABLE</option>
+                  <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>PRIX ACHAT HT (TND)</label>
+                  <input type="number" step="0.001" className={inputCls} value={editingItem.purchasePrice || 0} onChange={e => setEditingItem({ ...editingItem, purchasePrice: parseFloat(e.target.value) || 0 })} />
+                </div>
+                <div>
+                  <label className={labelCls}>PRIX VENTE HT (TND)</label>
+                  <input type="number" step="0.001" className={inputCls} value={editingItem.sellingPrice || 0} onChange={e => setEditingItem({ ...editingItem, sellingPrice: parseFloat(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-3">
+                <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 bg-slate-950 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={handleUpdate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase rounded-xl">SAUVEGARDER</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function AdminContent() {
   const { adminSection, setAdminSection } = useApp();
@@ -3382,6 +3703,7 @@ export default function AdminContent() {
     'ajouter-article': <SectionGestionArticles />,
     'modifier-article': <SectionGestionArticles />,
     'liste-articles': <SectionGestionArticles />,
+    'historique-prix-articles': <SectionHistoriquePrixArticles />,
     'tableau-bord': <SectionTableauBord />,
     'chiffre': <SectionTableauBord />,
   };
