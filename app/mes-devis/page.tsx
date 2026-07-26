@@ -465,7 +465,7 @@ export default function MesDevisPage() {
               <h2 className="text-[10px] font-black text-slate-500 mb-6 tracking-widest uppercase">FONCTIONS ESPACE</h2>
               <nav className="flex flex-col gap-2.5">
                 {[
-                  { id: "devis", label: "MES DEVIS", icon: ClipboardList },
+                  { id: "devis", label: "LISTE DEVIS", icon: ClipboardList },
                   { id: "commandes", label: "SUIVI COMMANDES", icon: Package },
                   { id: "factures", label: "MES FACTURES", icon: Receipt },
                 ].map((tab) => (
@@ -489,14 +489,14 @@ export default function MesDevisPage() {
               <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-col gap-3">
                 <Link 
                   href="/devis" 
-                  className="flex items-center justify-center gap-2 w-full py-3.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-red-600/50 rounded-2xl text-xs font-black text-slate-200 transition uppercase tracking-wider"
+                  className="btn-outline-blue flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-xs font-black transition uppercase tracking-wider"
                 >
-                  <Plus className="w-4 h-4 text-red-500" />
+                  <Plus className="w-4 h-4" />
                   NOUVEAU DEVIS
                 </Link>
                 <Link 
                   href="/" 
-                  className="flex items-center justify-center gap-2 w-full py-3.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl text-xs font-black text-slate-400 hover:text-slate-200 transition uppercase tracking-wider"
+                  className="btn-outline-slate flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-xs font-black transition uppercase tracking-wider"
                 >
                   RETOUR ACCUEIL
                 </Link>
@@ -580,13 +580,38 @@ export default function MesDevisPage() {
                                 OUVRIR & MODIFIER DEVIS
                               </button>
                             ) : (
-                              <button
-                                onClick={() => downloadQuotePDF(d)}
-                                className="px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                                VOIR DEVIS
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => downloadQuotePDF(d)}
+                                  className="px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  VOIR DEVIS
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm("Voulez-vous vraiment supprimer cette demande de devis ?")) {
+                                      try {
+                                        const res = await fetch(`/api/quotes?id=${d.id}`, { method: 'DELETE' });
+                                        if (res.ok) {
+                                          alert("Demande supprimée avec succès.");
+                                          loadData();
+                                        } else {
+                                          const err = await res.json();
+                                          alert(err.error || "Erreur lors de la suppression");
+                                        }
+                                      } catch (e) {
+                                        console.error(e);
+                                      }
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                                  title="Supprimer la demande"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                  ANNULER
+                                </button>
+                              </>
                             )}
                             <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               d.isTreated 

@@ -7,109 +7,143 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false,
 });
 
+let cachedCookie: string | null = null;
+
+function parseSTEQHtml(html: string) {
+  const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
+  if (!jsonMatch) return { price: 0, discount: 0, availability: "Non Disponible" };
+
+  const items = JSON.parse(jsonMatch[1]);
+  if (items.length === 0) {
+    return { price: 0, discount: 0, availability: "Non Disponible" };
+  }
+
+  const parsedItems = items.map((i: any) => ({
+    name: i.ItemNumberEquiv || i.ItemNo || '',
+    brand: i.ItemBrandEquiv || '',
+    price: parseFloat(i.UnitPrice) || 0,
+    discount: parseFloat(i.MaxDiscount) || 0,
+    availability: parseInt(i.Available) > 0 ? "Disponible" : "Sur Commande",
+    rawStock: parseInt(i.Available) || 0,
+    available: parseInt(i.Available) > 0
+  }));
+
+  let bestItem = parsedItems.find((i: any) => i.available);
+  if (!bestItem) bestItem = parsedItems[0];
+
+  return {
+    price: bestItem.price,
+    discount: bestItem.discount,
+    availability: bestItem.availability,
+    rawStock: bestItem.rawStock,
+    items: parsedItems
+  };
+}
+
 async function scrapeSTEQ(query: string, b2bLogin: string, b2bPassword: string) {
   try {
-    // 1. Get initial cookie & Login
-    const initialRes = await axios.get("https://b2bsteq.com/", {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      httpsAgent
-    });
-    
-    let sessionCookie = "";
-    const initialSetCookie = initialRes.headers["set-cookie"];
-    if (initialSetCookie) {
-      sessionCookie = initialSetCookie[0].split(";")[0];
+    let sessionCookie = cachedCookie || "";
+    let html = "";
+    let searchRes;
+
+    // 1. Tenter la recherche directement si on a un cookie en cache
+    if (sessionCookie) {
+      console.log("[STEQ Scraper] Essai avec le cookie de session en cache...");
+      const searchParams = new URLSearchParams();
+      searchParams.append("MySearchType", "1");
+      searchParams.append("MySearchKey", query);
+      searchParams.append("MySearchSubmit", "");
+
+      searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": sessionCookie,
+          "User-Agent": "Mozilla/5.0",
+        },
+        body: searchParams.toString(),
+      });
+
+      html = await searchRes.text();
+      const isLoggedOut = html.includes("VOTRE MOT DE PASSE") || html.includes("UserPassword") || html.includes("Se connecter");
+      
+      if (!isLoggedOut && html.includes("ApiJsonItemAll")) {
+        console.log("[STEQ Scraper] Cookie en cache valide ! Recherche réussie.");
+        return parseSTEQHtml(html);
+      }
+      console.log("[STEQ Scraper] Cookie en cache expiré ou invalide. Re-connexion requise.");
     }
 
+    // 2. Connexion initiale pour récupérer le cookie si nécessaire
+    console.log("[STEQ Scraper] Connexion initiale à b2bsteq.com...");
+    const initialRes = await fetch("https://b2bsteq.com/", {
+      method: "GET",
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    
+    sessionCookie = "";
+    const initCookies = initialRes.headers.get("set-cookie") || "";
+    if (initCookies.includes("PHPSESSID")) {
+      const match = initCookies.match(/PHPSESSID=[^;]+/);
+      if (match) sessionCookie = match[0];
+    }
+
+    console.log("[STEQ Scraper] Soumission des identifiants...");
     const loginParams = new URLSearchParams();
     loginParams.append("UserCode", b2bLogin);
     loginParams.append("UserPassword", b2bPassword);
-    loginParams.append("UserSubmit", "");
+    loginParams.append("UserSubmit", "“ E N T R E R ”");
 
-    const loginRes = await axios.post("https://b2bsteq.com/", loginParams.toString(), {
+    const loginRes = await fetch("https://b2bsteq.com/", {
+      method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": sessionCookie,
         "User-Agent": "Mozilla/5.0",
+        "Cookie": sessionCookie,
       },
-      httpsAgent,
-      maxRedirects: 0,
-      validateStatus: (status) => status >= 200 && status < 400
+      body: loginParams.toString(),
+      redirect: "manual",
     });
 
-    const loginCookies = loginRes.headers["set-cookie"];
-    console.log("Login Res Status:", loginRes.status);
-    console.log("Login Cookies:", loginCookies);
-    if (loginCookies) {
-      const loginStr = loginCookies.join(";");
-      if (loginStr.includes("deleted")) {
-        throw new Error("Identifiants B2B invalides. Veuillez les corriger dans 'Modifier le fournisseur'.");
-      }
-      sessionCookie = loginCookies[0].split(";")[0];
+    const loginCookies = loginRes.headers.get("set-cookie") || "";
+    if (loginCookies.includes("PHPSESSID")) {
+      const match = loginCookies.match(/PHPSESSID=[^;]+/);
+      if (match) sessionCookie = match[0];
     }
 
-    // 2. Search
+    // 3. Recherche après connexion
+    console.log("[STEQ Scraper] Recherche...");
     const searchParams = new URLSearchParams();
     searchParams.append("MySearchType", "1");
     searchParams.append("MySearchKey", query);
     searchParams.append("MySearchSubmit", "");
 
-    const searchRes = await axios.post("https://b2bsteq.com/form-recherche.html", searchParams.toString(), {
+    searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
+      method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         "Cookie": sessionCookie,
         "User-Agent": "Mozilla/5.0",
       },
-      httpsAgent
+      body: searchParams.toString(),
     });
 
-    console.log("Session Cookie used:", sessionCookie);
-    console.log("Search Res Status:", searchRes.status);
+    html = await searchRes.text();
     
-    const html = searchRes.data;
-    console.log("HTML Type:", typeof html);
-    if (typeof html === "string") {
-      console.log("HTML Length:", html.length);
-      console.log("Has Login?", html.includes("Se connecter") || html.includes("Mot de passe") || html.includes("password"));
-      console.log("Has ApiJsonItemAll?", html.includes("ApiJsonItemAll"));
-    }
-    
-    // 3. Extract JSON from HTML
-    const jsonMatch = typeof html === "string" ? html.match(/var ApiJsonItemAll = (\[.*?\]);/) : null;
+    // 4. Extraction
+    const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
     if (!jsonMatch) {
-      if (typeof html === "string" && (html.includes("VOTRE MOT DE PASSE") || html.includes("UserPassword"))) {
+      if (html.includes("VOTRE MOT DE PASSE") || html.includes("UserPassword") || html.includes("Se connecter")) {
         throw new Error("Identifiants B2B invalides ou expirés. Veuillez les vérifier dans 'Modifier le fournisseur'.");
       }
       return { price: 0, discount: 0, availability: "Non Trouvé (Regex Failed)" };
     }
 
-    const items = JSON.parse(jsonMatch[1]);
-    if (items.length === 0) {
-      return { price: 0, discount: 0, availability: "Non Disponible" };
-    }
+    // Mettre en cache le cookie fonctionnel
+    cachedCookie = sessionCookie;
+    console.log("[STEQ Scraper] Connexion réussie et cookie mis en cache.");
 
-    // Map all items instead of just returning the best one
-    const parsedItems = items.map((i: any) => ({
-      name: i.ItemNumberEquiv || i.ItemNo || '',
-      brand: i.ItemBrandEquiv || '',
-      price: parseFloat(i.UnitPrice) || 0,
-      discount: parseFloat(i.MaxDiscount) || 0,
-      availability: parseInt(i.Available) > 0 ? "Disponible" : "Sur Commande",
-      rawStock: parseInt(i.Available) || 0,
-      available: parseInt(i.Available) > 0
-    }));
-
-    // Find the best item for backward compatibility (if needed)
-    let bestItem = parsedItems.find((i: any) => i.available);
-    if (!bestItem) bestItem = parsedItems[0];
-
-    return {
-      price: bestItem.price,
-      discount: bestItem.discount,
-      availability: bestItem.availability,
-      rawStock: bestItem.rawStock,
-      items: parsedItems
-    };
+    return parseSTEQHtml(html);
 
   } catch (err: any) {
     console.error("STEQ Scrape Error:", err);

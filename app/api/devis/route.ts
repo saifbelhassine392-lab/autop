@@ -222,3 +222,39 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Erreur serveur lors de la mise à jour' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || !session.user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
+  try {
+    const user = session.user as any
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Identifiant du devis requis' }, { status: 400 })
+    }
+
+    const devis = await prisma.devis.findUnique({
+      where: { id }
+    })
+
+    if (!devis) {
+      return NextResponse.json({ error: 'Devis introuvable' }, { status: 404 })
+    }
+
+    if (user.role !== 'ADMIN' && devis.userId !== user.id) {
+      return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+    }
+
+    await prisma.devis.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true, message: 'Devis supprimé avec succès' })
+  } catch (error: any) {
+    console.error('Error deleting devis:', error)
+    return NextResponse.json({ error: 'Erreur serveur lors de la suppression' }, { status: 500 })
+  }
+}

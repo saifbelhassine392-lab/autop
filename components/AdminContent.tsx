@@ -178,6 +178,27 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               >
                 <Mail className="w-3.5 h-3.5" /> ENVOYER EMAIL
               </a>
+              <button 
+                onClick={async () => {
+                  if (confirm("Voulez-vous vraiment supprimer cette demande de devis ?")) {
+                    try {
+                      const res = await fetch(`/api/quotes?id=${q.id}`, { method: 'DELETE' });
+                      if (res.ok) {
+                        alert("Demande supprimée avec succès.");
+                        fetchQuotes();
+                      } else {
+                        const err = await res.json();
+                        alert(err.error || "Erreur lors de la suppression");
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-red-500/20"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
+              </button>
             </div>
           </div>
         ))
@@ -2381,6 +2402,27 @@ function SectionDevisGeneres() {
                 </button>
                 <button onClick={() => handleDownloadExcel(d)} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition">
                   <Download className="w-3.5 h-3.5" /> EXCEL / CSV
+                </button>
+                <button 
+                  onClick={async () => {
+                    if (confirm("Voulez-vous vraiment supprimer ce devis généré ?")) {
+                      try {
+                        const res = await fetch(`/api/devis?id=${d.id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                          alert("Devis supprimé avec succès.");
+                          fetchDevis();
+                        } else {
+                          const err = await res.json();
+                          alert(err.error || "Erreur lors de la suppression");
+                        }
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-xs font-black uppercase tracking-wide transition border border-red-500/20"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
                 </button>
               </div>
             </div>

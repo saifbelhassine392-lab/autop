@@ -56,7 +56,9 @@ async function scrapeSTEQ(query) {
     console.log("HTML length:", html.length);
     const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
     if (!jsonMatch) {
-      console.log("Regex Failed.");
+      const fs = require('fs');
+      fs.writeFileSync("test_result.html", html);
+      console.log("Regex Failed. Saved HTML to test_result.html");
       return { price: 0, discount: 0, availability: "Non Trouvé (Regex Failed)" };
     }
 

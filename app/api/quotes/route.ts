@@ -212,3 +212,39 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Erreur serveur lors de la mise à jour' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || !session.user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
+  try {
+    const user = session.user as any
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'Identifiant de demande requis' }, { status: 400 })
+    }
+
+    const quote = await prisma.quote.findUnique({
+      where: { id }
+    })
+
+    if (!quote) {
+      return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 })
+    }
+
+    if (user.role !== 'ADMIN' && quote.clientEmail !== user.email) {
+      return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+    }
+
+    await prisma.quote.delete({
+      where: { id }
+    })
+
+    return NextResponse.json({ success: true, message: 'Demande supprimée avec succès' })
+  } catch (error: any) {
+    console.error('Error deleting quote:', error)
+    return NextResponse.json({ error: 'Erreur serveur lors de la suppression' }, { status: 500 })
+  }
+}
