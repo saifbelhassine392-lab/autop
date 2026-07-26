@@ -405,6 +405,32 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     setSaved(false);
 
     try {
+      // 1. Sauvegarder toutes les offres fournisseurs configurées dans l'historique d'article DB
+      const allOffresToSave: any[] = [];
+      items.forEach(it => {
+        if (it.reference && it.offres && it.offres.length > 0) {
+          it.offres.forEach((o: any) => {
+            const supp = suppliers.find(s => s.id === o.supplierId);
+            allOffresToSave.push({
+              reference: it.reference,
+              type: o.type,
+              supplierId: o.supplierId,
+              supplierName: supp?.name || o.supplierName || 'Fournisseur',
+              purchasePrice: o.purchasePrice,
+              sellingPrice: o.sellingPrice
+            });
+          });
+        }
+      });
+
+      if (allOffresToSave.length > 0) {
+        fetch('/api/historique-prix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offresList: allOffresToSave })
+        }).catch(err => console.error('Erreur sauvegarde automatique historique offres:', err));
+      }
+
       const activeAdminProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : null;
       const response = await fetch('/api/devis', {
         method: 'POST',

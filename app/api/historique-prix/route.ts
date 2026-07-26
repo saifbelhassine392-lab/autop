@@ -53,6 +53,46 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
+    // Support pour sauvegarde groupée des offres (Depuis le devis ou la synthèse)
+    if (data.offresList && Array.isArray(data.offresList)) {
+      const results = [];
+      for (const o of data.offresList) {
+        if (!o.reference) continue;
+        const refUpper = o.reference.trim().toUpperCase();
+        const type = o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE');
+        const isConcessionnaire = type === 'OEM' || type === 'PVP' || type === 'CONCESSIONNAIRE';
+        const suppName = o.supplierName || 'Fournisseur';
+
+        const existing = await prisma.partPriceHistory.findFirst({
+          where: { reference: refUpper, supplierName: suppName, type }
+        });
+
+        if (existing) {
+          await prisma.partPriceHistory.update({
+            where: { id: existing.id },
+            data: {
+              purchasePrice: parseFloat(o.purchasePrice) || 0,
+              sellingPrice: parseFloat(o.sellingPrice) || parseFloat(o.purchasePrice) || 0
+            }
+          });
+        } else {
+          await prisma.partPriceHistory.create({
+            data: {
+              reference: refUpper,
+              supplierId: o.supplierId || null,
+              supplierName: suppName,
+              purchasePrice: parseFloat(o.purchasePrice) || 0,
+              sellingPrice: parseFloat(o.sellingPrice) || parseFloat(o.purchasePrice) || 0,
+              type,
+              isConcessionnaire
+            }
+          });
+        }
+        results.push(refUpper);
+      }
+      return NextResponse.json({ success: true, message: 'Offres enregistrées en historique', references: results });
+    }
+
     // Support pour sauvegarde groupée (Synthèse meilleures offres)
     if (data.syntheseList && Array.isArray(data.syntheseList)) {
       const results = [];

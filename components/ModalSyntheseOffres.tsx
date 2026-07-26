@@ -59,48 +59,76 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
         const ref = (it.reference || '').trim().toUpperCase();
         const histories = historyData[ref] || [];
 
-        // Extraire PVP (Concessionnaire)
-        const pvpRecord = histories.find((h: any) => h.isConcessionnaire || h.type === 'PVP');
+        // Combiner l'historique DB et les offres saisies sur la ligne de devis actuelle
+        const localOffres = (it.offres || []).map((o: any) => {
+          const supp = suppliers.find(s => s.id === o.supplierId);
+          return {
+            reference: ref,
+            type: o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE'),
+            purchasePrice: parseFloat(o.purchasePrice) || 0,
+            sellingPrice: parseFloat(o.sellingPrice) || 0,
+            supplierName: supp?.name || o.supplierName || 'Fournisseur',
+            isConcessionnaire: o.type === 'ORIGINE'
+          };
+        });
+
+        const allOffers = [...histories, ...localOffres];
+
+        // 1. Extraire PVP (Prix public concessionnaire)
+        const pvpRecord = allOffers.find((h: any) => h.isConcessionnaire || h.type === 'PVP');
         const pvpVal = pvpRecord?.sellingPrice || pvpRecord?.purchasePrice || '';
 
-        // Extraire Meilleur OEM
-        const oemHistories = histories.filter((h: any) => h.type === 'OEM' || (!h.isConcessionnaire && h.supplierName?.toUpperCase().includes('OEM')));
-        const bestOemRecord = oemHistories.length > 0
-          ? oemHistories.reduce((min: any, cur: any) => ((cur.sellingPrice || cur.purchasePrice || 999999) < (min.sellingPrice || min.purchasePrice || 999999) ? cur : min), oemHistories[0])
-          : null;
-        
-        const localOemOffre = it.offres?.find((o: any) => o.type === 'ORIGINE');
-        const bestOemPrice = bestOemRecord?.sellingPrice || bestOemRecord?.purchasePrice || localOemOffre?.sellingPrice || localOemOffre?.purchasePrice || '';
-        const oemSupplierName = bestOemRecord?.supplierName || bestOemRecord?.supplier?.name || (suppliers.find(s => s.id === localOemOffre?.supplierId)?.name) || 'SOPIQ';
+        // 2. Extraire MEILLEUR OEM (Achat le plus bas parmi les offres OEM/Concessionnaire)
+        const oemOffers = allOffers.filter((h: any) => 
+          h.type === 'OEM' || h.type === 'ORIGINE' || h.type === 'CONCESSIONNAIRE' || (h.isConcessionnaire && h.type !== 'PVP')
+        ).filter((h: any) => (h.purchasePrice || h.sellingPrice || 0) > 0);
 
-        // Extraire Meilleur Adaptable
-        const adaptableHistories = histories.filter((h: any) => !h.isConcessionnaire && h.type !== 'PVP' && h.type !== 'OEM');
-        const bestAdaptableRecord = adaptableHistories.length > 0
-          ? adaptableHistories.reduce((min: any, cur: any) => ((cur.sellingPrice || cur.purchasePrice || 999999) < (min.sellingPrice || min.purchasePrice || 999999) ? cur : min), adaptableHistories[0])
+        const bestOemRecord = oemOffers.length > 0
+          ? oemOffers.reduce((min: any, cur: any) => {
+              const curP = cur.purchasePrice || cur.sellingPrice || 999999;
+              const minP = min.purchasePrice || min.sellingPrice || 999999;
+              return curP < minP ? cur : min;
+            }, oemOffers[0])
           : null;
 
-        const localAdaptableOffre = it.offres?.find((o: any) => o.type === 'ADAPTABLE');
-        const bestAdaptablePrice = bestAdaptableRecord?.sellingPrice || bestAdaptableRecord?.purchasePrice || localAdaptableOffre?.sellingPrice || localAdaptableOffre?.purchasePrice || '';
-        const adaptableSupplierName = bestAdaptableRecord?.supplierName || bestAdaptableRecord?.supplier?.name || (suppliers.find(s => s.id === localAdaptableOffre?.supplierId)?.name) || 'SOPIQ';
+        const bestOemPrice = bestOemRecord ? (bestOemRecord.purchasePrice || bestOemRecord.sellingPrice) : '';
+        const oemSupplierName = bestOemRecord ? (bestOemRecord.supplierName || bestOemRecord.supplier?.name || 'Fournisseur') : '';
 
-        // Prix d'achat & vente actuels de la ligne
-        const currentSelling = it.puHT || bestAdaptablePrice || bestOemPrice || 0;
-        const currentPurchase = localAdaptableOffre?.purchasePrice || localOemOffre?.purchasePrice || (currentSelling * 0.7) || 0;
-        const currentSupplier = (localAdaptableOffre ? adaptableSupplierName : oemSupplierName) || 'SOPIQ';
+        // 3. Extraire MEILLEUR ADAPTABLE (Achat le plus bas parmi les offres Adaptables)
+        const adaptableOffers = allOffers.filter((h: any) => 
+          !h.isConcessionnaire && h.type !== 'PVP' && h.type !== 'OEM' && h.type !== 'ORIGINE' && h.type !== 'CONCESSIONNAIRE'
+        ).filter((h: any) => (h.purchasePrice || h.sellingPrice || 0) > 0);
+
+        const bestAdaptableRecord = adaptableOffers.length > 0
+          ? adaptableOffers.reduce((min: any, cur: any) => {
+              const curP = cur.purchasePrice || cur.sellingPrice || 999999;
+              const minP = min.purchasePrice || min.sellingPrice || 999999;
+              return curP < minP ? cur : min;
+            }, adaptableOffers[0])
+          : null;
+
+        const bestAdaptablePrice = bestAdaptableRecord ? (bestAdaptableRecord.purchasePrice || bestAdaptableRecord.sellingPrice) : '';
+        const adaptableSupplierName = bestAdaptableRecord ? (bestAdaptableRecord.supplierName || bestAdaptableRecord.supplier?.name || 'Fournisseur') : '';
+
+        // Déterminer l'offre retenue par défaut (Privilégier l'adaptable le moins cher s'il existe)
+        const hasAdaptable = !!bestAdaptablePrice;
+        const selectedSupplier = hasAdaptable ? adaptableSupplierName : (oemSupplierName || 'Fournisseur');
+        const selectedPurchase = hasAdaptable ? bestAdaptablePrice : (bestOemPrice || 0);
+        const selectedSelling = it.puHT || selectedPurchase;
 
         return {
           reference: ref || 'SANS-REF',
           designation: it.designation || 'Article',
-          pvp: pvpVal,
-          purchasePrice: currentPurchase ? Number(currentPurchase).toFixed(2) : '',
-          sellingPrice: currentSelling ? Number(currentSelling).toFixed(2) : '',
-          supplierName: currentSupplier,
-          bestOemPrice: bestOemPrice,
+          pvp: pvpVal ? Number(pvpVal).toFixed(2) : '',
+          purchasePrice: selectedPurchase ? Number(selectedPurchase).toFixed(2) : '',
+          sellingPrice: selectedSelling ? Number(selectedSelling).toFixed(2) : '',
+          supplierName: selectedSupplier,
+          bestOemPrice: bestOemPrice ? Number(bestOemPrice).toFixed(2) : '',
           oemSupplierName: bestOemPrice ? oemSupplierName : '',
-          bestAdaptablePrice: bestAdaptablePrice,
+          bestAdaptablePrice: bestAdaptablePrice ? Number(bestAdaptablePrice).toFixed(2) : '',
           adaptableSupplierName: bestAdaptablePrice ? adaptableSupplierName : '',
-          selectOem: false,
-          selectAdaptable: true,
+          selectOem: !hasAdaptable && !!bestOemPrice,
+          selectAdaptable: hasAdaptable,
         };
       });
 
@@ -119,6 +147,7 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
       if (field === 'selectOem' && value === true) {
         updated.selectAdaptable = false;
         if (updated.bestOemPrice) {
+          updated.purchasePrice = updated.bestOemPrice;
           updated.sellingPrice = updated.bestOemPrice;
           if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
         }
@@ -126,6 +155,7 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
       if (field === 'selectAdaptable' && value === true) {
         updated.selectOem = false;
         if (updated.bestAdaptablePrice) {
+          updated.purchasePrice = updated.bestAdaptablePrice;
           updated.sellingPrice = updated.bestAdaptablePrice;
           if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
         }
