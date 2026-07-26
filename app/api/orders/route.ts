@@ -238,3 +238,33 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Erreur serveur lors de la mise à jour' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const user = session.user as any;
+    if (user.role !== 'ADMIN' && user.role !== 'PROFESSIONAL') {
+      return NextResponse.json({ success: false, error: 'Non autorisé' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'Identifiant bon de commande requis' }, { status: 400 });
+    }
+
+    await prisma.order.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true, message: 'Bon de commande supprimé avec succès' });
+  } catch (error: any) {
+    console.error('Order DELETE error:', error);
+    return NextResponse.json({ success: false, error: 'Erreur lors de la suppression' }, { status: 500 });
+  }
+}

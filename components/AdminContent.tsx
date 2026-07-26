@@ -2551,6 +2551,22 @@ function SectionBonsEtLivraisons() {
     }
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm("⚠️ Êtes-vous sûr de vouloir SUPPRIMER définitivement ce bon de commande client ?")) return;
+    try {
+      const res = await fetch(`/api/orders?id=${orderId}`, { method: 'DELETE' });
+      const d = await res.json();
+      if (d.success) {
+        alert("✅ Bon de commande supprimé avec succès !");
+        fetchOrders();
+      } else {
+        alert("Erreur: " + d.error);
+      }
+    } catch (e) {
+      alert("Erreur lors de la suppression du bon de commande.");
+    }
+  };
+
   const filtered = orders.filter(o => 
     o.orderNumber?.toLowerCase().includes(search.toLowerCase()) ||
     o.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -2562,7 +2578,7 @@ function SectionBonsEtLivraisons() {
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
         <ShoppingBag className="w-5 h-5 text-purple-400" /> BONS DE COMMANDE & LIVRAISONS
       </h2>
-      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">MISES À JOUR DES STATUTS DE PRÉPARATION ET DE LIVRAISON CLIENTS</p>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">CONSULTATION, MODIFICATION ET SUPPRESSION DES BONS DE COMMANDE CLIENTS</p>
 
       <div className="flex gap-2 mb-5">
         <div className="relative flex-1">
@@ -2588,9 +2604,18 @@ function SectionBonsEtLivraisons() {
                 {o.shippingAddress && <p className="text-[10px] text-cyan-400 mt-1 uppercase font-bold">📍 ADRESSE: {o.shippingAddress.street || o.shippingAddress}</p>}
               </div>
               <div className="flex flex-col items-end gap-2 text-right">
-                <div>
-                  <span className="text-[10px] text-slate-400 block uppercase font-bold">MONTANT TOTAL TTC</span>
-                  <span className="font-black text-white text-base font-mono">{o.total.toFixed(3)} TND</span>
+                <div className="flex items-center gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block uppercase font-bold">MONTANT TOTAL TTC</span>
+                    <span className="font-black text-white text-base font-mono">{o.total.toFixed(3)} TND</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteOrder(o.id)}
+                    title="Supprimer ce bon de commande"
+                    className="p-2 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-xl border border-red-500/40 transition-colors ml-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
                 {/* Sélecteur de profil admin */}
                 <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
@@ -2769,6 +2794,23 @@ function SectionSuiviPO() {
     }
   };
 
+  const handleDeletePO = async (poId: string) => {
+    if (!confirm("⚠️ Êtes-vous sûr de vouloir SUPPRIMER cette commande d'achat fournisseur ?")) return;
+    try {
+      const res = await fetch(`/api/purchase-orders/${poId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        alert("✅ Bon de commande fournisseur supprimé avec succès !");
+        fetchOrders();
+      } else {
+        alert("Erreur: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la suppression de la commande.");
+    }
+  };
+
   const statusColors: Record<string, string> = {
     DRAFT: 'bg-slate-800 text-slate-400 border-slate-700',
     SENT: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
@@ -2781,7 +2823,7 @@ function SectionSuiviPO() {
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
         <Clock className="w-5 h-5 text-green-400" /> SUIVI PO & LIVRAISONS
       </h2>
-      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">SUIVEZ LE STATUT ET LA LIVRAISON DES BONS DE COMMANDE FOURNISSEURS</p>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">CONSULTATION, SUIVI ET SUPPRESSION DES BONS DE COMMANDE FOURNISSEURS</p>
 
       <div className={cardCls}>
         {loading ? (
@@ -2834,6 +2876,13 @@ function SectionSuiviPO() {
                       ) : (
                         <span className="text-[10px] text-green-400 font-black uppercase tracking-wider">STOCK COMPTABILISÉ</span>
                       )}
+                      <button
+                        onClick={() => handleDeletePO(o.id)}
+                        title="Supprimer la commande d'achat fournisseur"
+                        className="p-1.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg border border-red-500/40 transition-colors ml-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}
