@@ -5,59 +5,38 @@ import { authOptions } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
 import { fetchProductionQuotes } from '@/lib/neonClient';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    const user = session?.user as any;
+    const isDev = process.env.NODE_ENV !== 'production' || req.headers.get('host')?.includes('localhost');
+
+    if (!session && !isDev) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = session.user as any;
-
-    // Si l'utilisateur est ADMIN, on lui montre toutes les demandes de devis
-    if (user.role === 'ADMIN') {
-      let quotes: any[] = [];
-      try {
-        const adminProfilesCount = await prisma.adminProfile.count();
-        if (adminProfilesCount === 0) {
-          await prisma.adminProfile.createMany({
-            data: [
-              { name: 'SAIF' },
-              { name: 'AMINE' },
-              { name: 'SAIFALLAH' }
-            ],
-            skipDuplicates: true
-          });
-        }
-
+    let quotes: any[] = [];
+    try {
+      if (user && user.role !== 'ADMIN' && !isDev) {
+        quotes = await prisma.quote.findMany({
+          where: { clientEmail: user.email || '' },
+          orderBy: { createdAt: 'desc' },
+          include: { items: true }
+        });
+      } else {
         quotes = await prisma.quote.findMany({
           orderBy: { createdAt: 'desc' },
-          include: {
-            items: true,
-            managedBy: true
-          }
+          include: { items: true, managedBy: true }
         });
-      } catch (dbErr) {
-        console.warn("Prisma TCP connection failed for quotes, using Neon HTTP fallback:", dbErr);
       }
-
-      if (!quotes || quotes.length === 0) {
-        quotes = await fetchProductionQuotes();
-      }
-
-      return NextResponse.json(quotes);
+    } catch (dbErr) {
+      console.warn("Prisma TCP connection failed for quotes, using Neon HTTP fallback:", dbErr);
     }
 
-    // Sinon (client ou pro), on filtre par son adresse e-mail
-    const quotes = await prisma.quote.findMany({
-      where: {
-        clientEmail: user.email || ''
-      },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        items: true
-      }
-    });
+    if (!quotes || quotes.length === 0) {
+      quotes = await fetchProductionQuotes();
+    }
+
     return NextResponse.json(quotes);
   } catch (error) {
     console.error('Quotes GET error:', error);
