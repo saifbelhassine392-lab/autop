@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Download, CheckCircle, MessageCircle, FileText, Plus, FileSpreadsheet, Home } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import VehicleAutocomplete from '@/components/VehicleAutocomplete';
 
 export default function DevisPage() {
   const { data: session } = useSession();
@@ -569,26 +570,13 @@ export default function DevisPage() {
               onChange={(e) => setClientEmail(e.target.value)} 
             />
           </div>
-          <div className="flex flex-col">
-            <label className="text-xs font-semibold text-slate-450 mb-1">MARQUE DU VÉHICULE</label>
-            <input 
-              type="text" 
-              placeholder="Ex: Peugeot, Renault..." 
-              className="bg-slate-950/60 text-slate-100 p-3 rounded-xl border border-slate-800 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" 
-              value={brand} 
-              onChange={(e) => setBrand(e.target.value)} 
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs font-semibold text-slate-450 mb-1">MODÈLE DU VÉHICULE</label>
-            <input 
-              type="text" 
-              placeholder="Ex: 308, Clio..." 
-              className="bg-slate-950/60 text-slate-100 p-3 rounded-xl border border-slate-800 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all" 
-              value={model} 
-              onChange={(e) => setModel(e.target.value)} 
-            />
-          </div>
+          <VehicleAutocomplete
+            brand={brand}
+            model={model}
+            onBrandChange={setBrand}
+            onModelChange={setModel}
+            className="md:col-span-2"
+          />
           <div className="flex flex-col md:col-span-2">
             <label className="text-xs font-semibold text-slate-450 mb-1">NUMÉRO VIN (CHÂSSIS) - CONSEILLÉ</label>
             <input 

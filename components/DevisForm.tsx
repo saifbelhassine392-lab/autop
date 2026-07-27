@@ -1,7 +1,8 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useRef, useCallback } from "react";
 import { Upload, Mail, MessageCircle, Download, Camera, X, FileText } from "lucide-react";
+import VehicleAutocomplete from "@/components/VehicleAutocomplete";
 
 interface DevisFormData {
   message: string;
@@ -13,6 +14,8 @@ interface DevisFormData {
 }
 
 export default function DevisForm() {
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
   const [formData, setFormData] = useState<DevisFormData>({
     message: "",
     photos: [],
@@ -279,16 +282,18 @@ ${formData.message}
               placeholder="+216 XX XXX XXX"
             />
           </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2">
-              VÉHICULE (Marque/Modèle/Année)
-            </label>
-            <input
-              type="text"
-              value={formData.vehicleInfo}
-              onChange={(e) => setFormData(prev => ({ ...prev, vehicleInfo: e.target.value }))}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-              placeholder="Peugeot 308 - 2020"
+          <div className="md:col-span-2">
+            <VehicleAutocomplete
+              brand={brand}
+              model={model}
+              onBrandChange={(b) => {
+                setBrand(b);
+                setFormData(prev => ({ ...prev, vehicleInfo: `${b} ${model}`.trim() }));
+              }}
+              onModelChange={(m) => {
+                setModel(m);
+                setFormData(prev => ({ ...prev, vehicleInfo: `${brand} ${m}`.trim() }));
+              }}
             />
           </div>
         </div>
