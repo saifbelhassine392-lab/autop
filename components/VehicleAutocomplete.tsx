@@ -66,6 +66,10 @@ export default function VehicleAutocomplete({
   const modelSuggestions = getModelSuggestions(brand, modelQuery);
 
   const handleSelectBrand = (selectedBrand: string) => {
+    if (selectedBrand.toUpperCase() !== brand.toUpperCase()) {
+      onModelChange("");
+      setModelQuery("");
+    }
     onBrandChange(selectedBrand);
     setBrandQuery(selectedBrand);
     setBrandOpen(false);

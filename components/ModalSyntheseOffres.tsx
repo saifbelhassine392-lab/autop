@@ -74,13 +74,13 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
 
         const allOffers = [...histories, ...localOffres];
 
-        // 1. Extraire PVP (Prix public concessionnaire)
-        const pvpRecord = allOffers.find((h: any) => h.isConcessionnaire || h.type === 'PVP');
+        // 1. Extraire PRIX COMPTOIR (Prix concessionnaire hors remise)
+        const pvpRecord = allOffers.find((h: any) => h.isConcessionnaire || h.type === 'PVP' || h.type === 'ORIGINE' || h.type === 'CONCESSIONNAIRE');
         const pvpVal = pvpRecord?.sellingPrice || pvpRecord?.purchasePrice || '';
 
-        // 2. Extraire MEILLEUR OEM (Achat le plus bas parmi les offres OEM/Concessionnaire)
+        // 2. Extraire MEILLEUR ORIGINE / CONCESSIONNAIRE
         const oemOffers = allOffers.filter((h: any) => 
-          h.type === 'OEM' || h.type === 'ORIGINE' || h.type === 'CONCESSIONNAIRE' || (h.isConcessionnaire && h.type !== 'PVP')
+          h.type === 'OEM' || h.type === 'ORIGINE' || h.type === 'CONCESSIONNAIRE' || h.isConcessionnaire
         ).filter((h: any) => (h.purchasePrice || h.sellingPrice || 0) > 0);
 
         const bestOemRecord = oemOffers.length > 0
@@ -94,9 +94,9 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
         const bestOemPrice = bestOemRecord ? (bestOemRecord.purchasePrice || bestOemRecord.sellingPrice) : '';
         const oemSupplierName = bestOemRecord ? (bestOemRecord.supplierName || bestOemRecord.supplier?.name || 'Fournisseur') : '';
 
-        // 3. Extraire MEILLEUR ADAPTABLE (Achat le plus bas parmi les offres Adaptables)
+        // 3. Extraire MEILLEUR ADAPTABLE
         const adaptableOffers = allOffers.filter((h: any) => 
-          !h.isConcessionnaire && h.type !== 'PVP' && h.type !== 'OEM' && h.type !== 'ORIGINE' && h.type !== 'CONCESSIONNAIRE'
+          !h.isConcessionnaire && h.type === 'ADAPTABLE'
         ).filter((h: any) => (h.purchasePrice || h.sellingPrice || 0) > 0);
 
         const bestAdaptableRecord = adaptableOffers.length > 0
@@ -110,11 +110,20 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
         const bestAdaptablePrice = bestAdaptableRecord ? (bestAdaptableRecord.purchasePrice || bestAdaptableRecord.sellingPrice) : '';
         const adaptableSupplierName = bestAdaptableRecord ? (bestAdaptableRecord.supplierName || bestAdaptableRecord.supplier?.name || 'Fournisseur') : '';
 
-        // Déterminer l'offre retenue par défaut (Privilégier l'adaptable le moins cher s'il existe)
+        // Déterminer l'offre retenue par défaut (Privilégier l'adaptable avec marge +30% si existante)
         const hasAdaptable = !!bestAdaptablePrice;
         const selectedSupplier = hasAdaptable ? adaptableSupplierName : (oemSupplierName || 'Fournisseur');
         const selectedPurchase = hasAdaptable ? bestAdaptablePrice : (bestOemPrice || 0);
-        const selectedSelling = it.puHT || selectedPurchase;
+
+        // Vente adaptable = Achat + 30% | Vente Origine = Prix concessionnaire (PVP)
+        let selectedSelling = it.puHT;
+        if (!selectedSelling || selectedSelling === 0) {
+          if (hasAdaptable) {
+            selectedSelling = (parseFloat(String(bestAdaptablePrice)) * 1.30).toFixed(2);
+          } else {
+            selectedSelling = pvpVal || bestOemPrice || selectedPurchase;
+          }
+        }
 
         return {
           reference: ref || 'SANS-REF',
@@ -146,9 +155,10 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
       
       if (field === 'selectOem' && value === true) {
         updated.selectAdaptable = false;
-        if (updated.bestOemPrice) {
-          updated.purchasePrice = updated.bestOemPrice;
-          updated.sellingPrice = updated.bestOemPrice;
+        if (updated.bestOemPrice || updated.pvp) {
+          updated.purchasePrice = updated.bestOemPrice || updated.pvp;
+          // Prix de vente origine = Prix concessionnaire avant remise (PVP / Prix comptoir)
+          updated.sellingPrice = updated.pvp || updated.bestOemPrice;
           if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
         }
       }
@@ -156,10 +166,21 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
         updated.selectOem = false;
         if (updated.bestAdaptablePrice) {
           updated.purchasePrice = updated.bestAdaptablePrice;
-          updated.sellingPrice = updated.bestAdaptablePrice;
+          // Prix de vente adaptable = Prix achat + 30% marge
+          const pAchat = parseFloat(String(updated.bestAdaptablePrice)) || 0;
+          updated.sellingPrice = pAchat > 0 ? (pAchat * 1.30).toFixed(2) : updated.bestAdaptablePrice;
           if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
         }
       }
+
+      // Si le prix d'achat adaptable change, recalculer automatiquement le prix de vente (+30% marge)
+      if (field === 'bestAdaptablePrice' || (field === 'purchasePrice' && updated.selectAdaptable)) {
+        const pAchat = parseFloat(String(value)) || 0;
+        if (pAchat > 0) {
+          updated.sellingPrice = (pAchat * 1.30).toFixed(2);
+        }
+      }
+
       return updated;
     }));
   };
@@ -256,14 +277,14 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
                 <thead>
                   <tr className="bg-blue-600 text-white font-black text-xs uppercase tracking-wider border-b border-blue-500">
                     <th className="py-3 px-3">RÉFÉRENCE</th>
-                    <th className="py-3 px-3 text-right">PVP (TND)</th>
-                    <th className="py-3 px-3 text-right bg-amber-600/30">MEILLEUR OEM</th>
-                    <th className="py-3 px-3 bg-amber-600/30">FOURN. OEM</th>
+                    <th className="py-3 px-3 text-right" title="Prix concessionnaire hors remise">PRIX COMPTOIR (HT)</th>
+                    <th className="py-3 px-3 text-right bg-amber-600/30">MEILLEUR ORIGINE</th>
+                    <th className="py-3 px-3 bg-amber-600/30">FOURN. ORIGINE</th>
                     <th className="py-3 px-3 text-right bg-cyan-600/30">MEILLEUR ADAPTABLE</th>
                     <th className="py-3 px-3 bg-cyan-600/30">FOURN. ADAPTABLE</th>
                     <th className="py-3 px-3 text-right bg-emerald-600/40">P. ACHAT HT</th>
-                    <th className="py-3 px-3 text-right bg-emerald-600/40">P. VENTE HT</th>
-                    <th className="py-3 px-2 text-center">☑ OEM</th>
+                    <th className="py-3 px-3 text-right bg-emerald-600/40" title="Prix de vente : Concessionnaire si Origine, Achat + 30% si Adaptable">P. VENTE HT</th>
+                    <th className="py-3 px-2 text-center">☑ ORIGINE</th>
                     <th className="py-3 px-2 text-center">☑ ADAPTABLE</th>
                   </tr>
                 </thead>

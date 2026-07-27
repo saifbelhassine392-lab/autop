@@ -743,38 +743,83 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                 <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-800 hover:border-slate-700 transition">
                                   <div className="col-span-2">
                                     <select 
-                                      className={`w-full text-xs px-2 py-1.5 rounded border focus:outline-none ${offre.type === 'ORIGINE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'}`}
-                                      value={offre.type}
+                                      className={`w-full text-xs px-2 py-1.5 rounded border focus:outline-none font-bold ${
+                                        offre.type === 'ORIGINE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
+                                        offre.type === 'CONCESSIONNAIRE' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+                                        'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                                      }`}
+                                      value={offre.type || 'ADAPTABLE'}
                                       onChange={(e) => {
+                                        const newType = e.target.value;
                                         const newOffres = [...it.offres];
-                                        newOffres[oIdx].type = e.target.value;
+                                        newOffres[oIdx].type = newType;
+                                        const pAchat = parseFloat(newOffres[oIdx].purchasePrice) || 0;
+                                        if (newType === 'ADAPTABLE' && pAchat > 0) {
+                                          newOffres[oIdx].sellingPrice = parseFloat((pAchat * 1.30).toFixed(3));
+                                        } else if ((newType === 'ORIGINE' || newType === 'CONCESSIONNAIRE') && pAchat > 0) {
+                                          newOffres[oIdx].sellingPrice = pAchat;
+                                        }
                                         updateLine(i, 'offres', newOffres);
                                       }}
                                     >
-                                      <option value="ORIGINE">CONCESSIONNAIRE</option>
+                                      <option value="ORIGINE">ORIGINE</option>
+                                      <option value="CONCESSIONNAIRE">CONCESSIONNAIRE</option>
                                       <option value="ADAPTABLE">ADAPTABLE</option>
                                     </select>
                                   </div>
                                   <div className="col-span-3">
                                     <select 
                                       className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none"
-                                      value={offre.supplierId}
-                                      onChange={(e) => {
+                                      value={offre.supplierId || ''}
+                                      onChange={async (e) => {
+                                        if (e.target.value === 'NEW_SUPPLIER') {
+                                          const name = prompt("Entrez le nom du nouveau fournisseur à enregistrer :");
+                                          if (name && name.trim()) {
+                                            try {
+                                              const res = await fetch('/api/suppliers', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ name: name.trim().toUpperCase() })
+                                              });
+                                              const data = await res.json();
+                                              if (data.success && data.data) {
+                                                setSuppliers(prev => [...prev, data.data]);
+                                                const newOffres = [...it.offres];
+                                                newOffres[oIdx].supplierId = data.data.id;
+                                                newOffres[oIdx].supplierName = data.data.name;
+                                                updateLine(i, 'offres', newOffres);
+                                                return;
+                                              }
+                                            } catch (err) {
+                                              console.error(err);
+                                            }
+                                          }
+                                          return;
+                                        }
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].supplierId = e.target.value;
+                                        const supp = suppliers.find(s => s.id === e.target.value);
+                                        if (supp) newOffres[oIdx].supplierName = supp.name;
                                         updateLine(i, 'offres', newOffres);
                                       }}
                                     >
                                       <option value="">Fournisseur...</option>
                                       {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                      <option value="NEW_SUPPLIER" className="font-bold text-green-400 bg-slate-900">+ CRÉER NOUVEAU FOURNISSEUR...</option>
                                     </select>
                                   </div>
                                   <div className="col-span-2">
                                     <input type="number" placeholder="Achat HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right"
                                       value={offre.purchasePrice || ''} 
                                       onChange={(e) => {
+                                        const pVal = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
-                                        newOffres[oIdx].purchasePrice = parseFloat(e.target.value) || 0;
+                                        newOffres[oIdx].purchasePrice = pVal;
+                                        if (newOffres[oIdx].type === 'ADAPTABLE') {
+                                          newOffres[oIdx].sellingPrice = parseFloat((pVal * 1.30).toFixed(3));
+                                        } else if ((newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') && (!newOffres[oIdx].sellingPrice || newOffres[oIdx].sellingPrice === 0)) {
+                                          newOffres[oIdx].sellingPrice = pVal;
+                                        }
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
@@ -800,6 +845,8 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                     <button 
                                       onClick={async () => {
                                         updateLine(i, 'puHT', offre.sellingPrice);
+                                        updateLine(i, 'partType', offre.type);
+                                        updateLine(i, 'supplierName', offre.supplierName);
                                         if (it.reference) {
                                           const supp = suppliers.find(s => s.id === offre.supplierId);
                                           const suppName = supp?.name || offre.supplierName || 'Fournisseur';
@@ -810,8 +857,8 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                               reference: it.reference.trim().toUpperCase(),
                                               supplierId: offre.supplierId || null,
                                               supplierName: suppName,
-                                              type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
-                                              isConcessionnaire: offre.type === 'ORIGINE',
+                                              type: offre.type,
+                                              isConcessionnaire: offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE',
                                               purchasePrice: parseFloat(offre.purchasePrice) || 0,
                                               sellingPrice: parseFloat(offre.sellingPrice) || 0
                                             })
@@ -2523,16 +2570,38 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
       headStyles: { fillColor: [30, 41, 59] },
     });
 
+    const tableBody: any[] = [];
+    devis.items?.forEach((it: any) => {
+      const typeLabel = it.partType || (it.isConcessionnaire ? 'ORIGINE' : (it.type || 'ADAPTABLE'));
+      if (it.offres && Array.isArray(it.offres) && it.offres.length > 1) {
+        it.offres.forEach((off: any, offIdx: number) => {
+          const offType = off.type || (off.isConcessionnaire ? 'ORIGINE' : 'ADAPTABLE');
+          const offPrice = parseFloat(off.sellingPrice) || it.price || 0;
+          tableBody.push([
+            it.reference || "N/A",
+            `${it.name} (Option ${offIdx + 1}: ${offType})`,
+            offType,
+            it.quantity.toString(),
+            offPrice.toFixed(3),
+            (offPrice * it.quantity).toFixed(3)
+          ]);
+        });
+      } else {
+        tableBody.push([
+          it.reference || "N/A",
+          it.name,
+          typeLabel,
+          it.quantity.toString(),
+          (it.price || 0).toFixed(3),
+          ((it.price || 0) * it.quantity).toFixed(3)
+        ]);
+      }
+    });
+
     autoTable(doc, {
       startY: (doc as any).lastAutoTable?.finalY + 15,
-      head: [["Réf. pièce", "Désignation", "Quantité", "P.U. HT (TND)", "Total HT (TND)"]],
-      body: devis.items?.map((it: any) => [
-        it.reference || "N/A",
-        it.name,
-        it.quantity.toString(),
-        it.price.toFixed(3),
-        (it.price * it.quantity).toFixed(3)
-      ]) || [],
+      head: [["Réf. pièce", "Désignation", "Rubrique", "Quantité", "P.U. HT (TND)", "Total HT (TND)"]],
+      body: tableBody,
       theme: "grid",
       headStyles: { fillColor: [30, 41, 59] },
     });
@@ -2552,11 +2621,20 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
   };
 
   const handleDownloadExcel = (devis: any) => {
-    let csv = "REFERENCE;DESIGNATION;QUANTITE;PRIX UNITAIRE HT;TOTAL HT\n";
+    let csv = "REFERENCE;DESIGNATION;RUBRIQUE / TYPE;QUANTITE;PRIX UNITAIRE HT;TOTAL HT\n";
     devis.items?.forEach((it: any) => {
-      csv += `${it.reference || "N/A"};${it.name};${it.quantity};${it.price.toFixed(3)};${(it.price * it.quantity).toFixed(3)}\n`;
+      const typeLabel = it.partType || (it.isConcessionnaire ? 'ORIGINE' : (it.type || 'ADAPTABLE'));
+      if (it.offres && Array.isArray(it.offres) && it.offres.length > 1) {
+        it.offres.forEach((off: any, offIdx: number) => {
+          const offType = off.type || (off.isConcessionnaire ? 'ORIGINE' : 'ADAPTABLE');
+          const offPrice = parseFloat(off.sellingPrice) || it.price || 0;
+          csv += `${it.reference || "N/A"};"${it.name} (Option ${offIdx + 1}: ${offType})";${offType};${it.quantity};${offPrice.toFixed(3)};${(offPrice * it.quantity).toFixed(3)}\n`;
+        });
+      } else {
+        csv += `${it.reference || "N/A"};"${it.name}";${typeLabel};${it.quantity};${(it.price || 0).toFixed(3)};${((it.price || 0) * it.quantity).toFixed(3)}\n`;
+      }
     });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.setAttribute("download", `Devis_AUTOP_${devis.id.slice(-6).toUpperCase()}.csv`);
