@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendEmail } from '@/lib/email';
+import { fetchProductionQuotes } from '@/lib/neonClient';
 
 export async function GET() {
   try {
@@ -15,26 +16,35 @@ export async function GET() {
 
     // Si l'utilisateur est ADMIN, on lui montre toutes les demandes de devis
     if (user.role === 'ADMIN') {
-      // Auto-initialisation des profils admin s'ils n'existent pas
-      const adminProfilesCount = await prisma.adminProfile.count();
-      if (adminProfilesCount === 0) {
-        await prisma.adminProfile.createMany({
-          data: [
-            { name: 'SAIF' },
-            { name: 'AMINE' },
-            { name: 'SAIFALLAH' }
-          ],
-          skipDuplicates: true
+      let quotes: any[] = [];
+      try {
+        const adminProfilesCount = await prisma.adminProfile.count();
+        if (adminProfilesCount === 0) {
+          await prisma.adminProfile.createMany({
+            data: [
+              { name: 'SAIF' },
+              { name: 'AMINE' },
+              { name: 'SAIFALLAH' }
+            ],
+            skipDuplicates: true
+          });
+        }
+
+        quotes = await prisma.quote.findMany({
+          orderBy: { createdAt: 'desc' },
+          include: {
+            items: true,
+            managedBy: true
+          }
         });
+      } catch (dbErr) {
+        console.warn("Prisma TCP connection failed for quotes, using Neon HTTP fallback:", dbErr);
       }
 
-      const quotes = await prisma.quote.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: {
-          items: true,
-          managedBy: true
-        }
-      });
+      if (!quotes || quotes.length === 0) {
+        quotes = await fetchProductionQuotes();
+      }
+
       return NextResponse.json(quotes);
     }
 

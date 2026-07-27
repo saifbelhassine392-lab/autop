@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
+import { fetchProductionDevis } from '@/lib/neonClient'
 
 // GET - Mes devis (client) ou tous (admin)
 export async function GET(req: NextRequest) {
@@ -12,15 +13,24 @@ export async function GET(req: NextRequest) {
     const user = session.user as any
     const where = user.role === 'ADMIN' ? {} : { userId: user.id }
 
-    const devis = await prisma.devis.findMany({
-      where,
-      include: {
-        user: { select: { name: true, email: true, phone: true } },
-        items: { include: { product: true } },
-        managedBy: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    let devis: any[] = []
+    try {
+      devis = await prisma.devis.findMany({
+        where,
+        include: {
+          user: { select: { name: true, email: true, phone: true } },
+          items: { include: { product: true } },
+          managedBy: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      })
+    } catch (dbErr) {
+      console.warn("Prisma TCP direct connection failed, using Neon HTTP fallback:", dbErr)
+    }
+
+    if (!devis || devis.length === 0) {
+      devis = await fetchProductionDevis()
+    }
 
     return NextResponse.json(devis)
   } catch (error) {
