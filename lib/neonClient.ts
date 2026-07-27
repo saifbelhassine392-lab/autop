@@ -59,8 +59,10 @@ export async function fetchProductionQuotes() {
   try {
     const rows: any[] = await neonSql`
       SELECT 
-        q.id, q."createdAt", q."updatedAt", q.brand, q.model, q.vin, q.remarks, q.status, q."clientName", q."clientEmail", q."managedById"
+        q.id, q."createdAt", q.brand, q.model, q.vin, q.remarks, q.status, q."clientName", q."clientEmail", q."managedById",
+        m.name as "managedByName"
       FROM "Quote" q
+      LEFT JOIN "AdminProfile" m ON q."managedById" = m.id
       ORDER BY q."createdAt" DESC
     `;
 
@@ -75,7 +77,6 @@ export async function fetchProductionQuotes() {
       quotes.push({
         id: r.id,
         createdAt: r.createdAt,
-        updatedAt: r.updatedAt,
         brand: r.brand,
         model: r.model,
         vin: r.vin,
@@ -85,6 +86,8 @@ export async function fetchProductionQuotes() {
         clientEmail: r.clientEmail,
         vehicleBrand: r.brand,
         vehicleModel: r.model,
+        managedById: r.managedById,
+        managedBy: r.managedByName ? { id: r.managedById, name: r.managedByName } : null,
         items
       });
     }
