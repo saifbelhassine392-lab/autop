@@ -155,21 +155,37 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
       
       if (field === 'selectOem' && value === true) {
         updated.selectAdaptable = false;
-        if (updated.bestOemPrice || updated.pvp) {
-          updated.purchasePrice = updated.bestOemPrice || updated.pvp;
-          // Prix de vente origine = Prix concessionnaire avant remise (PVP / Prix comptoir)
-          updated.sellingPrice = updated.pvp || updated.bestOemPrice;
-          if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
-        }
+        const oemP = parseFloat(String(updated.bestOemPrice)) || 0;
+        const pvpP = parseFloat(String(updated.pvp)) || 0;
+        updated.purchasePrice = oemP > 0 ? oemP : (pvpP > 0 ? pvpP : updated.purchasePrice);
+        // Prix de vente origine = Prix concessionnaire avant remise (PVP si renseigné, sinon Meilleur Origine)
+        updated.sellingPrice = pvpP > 0 ? pvpP : (oemP > 0 ? oemP : updated.purchasePrice);
+        if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
       }
       if (field === 'selectAdaptable' && value === true) {
         updated.selectOem = false;
-        if (updated.bestAdaptablePrice) {
-          updated.purchasePrice = updated.bestAdaptablePrice;
-          // Prix de vente adaptable = Prix achat + 30% marge
-          const pAchat = parseFloat(String(updated.bestAdaptablePrice)) || 0;
-          updated.sellingPrice = pAchat > 0 ? (pAchat * 1.30).toFixed(2) : updated.bestAdaptablePrice;
-          if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
+        const adaptP = parseFloat(String(updated.bestAdaptablePrice)) || 0;
+        if (adaptP > 0) {
+          updated.purchasePrice = adaptP;
+          updated.sellingPrice = (adaptP * 1.30).toFixed(2);
+        }
+        if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
+      }
+
+      // Si PVP (Prix Comptoir) change et ORIGINE est coché, mettre à jour le prix de vente
+      if (field === 'pvp' && updated.selectOem) {
+        const val = parseFloat(String(value)) || 0;
+        if (val > 0) updated.sellingPrice = val;
+      }
+
+      // Si MEILLEUR ORIGINE change et ORIGINE est coché
+      if (field === 'bestOemPrice' && updated.selectOem) {
+        const val = parseFloat(String(value)) || 0;
+        if (val > 0) {
+          updated.purchasePrice = val;
+          if (!updated.pvp || parseFloat(String(updated.pvp)) === 0) {
+            updated.sellingPrice = val;
+          }
         }
       }
 

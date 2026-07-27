@@ -371,25 +371,41 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
   const handleApplySynthese = (updatedRows: any[]) => {
     setItems(prev => prev.map(it => {
       const refUpper = (it.reference || '').trim().toUpperCase();
-      const match = updatedRows.find((r: any) => (refUpper && r.reference === refUpper) || (r.designation && r.designation === it.designation));
+      const desUpper = (it.designation || '').trim().toUpperCase();
+
+      const match = updatedRows.find((r: any) => {
+        const rRef = (r.reference || '').trim().toUpperCase();
+        const rDes = (r.designation || '').trim().toUpperCase();
+        return (refUpper && rRef === refUpper) || (desUpper && rDes === desUpper);
+      });
+
       if (!match) return it;
 
-      const newPuHT = parseFloat(String(match.sellingPrice)) || it.puHT;
+      const newSellingPrice = parseFloat(String(match.sellingPrice)) || 0;
       const purchasePrice = parseFloat(String(match.purchasePrice)) || 0;
+      const type = match.selectOem ? 'ORIGINE' : (match.selectAdaptable ? 'ADAPTABLE' : (it.partType || 'ADAPTABLE'));
+      const suppName = match.supplierName || (match.selectOem ? match.oemSupplierName : match.adaptableSupplierName) || '';
 
       const updatedOffres = [...(it.offres || [])];
-      const type = match.selectOem ? 'ORIGINE' : 'ADAPTABLE';
       const oIdx = updatedOffres.findIndex((o: any) => o.type === type);
       if (oIdx >= 0) {
-        updatedOffres[oIdx].sellingPrice = newPuHT;
+        updatedOffres[oIdx].sellingPrice = newSellingPrice;
         updatedOffres[oIdx].purchasePrice = purchasePrice;
+        if (suppName) updatedOffres[oIdx].supplierName = suppName;
       } else {
-        updatedOffres.push({ type, supplierId: '', purchasePrice, sellingPrice: newPuHT });
+        updatedOffres.push({ type, supplierId: '', supplierName: suppName, purchasePrice, sellingPrice: newSellingPrice });
       }
 
-      return { ...it, puHT: newPuHT, offres: updatedOffres };
+      return { 
+        ...it, 
+        puHT: newSellingPrice, 
+        price: newSellingPrice, 
+        partType: type, 
+        supplierName: suppName,
+        offres: updatedOffres 
+      };
     }));
-    alert("✅ Rapport de devis validé ! Prix d'achat, prix de vente et offres enregistrés en base d'articles.");
+    alert("✅ Rapport de devis validé ! Le Prix de vente HT, la rubrique (ORIGINE/ADAPTABLE) et le fournisseur ont été enregistrés dans le devis.");
   };
 
   const handlePrintPDF = () => {
