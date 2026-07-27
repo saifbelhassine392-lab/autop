@@ -9,7 +9,7 @@ import {
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
-  ShoppingBag, BarChart2, Download, Receipt, Paperclip
+  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -530,6 +530,138 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     setShowSynthese(true);
   };
 
+  const handleImportSupplierOffersFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      if (rows.length < 2) {
+        alert("Fichier vide ou format non reconnu.");
+        return;
+      }
+
+      const normalize = (s: any) => String(s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+      const headers = rows[0].map(normalize);
+      const findColIndex = (keywords: string[]) => headers.findIndex(h => keywords.some(k => h.includes(k)));
+
+      const colRef = findColIndex(['ref', 'code', 'article', 'part']);
+      const colDes = findColIndex(['desig', 'nom', 'name', 'libelle']);
+      const colAchat = findColIndex(['achat', 'cost', 'prixachat', 'pa']);
+      const colPvp = findColIndex(['pvp', 'comptoir', 'public', 'concessionnaire']);
+      const colVente = findColIndex(['vente', 'pv', 'prixvente', 'price']);
+      const colType = findColIndex(['type', 'rubrique', 'origine', 'adaptable', 'oem']);
+      const colSupp = findColIndex(['fourn', 'supplier', 'fournisseur', 'marque']);
+
+      const importedItems: any[] = [];
+      const historyPayload: any[] = [];
+      const productPayload: any[] = [];
+
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (!row || row.every((c: any) => String(c).trim() === '')) continue;
+
+        const reference = String(colRef >= 0 ? row[colRef] : row[0] || '').trim().toUpperCase();
+        const designation = String(colDes >= 0 ? row[colDes] : row[1] || '').trim();
+
+        if (!reference && !designation) continue;
+
+        const purchasePrice = parseFloat(String(colAchat >= 0 ? row[colAchat] : row[2] || 0)) || 0;
+        const pvpPrice = parseFloat(String(colPvp >= 0 ? row[colPvp] : 0)) || 0;
+        let sellingPrice = parseFloat(String(colVente >= 0 ? row[colVente] : 0)) || 0;
+
+        const rawType = String(colType >= 0 ? row[colType] : '').toUpperCase();
+        const type = rawType.includes('ORIG') || rawType.includes('CONC') || rawType.includes('OEM') ? 'ORIGINE' : 'ADAPTABLE';
+
+        if (!sellingPrice || sellingPrice === 0) {
+          if (type === 'ADAPTABLE') {
+            sellingPrice = parseFloat((purchasePrice * 1.30).toFixed(3));
+          } else {
+            sellingPrice = pvpPrice > 0 ? pvpPrice : purchasePrice;
+          }
+        }
+
+        const supplierName = String(colSupp >= 0 ? row[colSupp] : 'FOURNISSEUR IMPORTÉ').trim().toUpperCase() || 'FOURNISSEUR IMPORTÉ';
+
+        importedItems.push({
+          reference: reference || 'SANS-REF',
+          designation: designation || 'Article',
+          qty: 1,
+          quantity: 1,
+          puHT: sellingPrice,
+          price: sellingPrice,
+          partType: type,
+          supplierName: supplierName,
+          offres: [
+            {
+              type,
+              supplierId: '',
+              supplierName,
+              purchasePrice,
+              sellingPrice
+            }
+          ]
+        });
+
+        historyPayload.push({
+          reference: reference || 'SANS-REF',
+          designation,
+          supplierName,
+          type,
+          isConcessionnaire: type === 'ORIGINE',
+          purchasePrice,
+          sellingPrice,
+          pvp: pvpPrice
+        });
+
+        productPayload.push({
+          reference: reference || 'SANS-REF',
+          name: designation || 'Article',
+          price: sellingPrice,
+          costPrice: purchasePrice,
+          stock: 10
+        });
+      }
+
+      if (importedItems.length === 0) {
+        alert("Aucun article valide trouvé dans le fichier.");
+        return;
+      }
+
+      // 1. Post to history API immediately
+      fetch('/api/historique-prix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offresList: historyPayload })
+      }).catch(err => console.error("Erreur historique:", err));
+
+      // 2. Register missing products in stock DB
+      fetch('/api/products/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ products: productPayload })
+      }).catch(err => console.error("Erreur bulk products:", err));
+
+      // 3. Append to current devis items
+      setItems(prev => {
+        const filteredPrev = prev.filter(it => it.reference?.trim() || it.designation?.trim());
+        return [...filteredPrev, ...importedItems];
+      });
+
+      alert(`✅ IMPORTATION RÉUSSIE ! ${importedItems.length} article(s) et offre(s) fournisseur ajoutés au devis et enregistrés en base et dans l'historique !`);
+
+    } catch (err: any) {
+      console.error(err);
+      alert(`Erreur lors de la lecture du fichier : ${err.message}`);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1">CRÉER / MODIFIER DEVIS</h2>
@@ -567,6 +699,10 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
           <div className="flex items-center gap-2 flex-wrap">
+            <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black uppercase rounded-lg transition cursor-pointer shadow-lg shadow-emerald-600/30 border border-emerald-400/30 font-sans" title="Importer un fichier d'offres fournisseur (Excel/CSV) pour remplir le devis et l'historique">
+              <Upload className="w-3.5 h-3.5" /> IMPORTER OFFRES FOURNISSEUR (EXCEL/CSV)
+              <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportSupplierOffersFile} className="hidden" />
+            </label>
             <button 
               onClick={handleOpenSynthese}
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-blue-600/30 border border-blue-400/30"
@@ -2678,6 +2814,159 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
     document.body.removeChild(link);
   };
 
+  const handleDownloadSupplierPDF = async (devis: any) => {
+    const { jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
+
+    const supplierNamesSet = new Set<string>();
+    devis.items?.forEach((it: any) => {
+      if (it.supplierName) supplierNamesSet.add(it.supplierName.trim().toUpperCase());
+      if (it.offres && Array.isArray(it.offres)) {
+        it.offres.forEach((o: any) => {
+          if (o.supplierName) supplierNamesSet.add(o.supplierName.trim().toUpperCase());
+        });
+      }
+    });
+
+    const supplierList = Array.from(supplierNamesSet);
+    if (supplierList.length === 0) {
+      alert("Aucun nom de fournisseur spécifié dans ce devis.");
+      return;
+    }
+
+    let targetSupplier = supplierList[0];
+    if (supplierList.length > 1) {
+      const selected = prompt(`Sélectionnez le fournisseur pour l'export PDF :\n${supplierList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`, supplierList[0]);
+      if (!selected) return;
+      const found = supplierList.find(s => s.toLowerCase() === selected.toLowerCase().trim()) || supplierList[parseInt(selected) - 1];
+      if (found) targetSupplier = found;
+    }
+
+    const doc = new jsPDF();
+    const devisSeqNum = getSeqNum(devis);
+    const cleanSupplierName = targetSupplier.trim().toUpperCase();
+
+    const supplierItems: any[] = [];
+    devis.items?.forEach((it: any) => {
+      let matched = false;
+      if (it.offres && Array.isArray(it.offres)) {
+        const matching = it.offres.filter((o: any) => (o.supplierName || '').toUpperCase() === cleanSupplierName);
+        if (matching.length > 0) {
+          matched = true;
+          matching.forEach((off: any) => {
+            supplierItems.push({
+              reference: it.reference || "N/A",
+              name: it.name || it.designation,
+              quantity: it.quantity,
+              type: off.type || 'ADAPTABLE',
+              purchasePrice: parseFloat(off.purchasePrice) || 0,
+              sellingPrice: parseFloat(off.sellingPrice) || 0
+            });
+          });
+        }
+      }
+      if (!matched && (it.supplierName || '').toUpperCase() === cleanSupplierName) {
+        supplierItems.push({
+          reference: it.reference || "N/A",
+          name: it.name || it.designation,
+          quantity: it.quantity,
+          type: it.partType || 'ADAPTABLE',
+          purchasePrice: it.price || 0,
+          sellingPrice: it.price || 0
+        });
+      }
+    });
+
+    const itemsToExport = supplierItems.length > 0 ? supplierItems : devis.items;
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, 210, 40, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.text(`DEMANDE DE PRIX / OFFRE - ${cleanSupplierName}`, 20, 24);
+    doc.setFontSize(10);
+    doc.text(`CONCERNANT DEVIS #DEV-${devisSeqNum}`, 20, 31);
+
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Fournisseur : ${cleanSupplierName}`, 140, 20);
+    doc.text(`Date : ${new Date(devis.createdAt || Date.now()).toLocaleDateString('fr-FR')}`, 140, 26);
+
+    const tableBody = itemsToExport.map((it: any) => [
+      it.reference || "N/A",
+      it.name || it.designation,
+      it.type || it.partType || "ADAPTABLE",
+      it.quantity.toString(),
+      (it.purchasePrice || it.price || 0).toFixed(3),
+      (((it.purchasePrice || it.price || 0)) * it.quantity).toFixed(3)
+    ]);
+
+    autoTable(doc, {
+      startY: 50,
+      head: [["Réf. pièce", "Désignation", "Type", "Quantité", "P.U. HT (TND)", "Total HT (TND)"]],
+      body: tableBody,
+      theme: "grid",
+      headStyles: { fillColor: [30, 41, 59] },
+    });
+
+    doc.save(`Demande_Prix_${cleanSupplierName.replace(/\s+/g, '_')}_DEV-${devisSeqNum}.pdf`);
+  };
+
+  const handleDownloadSupplierExcel = (devis: any) => {
+    const supplierNamesSet = new Set<string>();
+    devis.items?.forEach((it: any) => {
+      if (it.supplierName) supplierNamesSet.add(it.supplierName.trim().toUpperCase());
+      if (it.offres && Array.isArray(it.offres)) {
+        it.offres.forEach((o: any) => {
+          if (o.supplierName) supplierNamesSet.add(o.supplierName.trim().toUpperCase());
+        });
+      }
+    });
+
+    const supplierList = Array.from(supplierNamesSet);
+    if (supplierList.length === 0) {
+      alert("Aucun nom de fournisseur spécifié dans ce devis.");
+      return;
+    }
+
+    let targetSupplier = supplierList[0];
+    if (supplierList.length > 1) {
+      const selected = prompt(`Sélectionnez le fournisseur pour l'export Excel :\n${supplierList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`, supplierList[0]);
+      if (!selected) return;
+      const found = supplierList.find(s => s.toLowerCase() === selected.toLowerCase().trim()) || supplierList[parseInt(selected) - 1];
+      if (found) targetSupplier = found;
+    }
+
+    const devisSeqNum = getSeqNum(devis);
+    const cleanSupplierName = targetSupplier.trim().toUpperCase();
+    let csv = `DEMANDE DE PRIX / OFFRE FOURNISSEUR : ${cleanSupplierName}\n`;
+    csv += "REFERENCE;DESIGNATION;RUBRIQUE / TYPE;QUANTITE;PRIX UNITAIRE HT;TOTAL HT\n";
+
+    devis.items?.forEach((it: any) => {
+      let matched = false;
+      if (it.offres && Array.isArray(it.offres)) {
+        const matching = it.offres.filter((o: any) => (o.supplierName || '').toUpperCase() === cleanSupplierName);
+        if (matching.length > 0) {
+          matched = true;
+          matching.forEach((off: any) => {
+            const offPrice = parseFloat(off.purchasePrice) || parseFloat(off.sellingPrice) || it.price || 0;
+            csv += `${it.reference || "N/A"};"${it.name || it.designation}";${off.type || 'ADAPTABLE'};${it.quantity};${offPrice.toFixed(3)};${(offPrice * it.quantity).toFixed(3)}\n`;
+          });
+        }
+      }
+      if (!matched && (it.supplierName || '').toUpperCase() === cleanSupplierName) {
+        csv += `${it.reference || "N/A"};"${it.name || it.designation}";${it.partType || 'ADAPTABLE'};${it.quantity};${(it.price || 0).toFixed(3)};${((it.price || 0) * it.quantity).toFixed(3)}\n`;
+      }
+    });
+
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `Demande_Prix_${cleanSupplierName.replace(/\s+/g, '_')}_DEV-${devisSeqNum}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const devisSorted = [...devisList].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
   const getSeqNum = (d: any) => {
     const idx = devisSorted.findIndex(x => x.id === d.id);
@@ -2771,10 +3060,16 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
                   </button>
                 )}
                 <button onClick={() => handleDownloadPDF(d)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition">
-                  <Download className="w-3.5 h-3.5" /> PDF
+                  <Download className="w-3.5 h-3.5" /> PDF CLIENT
                 </button>
                 <button onClick={() => handleDownloadExcel(d)} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition">
-                  <Download className="w-3.5 h-3.5" /> EXCEL / CSV
+                  <Download className="w-3.5 h-3.5" /> EXCEL CLIENT
+                </button>
+                <button onClick={() => handleDownloadSupplierPDF(d)} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase rounded-xl transition border border-indigo-400/30 shadow-lg shadow-indigo-600/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (PDF)">
+                  <FileText className="w-3.5 h-3.5" /> PDF FOURNISSEUR
+                </button>
+                <button onClick={() => handleDownloadSupplierExcel(d)} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase rounded-xl transition border border-emerald-400/30 shadow-lg shadow-emerald-700/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (Excel/CSV)">
+                  <FileText className="w-3.5 h-3.5" /> EXCEL FOURNISSEUR
                 </button>
                 <button 
                   onClick={async () => {

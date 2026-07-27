@@ -24,11 +24,11 @@ export async function POST(req: NextRequest) {
       const reference = String(prod.reference || '').trim();
       if (!reference) continue;
 
-      const price = parseFloat(prod.sellingPrice) || 0;
-      const costPrice = parseFloat(prod.costPrice) || 0;
-      const name = prod.designation || 'Article ' + reference;
-      const slug = slugify(name) + '-' + reference + '-' + Date.now().toString().slice(-4);
-      const stock = parseInt(prod.stock) || 0;
+      const price = parseFloat(prod.price) || parseFloat(prod.sellingPrice) || 0;
+      const costPrice = parseFloat(prod.costPrice) || parseFloat(prod.purchasePrice) || 0;
+      const name = prod.name || prod.designation || 'Article ' + reference;
+      const slug = slugify(name) + '-' + reference.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Math.floor(Math.random() * 1000);
+      const stock = parseInt(prod.stock) || 10;
       const brand = prod.brand || '';
       const vehicleCompat = prod.vehicleCompat || '';
 
