@@ -153,44 +153,49 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
       if (idx !== index) return r;
       const updated = { ...r, [field]: value };
       
-      if (field === 'selectOem' && value === true) {
-        updated.selectAdaptable = false;
-        const oemP = parseFloat(String(updated.bestOemPrice)) || 0;
-        const pvpP = parseFloat(String(updated.pvp)) || 0;
-        updated.purchasePrice = oemP > 0 ? oemP : (pvpP > 0 ? pvpP : updated.purchasePrice);
-        // Prix de vente origine = Prix concessionnaire avant remise (PVP si renseigné, sinon Meilleur Origine)
-        updated.sellingPrice = pvpP > 0 ? pvpP : (oemP > 0 ? oemP : updated.purchasePrice);
+      const isOem = field === 'selectOem' ? Boolean(value) : updated.selectOem;
+      const isAdapt = field === 'selectAdaptable' ? Boolean(value) : updated.selectAdaptable;
+
+      updated.selectOem = isOem;
+      updated.selectAdaptable = isAdapt;
+
+      const pvpP = parseFloat(String(updated.pvp)) || 0;
+      const oemAchat = parseFloat(String(updated.bestOemPrice)) || 0;
+      const oemVente = pvpP > 0 ? pvpP : (oemAchat > 0 ? oemAchat : 0);
+
+      const adaptAchat = parseFloat(String(updated.bestAdaptablePrice)) || 0;
+      const adaptVente = adaptAchat > 0 ? parseFloat((adaptAchat * 1.30).toFixed(2)) : 0;
+
+      if (isOem && isAdapt) {
+        updated.purchasePrice = (oemAchat + adaptAchat).toFixed(2);
+        updated.sellingPrice = (oemVente + adaptVente).toFixed(2);
+      } else if (isOem) {
+        updated.purchasePrice = oemAchat > 0 ? oemAchat.toFixed(2) : (pvpP > 0 ? pvpP.toFixed(2) : updated.purchasePrice);
+        updated.sellingPrice = oemVente > 0 ? oemVente.toFixed(2) : updated.sellingPrice;
         if (updated.oemSupplierName) updated.supplierName = updated.oemSupplierName;
-      }
-      if (field === 'selectAdaptable' && value === true) {
-        updated.selectOem = false;
-        const adaptP = parseFloat(String(updated.bestAdaptablePrice)) || 0;
-        if (adaptP > 0) {
-          updated.purchasePrice = adaptP;
-          updated.sellingPrice = (adaptP * 1.30).toFixed(2);
-        }
+      } else if (isAdapt) {
+        updated.purchasePrice = adaptAchat > 0 ? adaptAchat.toFixed(2) : updated.purchasePrice;
+        updated.sellingPrice = adaptVente > 0 ? adaptVente.toFixed(2) : updated.sellingPrice;
         if (updated.adaptableSupplierName) updated.supplierName = updated.adaptableSupplierName;
       }
 
-      // Si PVP (Prix Comptoir) change et ORIGINE est coché, mettre à jour le prix de vente
-      if (field === 'pvp' && updated.selectOem) {
+      // Si PVP (Prix Comptoir) change et ORIGINE est coché
+      if (field === 'pvp' && isOem) {
         const val = parseFloat(String(value)) || 0;
-        if (val > 0) updated.sellingPrice = val;
+        if (val > 0) updated.sellingPrice = val.toFixed(2);
       }
 
       // Si MEILLEUR ORIGINE change et ORIGINE est coché
-      if (field === 'bestOemPrice' && updated.selectOem) {
+      if (field === 'bestOemPrice' && isOem) {
         const val = parseFloat(String(value)) || 0;
         if (val > 0) {
-          updated.purchasePrice = val;
-          if (!updated.pvp || parseFloat(String(updated.pvp)) === 0) {
-            updated.sellingPrice = val;
-          }
+          updated.purchasePrice = val.toFixed(2);
+          if (!pvpP) updated.sellingPrice = val.toFixed(2);
         }
       }
 
-      // Si le prix d'achat adaptable change, recalculer automatiquement le prix de vente (+30% marge)
-      if (field === 'bestAdaptablePrice' || (field === 'purchasePrice' && updated.selectAdaptable)) {
+      // Si le prix d'achat adaptable change et ADAPTABLE est coché
+      if ((field === 'bestAdaptablePrice' || field === 'purchasePrice') && isAdapt) {
         const pAchat = parseFloat(String(value)) || 0;
         if (pAchat > 0) {
           updated.sellingPrice = (pAchat * 1.30).toFixed(2);
@@ -226,8 +231,30 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
   };
 
   // Calculs du rapport global de devis
-  const totalAchat = rows.reduce((sum, r) => sum + (parseFloat(String(r.purchasePrice)) || 0), 0);
-  const totalVente = rows.reduce((sum, r) => sum + (parseFloat(String(r.sellingPrice)) || 0), 0);
+  const totalAchat = rows.reduce((sum, r) => {
+    let rowAchat = 0;
+    const oemA = parseFloat(String(r.bestOemPrice)) || 0;
+    const adaptA = parseFloat(String(r.bestAdaptablePrice)) || 0;
+    if (r.selectOem) rowAchat += oemA;
+    if (r.selectAdaptable) rowAchat += adaptA;
+    if (!r.selectOem && !r.selectAdaptable) rowAchat += parseFloat(String(r.purchasePrice)) || 0;
+    return sum + rowAchat;
+  }, 0);
+
+  const totalVente = rows.reduce((sum, r) => {
+    let rowVente = 0;
+    const pvpP = parseFloat(String(r.pvp)) || 0;
+    const oemA = parseFloat(String(r.bestOemPrice)) || 0;
+    const oemV = pvpP > 0 ? pvpP : oemA;
+    const adaptA = parseFloat(String(r.bestAdaptablePrice)) || 0;
+    const adaptV = adaptA > 0 ? (adaptA * 1.30) : 0;
+
+    if (r.selectOem) rowVente += oemV;
+    if (r.selectAdaptable) rowVente += adaptV;
+    if (!r.selectOem && !r.selectAdaptable) rowVente += parseFloat(String(r.sellingPrice)) || 0;
+    return sum + rowVente;
+  }, 0);
+
   const margeTND = totalVente - totalAchat;
   const margePourcent = totalVente > 0 ? (margeTND / totalVente) * 100 : 0;
 
@@ -298,6 +325,7 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
                     <th className="py-3 px-3 bg-amber-600/30">FOURN. ORIGINE</th>
                     <th className="py-3 px-3 text-right bg-cyan-600/30">MEILLEUR ADAPTABLE</th>
                     <th className="py-3 px-3 bg-cyan-600/30">FOURN. ADAPTABLE</th>
+                    <th className="py-3 px-3 text-center bg-indigo-950/60 border-x border-indigo-800/40 text-indigo-300">MARGES DÉGAGÉES</th>
                     <th className="py-3 px-3 text-right bg-emerald-600/40">P. ACHAT HT</th>
                     <th className="py-3 px-3 text-right bg-emerald-600/40" title="Prix de vente : Concessionnaire si Origine, Achat + 30% si Adaptable">P. VENTE HT</th>
                     <th className="py-3 px-2 text-center">☑ ORIGINE</th>
@@ -306,9 +334,16 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-slate-900 text-slate-100">
                   {rows.map((row, idx) => {
-                    const lineAchat = parseFloat(String(row.purchasePrice)) || 0;
-                    const lineVente = parseFloat(String(row.sellingPrice)) || 0;
-                    const lineMarge = lineVente - lineAchat;
+                    const pvpP = parseFloat(String(row.pvp)) || 0;
+                    const oemA = parseFloat(String(row.bestOemPrice)) || 0;
+                    const oemV = pvpP > 0 ? pvpP : oemA;
+                    const margeOemTND = oemV - oemA;
+                    const margeOemPct = oemV > 0 ? (margeOemTND / oemV) * 100 : 0;
+
+                    const adaptA = parseFloat(String(row.bestAdaptablePrice)) || 0;
+                    const adaptV = adaptA > 0 ? (adaptA * 1.30) : 0;
+                    const margeAdaptTND = adaptV - adaptA;
+                    const margeAdaptPct = adaptV > 0 ? (margeAdaptTND / adaptV) * 100 : 0;
 
                     return (
                       <tr key={idx} className="hover:bg-slate-800/80 transition-colors">
@@ -374,6 +409,29 @@ export default function ModalSyntheseOffres({ quoteNumber, items, suppliers, onC
                             onChange={e => updateRow(idx, 'adaptableSupplierName', e.target.value)}
                             className="w-24 bg-slate-950 text-slate-200 uppercase font-bold text-xs border border-slate-700 rounded px-2 py-1.5 focus:border-blue-400 focus:outline-none"
                           />
+                        </td>
+
+                        {/* Marges Dégagées */}
+                        <td className="py-3 px-3 bg-indigo-950/30 border-x border-indigo-900/40 min-w-[170px]">
+                          <div className="flex flex-col gap-1 text-[10px]">
+                            {row.bestOemPrice || row.pvp ? (
+                              <div className="flex items-center justify-between font-mono font-bold text-amber-300 bg-amber-950/50 px-2 py-0.5 rounded border border-amber-500/30">
+                                <span>ORIG:</span>
+                                <span>+{margeOemTND.toFixed(2)} TND ({margeOemPct.toFixed(1)}%)</span>
+                              </div>
+                            ) : (
+                              <div className="text-[9px] text-slate-600 font-mono text-center">ORIG: --</div>
+                            )}
+
+                            {row.bestAdaptablePrice ? (
+                              <div className="flex items-center justify-between font-mono font-bold text-cyan-300 bg-cyan-950/50 px-2 py-0.5 rounded border border-cyan-500/30">
+                                <span>ADAPT:</span>
+                                <span>+{margeAdaptTND.toFixed(2)} TND ({margeAdaptPct.toFixed(1)}%)</span>
+                              </div>
+                            ) : (
+                              <div className="text-[9px] text-slate-600 font-mono text-center">ADAPT: --</div>
+                            )}
+                          </div>
                         </td>
 
                         {/* Prix Achat HT retenu */}

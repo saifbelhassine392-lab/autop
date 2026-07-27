@@ -825,35 +825,54 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                     </select>
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder="Achat HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right"
+                                    <input type="number" placeholder="Achat HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-mono"
                                       value={offre.purchasePrice || ''} 
                                       onChange={(e) => {
                                         const pVal = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].purchasePrice = pVal;
+                                        const disc = parseFloat(newOffres[oIdx].discount) || 0;
                                         if (newOffres[oIdx].type === 'ADAPTABLE') {
                                           newOffres[oIdx].sellingPrice = parseFloat((pVal * 1.30).toFixed(3));
-                                        } else if ((newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') && (!newOffres[oIdx].sellingPrice || newOffres[oIdx].sellingPrice === 0)) {
-                                          newOffres[oIdx].sellingPrice = pVal;
+                                        } else if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
+                                          if (disc > 0 && pVal > 0) {
+                                            newOffres[oIdx].sellingPrice = parseFloat((pVal / (1 - disc / 100)).toFixed(3));
+                                          } else if (!newOffres[oIdx].sellingPrice) {
+                                            newOffres[oIdx].sellingPrice = pVal;
+                                          }
                                         }
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
                                   <div className="col-span-1">
-                                    <input type="number" placeholder="%" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-center"
+                                    <input type="number" placeholder="%" className="w-full bg-slate-950 text-amber-400 font-bold text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-center"
                                       value={offre.discount || ''} 
                                       onChange={(e) => {
+                                        const disc = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
-                                        newOffres[oIdx].discount = parseFloat(e.target.value) || 0;
+                                        newOffres[oIdx].discount = disc;
+                                        if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
+                                          const sVal = parseFloat(newOffres[oIdx].sellingPrice) || 0;
+                                          if (sVal > 0) {
+                                            newOffres[oIdx].purchasePrice = parseFloat((sVal * (1 - disc / 100)).toFixed(3));
+                                          }
+                                        }
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder="Vente HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-bold text-green-400"
+                                    <input type="number" placeholder={offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE' ? "Prix Comptoir" : "Vente HT"} className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-bold text-green-400 font-mono"
                                       value={offre.sellingPrice || ''} 
                                       onChange={(e) => {
+                                        const sVal = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
-                                        newOffres[oIdx].sellingPrice = parseFloat(e.target.value) || 0;
+                                        newOffres[oIdx].sellingPrice = sVal;
+                                        if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
+                                          const disc = parseFloat(newOffres[oIdx].discount) || 0;
+                                          if (sVal > 0) {
+                                            newOffres[oIdx].purchasePrice = parseFloat((sVal * (1 - disc / 100)).toFixed(3));
+                                          }
+                                        }
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
