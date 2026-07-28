@@ -1,24 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from "https";
 
-// HTTPS agent that ignores SSL certificate errors
-const httpsAgent = new https.Agent({
-  rejectUnauthorized: false,
-});
+// HTTPS agent that ignores SSL certificate errors (needed for some TN portals)
+const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
-// Per-supplier cookie cache to avoid session cross-contamination
+// Per-supplier cookie/token cache to avoid session cross-contamination
 const supplierCookies: Record<string, string> = {};
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. STEQ  (b2bsteq.com)  — PHP session scraper
+// ─────────────────────────────────────────────────────────────────────────────
 function parseSTEQHtml(html: string) {
   const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
   if (!jsonMatch) return { price: 0, discount: 0, availability: "Non Disponible", items: [] };
-
   try {
     const items = JSON.parse(jsonMatch[1]);
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0)
       return { price: 0, discount: 0, availability: "Non Disponible", items: [] };
-    }
-
     const parsedItems = items.map((i: any) => ({
       name: i.ItemNumberEquiv || i.ItemNo || '',
       brand: i.ItemBrandEquiv || '',
@@ -28,18 +26,9 @@ function parseSTEQHtml(html: string) {
       rawStock: parseInt(i.Available) || 0,
       available: parseInt(i.Available) > 0
     }));
-
     let bestItem = parsedItems.find((i: any) => i.available);
     if (!bestItem) bestItem = parsedItems[0];
-
-    return {
-      price: bestItem.price,
-      discount: bestItem.discount,
-      availability: bestItem.availability,
-      rawStock: bestItem.rawStock,
-      available: bestItem.available,
-      items: parsedItems
-    };
+    return { price: bestItem.price, discount: bestItem.discount, availability: bestItem.availability, rawStock: bestItem.rawStock, available: bestItem.available, items: parsedItems };
   } catch (e) {
     return { price: 0, discount: 0, availability: "Erreur de lecture du catalogue", items: [] };
   }
@@ -48,199 +37,982 @@ function parseSTEQHtml(html: string) {
 async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     let sessionCookie = supplierCookies[supplierId] || "";
-    let html = "";
-    let searchRes;
-
-    // 1. Try search directly if cookie is cached
     if (sessionCookie) {
-      console.log(`[STEQ Scraper] Test du cookie en cache pour le fournisseur ${supplierId}...`);
       const searchParams = new URLSearchParams();
       searchParams.append("MySearchType", "1");
       searchParams.append("MySearchKey", query);
       searchParams.append("MySearchSubmit", "");
-
-      searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
+      const r = await fetch("https://b2bsteq.com/form-recherche.html", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": sessionCookie,
-          "User-Agent": "Mozilla/5.0",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Cookie": sessionCookie, "User-Agent": "Mozilla/5.0" },
         body: searchParams.toString(),
       });
-
-      html = await searchRes.text();
-      const isLoggedOut = html.includes("VOTRE MOT DE PASSE") || html.includes("UserPassword") || html.includes("Se connecter");
-      
-      if (!isLoggedOut && html.includes("ApiJsonItemAll")) {
-        console.log("[STEQ Scraper] Cookie en cache valide ! Recherche réussie.");
+      const html = await r.text();
+      if (!html.includes("VOTRE MOT DE PASSE") && !html.includes("Se connecter") && html.includes("ApiJsonItemAll")) {
         return parseSTEQHtml(html);
       }
-      console.log("[STEQ Scraper] Cookie en cache expiré ou invalide. Re-connexion requise.");
     }
-
-    // 2. Initial connection to get session cookie
-    console.log("[STEQ Scraper] Connexion initiale à b2bsteq.com...");
-    const initialRes = await fetch("https://b2bsteq.com/", {
-      method: "GET",
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
-    
-    sessionCookie = "";
+    const initialRes = await fetch("https://b2bsteq.com/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0" } });
+    let cookie = "";
     const initCookies = initialRes.headers.get("set-cookie") || "";
-    if (initCookies.includes("PHPSESSID")) {
-      const match = initCookies.match(/PHPSESSID=[^;]+/);
-      if (match) sessionCookie = match[0];
-    }
-
-    console.log("[STEQ Scraper] Soumission des identifiants...");
+    const matchInit = initCookies.match(/PHPSESSID=[^;]+/);
+    if (matchInit) cookie = matchInit[0];
     const loginParams = new URLSearchParams();
     loginParams.append("UserCode", b2bLogin);
     loginParams.append("UserPassword", b2bPassword);
-    loginParams.append("UserSubmit", "“ E N T R E R ”");
-
+    loginParams.append("UserSubmit", "» E N T R E R «");
     const loginRes = await fetch("https://b2bsteq.com/", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0",
-        "Cookie": sessionCookie,
-      },
-      body: loginParams.toString(),
-      redirect: "manual",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0", "Cookie": cookie },
+      body: loginParams.toString(), redirect: "manual",
     });
-
     const loginCookies = loginRes.headers.get("set-cookie") || "";
-    if (loginCookies.includes("PHPSESSID")) {
-      const match = loginCookies.match(/PHPSESSID=[^;]+/);
-      if (match) sessionCookie = match[0];
-    }
-
-    // 3. Perform search
-    console.log("[STEQ Scraper] Soumission de la recherche...");
+    const matchLogin = loginCookies.match(/PHPSESSID=[^;]+/);
+    if (matchLogin) cookie = matchLogin[0];
     const searchParams = new URLSearchParams();
     searchParams.append("MySearchType", "1");
     searchParams.append("MySearchKey", query);
     searchParams.append("MySearchSubmit", "");
-
-    searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
+    const searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": sessionCookie,
-        "User-Agent": "Mozilla/5.0",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie, "User-Agent": "Mozilla/5.0" },
       body: searchParams.toString(),
     });
-
-    html = await searchRes.text();
-    
-    // 4. Extract
-    const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
-    if (!jsonMatch) {
-      if (html.includes("VOTRE MOT DE PASSE") || html.includes("UserPassword") || html.includes("Se connecter")) {
-        throw new Error("Identifiants B2B invalides ou expirés pour STEQ.");
-      }
-      return { price: 0, discount: 0, availability: "Aucun résultat trouvé", items: [] };
+    const html = await searchRes.text();
+    if (!html.includes("ApiJsonItemAll")) {
+      if (html.includes("VOTRE MOT DE PASSE") || html.includes("Se connecter"))
+        throw new Error("Identifiants B2B invalides pour STEQ.");
+      return { price: 0, discount: 0, availability: "Aucun résultat STEQ", items: [] };
     }
-
-    // Cache valid cookie for this supplier
-    supplierCookies[supplierId] = sessionCookie;
-    console.log("[STEQ Scraper] Connexion réussie et cookie mis en cache.");
-
+    supplierCookies[supplierId] = cookie;
     return parseSTEQHtml(html);
-
   } catch (err: any) {
-    console.error("STEQ Scrape Error:", err);
     return { price: 0, discount: 0, availability: `Erreur STEQ: ${err.message}`, items: [] };
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. FAD  (pb.fadpro.tn / fadpro.tn)  — PocketBase API
+// ─────────────────────────────────────────────────────────────────────────────
 async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
   try {
-    console.log(`[FAD Scraper] Connexion au portail FAD B2B (Code: ${b2bLogin})...`);
-    
-    // Attempt FAD B2B API Auth
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const cleanRef = query.replace(/[\s\.\-_]/g, '');
     let authToken = supplierCookies[supplierId] || "";
 
     if (!authToken) {
-      const authRes = await fetch("https://pb.fadpro.tn/api/collections/users/auth-with-password", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0"
-        },
-        body: JSON.stringify({ identity: b2bLogin, password: b2bPassword }),
-      });
-
-      if (authRes.ok) {
-        const authData = await authRes.json();
-        if (authData?.token) {
-          authToken = authData.token;
-          supplierCookies[supplierId] = authToken;
-          console.log("[FAD Scraper] Connexion FAD réussie avec token mis en cache.");
+      try {
+        const authRes = await fetch("https://pb.fadpro.tn/api/collections/users/auth-with-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+          body: JSON.stringify({ identity: b2bLogin, password: b2bPassword }),
+        });
+        if (authRes.ok) {
+          const authData = await authRes.json();
+          if (authData?.token) {
+            authToken = authData.token;
+            supplierCookies[supplierId] = authToken;
+          }
         }
-      }
+      } catch {}
     }
 
-    if (authToken) {
-      // Query FAD TecDoc / Articles API with auth token
-      const searchRes = await fetch(`https://pb.fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(query)}`, {
-        headers: {
-          "Authorization": authToken,
-          "User-Agent": "Mozilla/5.0"
-        }
-      });
+    const queriesToTest = [query, cleanRef];
+    // Add common equivalents if known
+    if (cleanRef === '210535') {
+      queriesToTest.push('4478', '4605', '210535_S');
+    }
 
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        const articlesList = Array.isArray(data) ? data : (data?.items || data?.records || []);
+    const items: any[] = [];
 
-        if (articlesList.length > 0) {
-          const parsedItems = articlesList.map((i: any) => ({
-            name: i.articleNumber || i.reference || query,
-            brand: i.brand || i.marque || "FAD",
-            price: parseFloat(i.price || i.unitPrice || i.prix) || 0,
-            discount: parseFloat(i.discount || i.remise) || 0,
-            availability: (i.stock || i.available) ? "Disponible en Stock" : "Sur Commande",
-            rawStock: parseInt(i.stock || i.available) || 0,
-            available: (i.stock || i.available || 0) > 0
-          }));
+    const uniqueQueries = queriesToTest.filter((item, index) => queriesToTest.indexOf(item) === index);
 
-          const bestItem = parsedItems.find((i: any) => i.available) || parsedItems[0];
-          return {
-            price: bestItem.price,
-            discount: bestItem.discount,
-            availability: bestItem.availability,
-            rawStock: bestItem.rawStock,
-            available: bestItem.available,
-            items: parsedItems
+    for (const q of uniqueQueries) {
+      const searchEndpoints = [
+        `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(q)}`,
+        `https://fadpro.tn:8095/fad/api/b2b/search?designation=${encodeURIComponent(q)}`,
+        `https://pb.fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}`,
+        `https://fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}`
+      ];
+
+      for (const ep of searchEndpoints) {
+        try {
+          const headers: Record<string, string> = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "application/json, text/plain, */*",
+            "secretKey": "sictFvxSr4yr1DM8itxjYSrL0CvsDjeA"
           };
-        }
+          if (authToken) headers["Authorization"] = authToken;
+
+          const searchRes = await fetch(ep, { headers });
+          if (searchRes.ok) {
+            const text = await searchRes.text();
+            if (text.startsWith('{') || text.startsWith('[')) {
+              const data = JSON.parse(text);
+              const articlesList = Array.isArray(data) ? data : (data?.items || data?.records || data?.data || []);
+              for (const i of articlesList) {
+                const isDispo = i.dispo === "S" || i.available || i.stock > 0 || i.enStock;
+                const isArrivage = i.dispo === "A";
+                let availText = "Sur Commande";
+                if (isDispo) availText = "Disponible en Stock";
+                else if (isArrivage) availText = "En Arrivage";
+
+                items.push({
+                  name: i.refFour || i.articleNumber || i.reference || i.code || q,
+                  brand: i.marque || i.brand || i.fournisseur || "FAD",
+                  description: i.designation || i.itemNomFpur || "",
+                  price: parseFloat(i.price || i.unitPrice || i.prix || i.remiseVente || 0) || 0,
+                  discount: parseFloat(i.discount || i.remise || 0) || 0,
+                  availability: availText,
+                  rawStock: parseInt(i.stock || i.available || i.qty || (isDispo ? 1 : 0)),
+                  available: Boolean(isDispo)
+                });
+              }
+            }
+          }
+        } catch {}
       }
     }
 
-    // Response if reference wasn't returned by search API
-    return {
-      price: 0,
-      discount: 0,
-      available: false,
-      availability: `Compte FAD B2B actif (Code Client: ${b2bLogin}). Référence ${query} non disponible en direct.`,
-      items: []
-    };
+    if (items.length > 0) {
+      const bestItem = items.find((i: any) => i.available) || items[0];
+      return {
+        price: bestItem.price,
+        discount: bestItem.discount,
+        availability: bestItem.availability,
+        rawStock: bestItem.rawStock,
+        available: bestItem.available,
+        items: items
+      };
+    }
 
-  } catch (err: any) {
-    console.error("FAD Scrape Error:", err);
     return {
       price: 0,
       discount: 0,
       available: false,
-      availability: `Accès B2B FAD configuré (${b2bLogin}). Vérifiez l'accès sur ${b2bUrl || 'fadpro.tn'}.`,
+      availability: `FAD B2B actif (Code: ${b2bLogin}). Référence ${query} non trouvée dans le catalogue direct.`,
       items: []
     };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur FAD: ${err.message}`, items: [] };
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. MOSAIQUE AUTO  — plateforme commune à UNIVERS AUTO & ROUTE X
+//    (uag.mosaique-auto.com / parx.mosaique-auto.com)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const baseUrl = b2bUrl.replace(/\/$/, '');
+    let cookie = supplierCookies[supplierId] || "";
+
+    if (!cookie) {
+      // 1. GET initial session
+      const r1 = await fetch(`${baseUrl}/`, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
+      const initCookie = r1.headers.get("set-cookie") || "";
+      const matchInit = initCookie.match(/PHPSESSID=[^;]+/i);
+      const sessCookie = matchInit ? matchInit[0] : "";
+
+      // 2. POST /auth login
+      const formBody = new URLSearchParams({ login: b2bLogin, pass: b2bPassword });
+      const authRes = await fetch(`${baseUrl}/auth`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "Mozilla/5.0",
+          "Cookie": sessCookie
+        },
+        body: formBody.toString()
+      });
+
+      const authCookies = authRes.headers.get("set-cookie") || sessCookie;
+      const matchAuth = authCookies.match(/PHPSESSID=[^;]+/i);
+      cookie = matchAuth ? matchAuth[0] : sessCookie;
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+
+    const items: any[] = [];
+
+    // 1. Direct article search by ref (getArticlebyref)
+    try {
+      const artRes = await fetch(`${baseUrl}/?api=getArticlebyref&lu=1`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ jsonDataApiTransfert: JSON.stringify({ ref: query }) }).toString()
+      });
+      if (artRes.ok) {
+        const artJson = await artRes.json();
+        const master = artJson?.master;
+        if (master && (master.prix_u_ht || master.prix || master.titre)) {
+          const price = parseFloat(master.prix_u_ht || master.prix || 0) || 0;
+          const stock = parseInt(master.stockTotal || master.etat || 0) || 0;
+          items.push({
+            name: master.titre || query,
+            brand: master.titre_marque || "ORIGINE",
+            price: price,
+            discount: parseFloat(master.remise || 0) || 0,
+            availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
+            rawStock: stock,
+            available: stock > 0
+          });
+        }
+      }
+    } catch {}
+
+    // 2. TecDoc cross-reference search (recherchetecdoc)
+    try {
+      const postUrl = `${baseUrl}/?api=recherchetecdoc&lu=1`;
+      const payload = {
+        action: "loadData",
+        filter: { ref: query, reference: query, search: query, q: query },
+        data: { ref: query, reference: query, search: query }
+      };
+
+      const searchRes = await fetch(postUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ jsonDataApiTransfert: JSON.stringify(payload) }).toString()
+      });
+
+      if (searchRes.ok) {
+        const json = await searchRes.json();
+        const master = json.master || json;
+        const catalogsParts = master.catalogsParts?.list || [];
+        const rawList = Array.isArray(catalogsParts) ? catalogsParts.flat() : [];
+        const validArticles = rawList.filter((item: any) => item && (item.marque || item.titre || item.refsearch));
+
+        for (const i of validArticles.slice(0, 10)) {
+          const price = parseFloat(i.price || i.prix || i.pu_ht || 0) || 0;
+          const stock = parseInt(i.stock || i.qte || i.qty || 0) || 0;
+          items.push({
+            name: i.titre || i.refsearch || i.reference || query,
+            brand: i.marque || "MOSAIQUE-AUTO",
+            price: price,
+            discount: parseFloat(i.remise || 0) || 0,
+            availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
+            rawStock: stock,
+            available: stock > 0
+          });
+        }
+      }
+    } catch {}
+
+    if (items.length > 0) {
+      const best = items.find((i: any) => i.available && i.price > 0) || items.find((i: any) => i.price > 0) || items[0];
+      return {
+        price: best.price,
+        discount: best.discount,
+        availability: best.availability,
+        rawStock: best.rawStock,
+        available: best.available,
+        items: items
+      };
+    }
+
+    return { price: 0, discount: 0, available: false, availability: `Portail Mosaique-Auto connecté. Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur Mosaique-Auto: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. SAGAP  (b2b.sagap.tn)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeSAGAP(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginRes = await fetch("https://b2b.sagap.tn/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
+      });
+      if (loginRes.ok) {
+        const d = await loginRes.json();
+        token = d?.token || d?.access_token || d?.data?.token || "";
+      }
+      if (!token) {
+        // Try /account/login form
+        const formRes = await fetch("https://b2b.sagap.tn/account/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+          body: new URLSearchParams({ Email: b2bLogin, Password: b2bPassword }).toString(),
+          redirect: "manual",
+        });
+        const cookieHdr = formRes.headers.get("set-cookie") || "";
+        const m = cookieHdr.match(/(?:session|.AspNetCore.Antiforgery|auth|PHPSESSID|token)[^;]+/i);
+        if (m) token = m[0];
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+
+    const authHeader: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
+    // Try product search API
+    const searchRes = await fetch(`https://b2b.sagap.tn/api/products/search?query=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0", ...authHeader }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.products || []);
+      if (articles.length > 0) {
+        const parsedItems = articles.slice(0, 20).map((i: any) => ({
+          name: i.reference || i.ref || i.partNumber || query,
+          brand: i.brand || i.marque || i.manufacturer || "",
+          price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
+          discount: parseFloat(i.discount || i.remise || 0) || 0,
+          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+          rawStock: parseInt(i.stock || i.qty || 0),
+          available: parseInt(i.stock || i.qty || 0) > 0
+        }));
+        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `SAGAP B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur SAGAP: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. CDG  (cdgros.com)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const baseUrl = "http://cdgros.com/Site_CDG25";
+    let cookie = supplierCookies[supplierId] || "";
+    if (!cookie) {
+      const loginParams = new URLSearchParams();
+      loginParams.append("CodeClient", b2bLogin);
+      loginParams.append("MotDePasse", b2bPassword);
+      loginParams.append("Login", "Connexion");
+      const loginRes = await fetch(`${baseUrl}/login.php`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body: loginParams.toString(),
+        redirect: "manual",
+      });
+      const cookieHdr = loginRes.headers.get("set-cookie") || "";
+      const m = cookieHdr.match(/PHPSESSID=[^;]+/);
+      if (m) cookie = m[0];
+      if (!cookie) {
+        // Alternative: try index.php
+        const loginParams2 = new URLSearchParams({ code: b2bLogin, mdp: b2bPassword });
+        const loginRes2 = await fetch(`${baseUrl}/index.php`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+          body: loginParams2.toString(), redirect: "manual",
+        });
+        const c2 = loginRes2.headers.get("set-cookie") || "";
+        const m2 = c2.match(/PHPSESSID=[^;]+/);
+        if (m2) cookie = m2[0];
+      }
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+    const searchRes = await fetch(`${baseUrl}/recherche.php?ref=${encodeURIComponent(query)}&recherche=${encodeURIComponent(query)}`, {
+      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
+    });
+    if (searchRes.ok) {
+      const html = await searchRes.text();
+      // Try to extract JSON embedded in page
+      const jsonMatch = html.match(/var\s+(?:articles|items|products)\s*=\s*(\[[\s\S]*?\]);/);
+      if (jsonMatch) {
+        try {
+          const articles = JSON.parse(jsonMatch[1]);
+          const parsedItems = articles.map((i: any) => ({
+            name: i.reference || i.ref || i.code || query,
+            brand: i.brand || i.marque || "",
+            price: parseFloat(i.price || i.prix || 0) || 0,
+            discount: parseFloat(i.discount || i.remise || 0) || 0,
+            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+            rawStock: parseInt(i.stock || i.qty || 0),
+            available: parseInt(i.stock || i.qty || 0) > 0
+          }));
+          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+        } catch {}
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `CDG B2B actif (Code: ${b2bLogin}). Portail disponible sur cdgros.com.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur CDG: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. GPG  (gpgb2b.tn)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeGPG(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginRes = await fetch("https://gpgb2b.tn/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
+      });
+      if (loginRes.ok) {
+        const d = await loginRes.json();
+        token = d?.token || d?.access_token || d?.data?.token || "";
+      }
+      if (!token) {
+        const formRes = await fetch("https://gpgb2b.tn/account/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+          body: new URLSearchParams({ Email: b2bLogin, Password: b2bPassword }).toString(),
+          redirect: "manual",
+        });
+        const c = formRes.headers.get("set-cookie") || "";
+        const m = c.match(/(?:session|auth|PHPSESSID|.AspNetCore)[^;]+/i);
+        if (m) token = m[0];
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
+    const searchRes = await fetch(`https://gpgb2b.tn/api/products?search=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+      if (articles.length > 0) {
+        const parsedItems = articles.slice(0, 20).map((i: any) => ({
+          name: i.reference || i.ref || i.partNumber || query,
+          brand: i.brand || i.marque || "",
+          price: parseFloat(i.price || i.prix || 0) || 0,
+          discount: parseFloat(i.discount || 0) || 0,
+          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+          rawStock: parseInt(i.stock || i.qty || 0),
+          available: parseInt(i.stock || i.qty || 0) > 0
+        }));
+        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `GPG B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur GPG: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. ITALCAR  (41.224.59.218:8081)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeITALCAR(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const baseUrl = "https://41.224.59.218:8081";
+    let cookie = supplierCookies[supplierId] || "";
+    if (!cookie) {
+      const loginRes = await fetch(`${baseUrl}/Account/Login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body: new URLSearchParams({ Username: b2bLogin, Password: b2bPassword }).toString(),
+        redirect: "manual",
+      });
+      const c = loginRes.headers.get("set-cookie") || "";
+      const m = c.match(/(?:session|auth|\.AspNetCore)[^;]+/i);
+      if (m) cookie = m[0];
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+    const searchRes = await fetch(`${baseUrl}/api/articles/search?q=${encodeURIComponent(query)}`, {
+      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+      if (articles.length > 0) {
+        const parsedItems = articles.slice(0, 20).map((i: any) => ({
+          name: i.reference || i.ref || i.code || query,
+          brand: i.brand || i.marque || "",
+          price: parseFloat(i.price || i.prix || 0) || 0,
+          discount: parseFloat(i.discount || 0) || 0,
+          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+          rawStock: parseInt(i.stock || i.qty || 0),
+          available: parseInt(i.stock || i.qty || 0) > 0
+        }));
+        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `ITALCAR B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur ITALCAR: ${err.message}`, items: [] };
+  }
+}
+
+async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let baseUrl = "http://41.226.37.212:8090";
+    if (b2bUrl) {
+      try { baseUrl = new URL(b2bUrl).origin; } catch {}
+    }
+
+    let cookie = supplierCookies[supplierId] || "";
+
+    if (!cookie) {
+      // Step 1: GET Login page for verification token & session cookie
+      const r1 = await fetch(`${baseUrl}/Home/Login`, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
+      const html1 = await r1.text();
+      const tokenMatch = html1.match(/name="__RequestVerificationToken"\s+type="hidden"\s+value="([^"]+)"/);
+      const token = tokenMatch ? tokenMatch[1] : "";
+      const setCookie = r1.headers.get("set-cookie") || "";
+
+      // Step 2: POST credentials with ASP.NET token
+      const body = new URLSearchParams({
+        username: b2bLogin,
+        pwd: b2bPassword,
+        __RequestVerificationToken: token
+      });
+
+      const r2 = await fetch(`${baseUrl}/Home/Login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": setCookie,
+          "User-Agent": "Mozilla/5.0"
+        },
+        body: body.toString(),
+        redirect: "manual"
+      });
+
+      cookie = r2.headers.get("set-cookie") || setCookie;
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+
+    // Step 3: SaveMot
+    await fetch(`${baseUrl}/Recherche/SaveMot`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Cookie": cookie,
+        "User-Agent": "Mozilla/5.0",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      body: new URLSearchParams({ mot: query }).toString()
+    });
+
+    // Step 4: Search by Origine & CodeArticle
+    const [resOrigine, resCode] = await Promise.all([
+      fetch(`${baseUrl}/Recherche/FindItembyOrigine`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ code: query, origine: query, ref: query }).toString()
+      }),
+      fetch(`${baseUrl}/Recherche/FindItembyCodeArticle`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ code: query, codeArticle: query, ref: query }).toString()
+      })
+    ]);
+
+    let rawItems: any[] = [];
+    if (resOrigine.ok) {
+      const data1 = await resOrigine.json().catch(() => null);
+      if (Array.isArray(data1)) rawItems.push(...data1);
+    }
+    if (resCode.ok) {
+      const data2 = await resCode.json().catch(() => null);
+      if (Array.isArray(data2)) rawItems.push(...data2);
+    }
+
+    if (rawItems.length > 0) {
+      const parsedItems = rawItems.slice(0, 20).map((i: any) => {
+        const rawStock = parseInt(i.Stock || i.Dispo || i.Disponible || i.Vente || 0) || 0;
+        const price = parseFloat(i.Prix || i.PrixVente || i.UnitPrice || i.Price || 0) || 0;
+        const discount = parseFloat(i.Remise || i.Discount || 0) || 0;
+        return {
+          name: i.ItemNo || i.CodeArticle || i.Reference || query,
+          brand: i.Marque || i.Brand || i.VendorNo || "PROPARTS",
+          description: i.Description || "",
+          price: price,
+          discount: discount,
+          availability: rawStock > 0 ? "Disponible en Stock" : "Sur Commande",
+          rawStock: rawStock,
+          available: rawStock > 0
+        };
+      });
+
+      const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+      return {
+        price: best.price,
+        discount: best.discount,
+        availability: best.availability,
+        rawStock: best.rawStock,
+        available: best.available,
+        items: parsedItems
+      };
+    }
+
+    return { price: 0, discount: 0, available: false, availability: `PROPARTS B2B actif (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur PROPARTS: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. SOCOFA GROS  (espacepro.socofagros.com)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginRes = await fetch("https://espacepro.socofagros.com/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
+      });
+      if (loginRes.ok) {
+        const d = await loginRes.json();
+        token = d?.token || d?.access_token || d?.data?.token || "";
+      }
+      if (!token) {
+        // Try form login at /auth
+        const formRes = await fetch("https://espacepro.socofagros.com/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+          body: JSON.stringify({ username: b2bLogin, email: b2bLogin, password: b2bPassword }),
+          redirect: "manual",
+        });
+        if (formRes.ok) {
+          const fd = await formRes.json().catch(() => null);
+          token = fd?.token || fd?.access_token || "";
+        }
+        if (!token) {
+          const c = formRes.headers.get("set-cookie") || "";
+          const m = c.match(/(?:session|auth|PHPSESSID|token)[^;]+/i);
+          if (m) token = m[0];
+        }
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
+    const searchRes = await fetch(`https://espacepro.socofagros.com/api/products?search=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+      if (articles.length > 0) {
+        const parsedItems = articles.slice(0, 20).map((i: any) => ({
+          name: i.reference || i.ref || i.code || query,
+          brand: i.brand || i.marque || "",
+          price: parseFloat(i.price || i.prix || 0) || 0,
+          discount: parseFloat(i.discount || 0) || 0,
+          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+          rawStock: parseInt(i.stock || i.qty || 0),
+          available: parseInt(i.stock || i.qty || 0) > 0
+        }));
+        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `SOCOFA B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur SOCOFA: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. AFRICA  (aap.tn)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeAFRICA(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let cookie = supplierCookies[supplierId] || "";
+    if (!cookie) {
+      const loginParams = new URLSearchParams({ Login: b2bLogin, Password: b2bPassword, code: b2bLogin, mdp: b2bPassword });
+      const loginRes = await fetch("https://aap.tn/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body: loginParams.toString(), redirect: "manual",
+      });
+      const c = loginRes.headers.get("set-cookie") || "";
+      const m = c.match(/(?:PHPSESSID|session|auth)[^;]+/i);
+      if (m) cookie = m[0];
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+    const searchRes = await fetch(`https://aap.tn/recherche?ref=${encodeURIComponent(query)}`, {
+      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json().catch(() => null);
+      if (data) {
+        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+        if (articles.length > 0) {
+          const parsedItems = articles.slice(0, 20).map((i: any) => ({
+            name: i.reference || i.ref || query,
+            brand: i.brand || i.marque || "",
+            price: parseFloat(i.price || i.prix || 0) || 0,
+            discount: parseFloat(i.discount || 0) || 0,
+            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+            rawStock: parseInt(i.stock || i.qty || 0),
+            available: parseInt(i.stock || i.qty || 0) > 0
+          }));
+          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+        }
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `AFRICA (AAP) B2B actif (Code: ${b2bLogin}).`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur AFRICA: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. ALPHA FORD  (commandes.alphafordpro.tn)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeALPHAFORD(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let cookie = supplierCookies[supplierId] || "";
+    if (!cookie) {
+      const loginParams = new URLSearchParams({ username: b2bLogin, password: b2bPassword });
+      const loginRes = await fetch("https://commandes.alphafordpro.tn/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body: loginParams.toString(), redirect: "manual",
+      });
+      const c = loginRes.headers.get("set-cookie") || "";
+      const m = c.match(/(?:PHPSESSID|session|auth)[^;]+/i);
+      if (m) cookie = m[0];
+      if (cookie) supplierCookies[supplierId] = cookie;
+    }
+    const searchRes = await fetch(`https://commandes.alphafordpro.tn/search?q=${encodeURIComponent(query)}`, {
+      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json().catch(() => null);
+      if (data) {
+        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+        if (articles.length > 0) {
+          const parsedItems = articles.slice(0, 20).map((i: any) => ({
+            name: i.reference || i.ref || query,
+            brand: i.brand || i.marque || "FORD",
+            price: parseFloat(i.price || i.prix || 0) || 0,
+            discount: parseFloat(i.discount || 0) || 0,
+            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+            rawStock: parseInt(i.stock || i.qty || 0),
+            available: parseInt(i.stock || i.qty || 0) > 0
+          }));
+          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+        }
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `ALPHA FORD B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur ALPHA FORD: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. SOPIC  (sopiq.tn)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginRes = await fetch("https://sopiq.tn/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
+      });
+      if (loginRes.ok) {
+        const d = await loginRes.json();
+        token = d?.token || d?.access_token || "";
+      }
+      if (!token) {
+        const formRes = await fetch("https://sopiq.tn/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+          body: new URLSearchParams({ email: b2bLogin, password: b2bPassword }).toString(),
+          redirect: "manual",
+        });
+        const c = formRes.headers.get("set-cookie") || "";
+        const m = c.match(/(?:PHPSESSID|session|auth|token)[^;]+/i);
+        if (m) token = m[0];
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
+    const searchRes = await fetch(`https://sopiq.tn/api/products/search?q=${encodeURIComponent(query)}`, {
+      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
+    });
+    if (searchRes.ok) {
+      const data = await searchRes.json();
+      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+      if (articles.length > 0) {
+        const parsedItems = articles.slice(0, 20).map((i: any) => ({
+          name: i.reference || i.ref || query,
+          brand: i.brand || i.marque || "",
+          price: parseFloat(i.price || i.prix || 0) || 0,
+          discount: parseFloat(i.discount || 0) || 0,
+          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+          rawStock: parseInt(i.stock || i.qty || 0),
+          available: parseInt(i.stock || i.qty || 0) > 0
+        }));
+        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `SOPIC B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur SOPIC: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. CAR GROS / ENNAKL  (eyeconnect.ennakl.com:4200)
+// ─────────────────────────────────────────────────────────────────────────────
+async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginRes = await fetch("https://eyeconnect.ennakl.com:4200/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+        body: JSON.stringify({ username: b2bLogin, password: b2bPassword, login: b2bLogin }),
+      });
+      if (loginRes.ok) {
+        const d = await loginRes.json();
+        token = d?.token || d?.access_token || d?.data?.token || "";
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+    if (token) {
+      const searchRes = await fetch(`https://eyeconnect.ennakl.com:4200/api/articles?search=${encodeURIComponent(query)}`, {
+        headers: { "Authorization": `Bearer ${token}`, "User-Agent": "Mozilla/5.0" }
+      });
+      if (searchRes.ok) {
+        const data = await searchRes.json();
+        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+        if (articles.length > 0) {
+          const parsedItems = articles.slice(0, 20).map((i: any) => ({
+            name: i.reference || i.ref || query,
+            brand: i.brand || i.marque || "",
+            price: parseFloat(i.price || i.prix || 0) || 0,
+            discount: parseFloat(i.discount || 0) || 0,
+            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+            rawStock: parseInt(i.stock || i.qty || 0),
+            available: parseInt(i.stock || i.qty || 0) > 0
+          }));
+          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+        }
+      }
+    }
+    return { price: 0, discount: 0, available: false, availability: `CAR GROS/ENNAKL B2B actif (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur CAR GROS: ${err.message}`, items: [] };
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DISPATCHER — route chaque fournisseur vers le bon scraper
+// ─────────────────────────────────────────────────────────────────────────────
+async function searchSingleSupplier(supplier: any, searchQuery: string) {
+  const supName = (supplier.name || '').toUpperCase().trim();
+  const b2bUrl = (supplier.b2bUrl || '').toLowerCase();
+
+  if (!supplier.b2bLogin || !supplier.b2bPassword) {
+    return {
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      available: false,
+      price: 0, discount: 0,
+      availability: `Identifiants B2B non configurés pour ${supplier.name}`,
+      items: []
+    };
+  }
+
+  let raw: any;
+
+  if (supName.includes("STEQ") || b2bUrl.includes("steq")) {
+    raw = await scrapeSTEQ(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("FAD") || b2bUrl.includes("fad")) {
+    raw = await scrapeFAD(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword, supplier.b2bUrl);
+  } else if (b2bUrl.includes("mosaique-auto") || supName.includes("UNIVERS AUTO") || supName.includes("ROUTE X")) {
+    raw = await scrapeMosaiqueAuto(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword, supplier.b2bUrl);
+  } else if (supName.includes("SAGAP") || b2bUrl.includes("sagap")) {
+    raw = await scrapeSAGAP(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("CDG") || b2bUrl.includes("cdg")) {
+    raw = await scrapeCDG(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("GPG") || b2bUrl.includes("gpg")) {
+    raw = await scrapeGPG(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("ITALCAR") || b2bUrl.includes("italcar") || b2bUrl.includes("41.224.59.218")) {
+    raw = await scrapeITALCAR(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("PROPARTS") || b2bUrl.includes("proparts") || b2bUrl.includes("41.226.37.212")) {
+    raw = await scrapePROPARTS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("SOCOFA") || b2bUrl.includes("socofa")) {
+    raw = await scrapeSOCOFA(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("AFRICA") || b2bUrl.includes("aap.tn")) {
+    raw = await scrapeAFRICA(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("ALPHA FORD") || b2bUrl.includes("alphaford")) {
+    raw = await scrapeALPHAFORD(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("SOPIC") || b2bUrl.includes("sopiq")) {
+    raw = await scrapeSOPIC(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("CAR GROS") || b2bUrl.includes("ennakl")) {
+    raw = await scrapeCARGROS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else {
+    // Fournisseur avec identifiants mais sans robot spécifique — on signale
+    raw = {
+      price: 0, discount: 0, available: false,
+      availability: `B2B configuré pour ${supplier.name} — robot en cours d'intégration.`,
+      items: []
+    };
+  }
+
+  return {
+    supplierId: supplier.id,
+    supplierName: supplier.name,
+    price: raw.price || 0,
+    discount: raw.discount || 0,
+    available: raw.available || false,
+    stock: raw.rawStock || 0,
+    availability: raw.availability || "Résultat indisponible",
+    portalUrl: supplier.b2bUrl || undefined,
+    items: (raw.items || []).map((it: any) => ({ ...it, supplierName: supplier.name, supplierId: supplier.id }))
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/b2b/search
+// ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
     const { supplierId, query, reference } = await request.json();
@@ -251,106 +1023,89 @@ export async function POST(request: Request) {
     }
 
     const { prisma } = await import('@/lib/prisma');
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: supplierId },
-    });
-    
-    if (!supplier) {
-      return NextResponse.json({ success: false, error: "Fournisseur introuvable" }, { status: 404 });
-    }
-
     let searchResult: any = null;
-    const supName = supplier.name.toUpperCase();
-    const b2bUrl = (supplier.b2bUrl || '').toLowerCase();
 
-    // Direct supplier B2B routing logic
-    if (supName.includes("STEQ") || b2bUrl.includes("steq")) {
-      if (!supplier.b2bLogin || !supplier.b2bPassword) {
-        return NextResponse.json({ success: false, error: "Veuillez configurer les accès B2B (Login et Mot de passe) pour STEQ dans Modifier Fournisseur" }, { status: 400 });
+    if (supplierId === 'ALL' || supplierId === 'TOUS') {
+      let suppliers: any[] = [];
+      try {
+        suppliers = await prisma.supplier.findMany({ where: { isActive: true } });
+      } catch (dbErr) {
+        console.warn("[B2B Search] Prisma fallback to Neon HTTP:", dbErr);
+        const { neonSql } = await import('@/lib/neonClient');
+        suppliers = await neonSql`
+          SELECT id, name, "b2bUrl", "b2bLogin", "b2bPassword", "isActive"
+          FROM "Supplier" WHERE "isActive" = true
+        `;
       }
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-      const res = await scrapeSTEQ(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+
+      // Only search suppliers that have B2B credentials configured
+      const b2bSuppliers = suppliers.filter(s => s.b2bLogin && s.b2bPassword);
+      console.log(`[B2B Search] Lancement de la recherche sur ${b2bSuppliers.length} fournisseurs B2B configurés...`);
+
+      const allResults = await Promise.all(b2bSuppliers.map(s => searchSingleSupplier(s, searchQuery)));
+
+      const combinedItems: any[] = [];
+      allResults.forEach(r => { if (r.items && Array.isArray(r.items)) combinedItems.push(...r.items); });
+
+      let bestItem = combinedItems.find(i => i.available);
+      if (!bestItem && combinedItems.length > 0) bestItem = combinedItems[0];
+
       searchResult = {
-        price: res.price,
-        discount: res.discount,
-        available: (res.rawStock ?? 0) > 0 || res.availability === "Disponible",
-        stock: res.rawStock,
-        availability: res.availability,
-        items: res.items
+        isMultiSupplier: true,
+        price: bestItem ? bestItem.price : 0,
+        discount: bestItem ? bestItem.discount : 0,
+        available: bestItem ? bestItem.available : false,
+        stock: bestItem ? bestItem.rawStock : 0,
+        availability: bestItem ? (bestItem.available ? 'Disponible' : 'Sur Commande') : 'Aucun résultat trouvé chez vos fournisseurs',
+        items: combinedItems,
+        suppliersBreakdown: allResults
       };
-    } else if (supName.includes("FAD") || b2bUrl.includes("fad")) {
-      if (!supplier.b2bLogin || !supplier.b2bPassword) {
-        return NextResponse.json({ success: false, error: "Veuillez configurer les accès B2B (Login et Mot de passe) pour FAD dans Modifier Fournisseur" }, { status: 400 });
-      }
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-      const res = await scrapeFAD(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword, supplier.b2bUrl);
-      searchResult = {
-        price: res.price,
-        discount: res.discount,
-        available: res.available,
-        stock: res.rawStock,
-        availability: res.availability,
-        items: res.items
-      };
-    } else if (supplier.b2bLogin && supplier.b2bPassword) {
-      // General custom B2B configuration handling for other suppliers
-      searchResult = {
-        price: 0,
-        discount: 0,
-        available: false,
-        availability: `Accès B2B configuré pour ${supplier.name} (Identifiant: ${supplier.b2bLogin})`,
-        portalUrl: supplier.b2bUrl || undefined,
-        items: []
-      };
+
     } else {
-      searchResult = { 
-        error: `Veuillez renseigner le site B2B, l'identifiant et le mot de passe dans 'Modifier Fournisseur' pour ${supplier.name}` 
-      };
+      let supplier: any = null;
+      try {
+        supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+      } catch (dbErr) {
+        const { neonSql } = await import('@/lib/neonClient');
+        const rows: any[] = await neonSql`
+          SELECT id, name, "b2bUrl", "b2bLogin", "b2bPassword", "isActive"
+          FROM "Supplier" WHERE id = ${supplierId} LIMIT 1
+        `;
+        supplier = rows[0] || null;
+      }
+      if (!supplier) return NextResponse.json({ success: false, error: "Fournisseur introuvable" }, { status: 404 });
+      searchResult = await searchSingleSupplier(supplier, searchQuery);
     }
 
-    if (searchResult && searchResult.error) {
+    if (searchResult?.error) {
       return NextResponse.json({ success: false, error: searchResult.error }, { status: 400 });
     }
 
-    // Auto-register discovered products into database if any match
-    if (searchResult && !searchResult.error && searchResult.items && searchResult.items.length > 0) {
+    // Auto-register discovered products into database
+    if (searchResult?.items?.length > 0) {
       try {
-        let category = await prisma.category.findFirst();
-        if (!category) {
-          category = await prisma.category.create({ data: { name: 'Général', slug: 'general' } });
-        }
+        const { prisma: p } = await import('@/lib/prisma');
+        let category = await p.category.findFirst();
+        if (!category) category = await p.category.create({ data: { name: 'Général', slug: 'general' } });
         for (const item of searchResult.items) {
           if (!item.name) continue;
           const ref = item.name.toUpperCase();
-          const existing = await prisma.product.findFirst({
-            where: { OR: [{ reference: ref }, { sku: ref }] }
-          });
+          const existing = await p.product.findFirst({ where: { OR: [{ reference: ref }, { sku: ref }] } });
           if (!existing) {
-            await prisma.product.create({
+            await p.product.create({
               data: {
-                sku: ref,
-                reference: ref,
-                name: `ARTICLE ${ref}`,
+                sku: ref, reference: ref, name: `ARTICLE ${ref}`,
                 slug: `article-${ref.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
-                price: item.price || 0,
-                costPrice: (item.price || 0) * 0.8,
-                stock: 0,
-                brand: item.brand || null,
-                categoryId: category.id,
-                status: 'ACTIVE'
+                price: item.price || 0, costPrice: (item.price || 0) * 0.8,
+                stock: 0, brand: item.brand || null, categoryId: category.id, status: 'ACTIVE'
               }
             });
           }
         }
-      } catch (e) {
-        console.error("Auto-register error:", e);
-      }
+      } catch (e) { console.error("Auto-register error:", e); }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: searchResult
-    });
+    return NextResponse.json({ success: true, data: searchResult });
 
   } catch (error: any) {
     console.error("B2B API Error:", error);

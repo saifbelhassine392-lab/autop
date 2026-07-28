@@ -18,7 +18,7 @@ export async function fetchProductionDevis() {
     const devisList = [];
     for (const r of rows) {
       const items: any[] = await neonSql`
-        SELECT id, name, reference, quantity, price, "partType", "supplierName", "isConcessionnaire"
+        SELECT id, name, reference, quantity, price, discount
         FROM "DevisItem"
         WHERE "devisId" = ${r.id}
       `;

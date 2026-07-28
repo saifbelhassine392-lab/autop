@@ -288,15 +288,9 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
   const handleB2BSearch = async (index: number) => {
     const it = items[index];
-    if (!it.reference) {
+    const ref = (it?.reference || it?.designation || '').trim();
+    if (!ref) {
       alert("Veuillez renseigner la référence de la pièce.");
-      return;
-    }
-    
-    // Trouver STEQ dans la liste des fournisseurs
-    const steqSupplier = suppliers.find(s => s.name.toUpperCase().includes('STEQ'));
-    if (!steqSupplier) {
-      alert("Le fournisseur STEQ n'a pas été trouvé dans votre base de données.");
       return;
     }
 
@@ -304,23 +298,36 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       const res = await fetch('/api/b2b/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId: steqSupplier.id, reference: it.reference })
+        body: JSON.stringify({ supplierId: 'ALL', query: ref })
       });
       const data = await res.json();
       
-      if (data.success && data.data && !data.data.error) {
-        const pPrice = data.data.price;
-        
-        // Ajouter la nouvelle offre trouvée
-        const newOffres = [...(it.offres || []), { 
-          type: 'ADAPTABLE', 
-          supplierId: steqSupplier.id, 
-          purchasePrice: pPrice, 
-          sellingPrice: pPrice * 1.3 // Suggestion: marge de 30% par défaut
-        }];
-        
-        updateLine(index, 'offres', newOffres);
-        alert(`Prix B2B trouvé chez STEQ : ${pPrice} TND. Ajouté aux offres.`);
+      if (data.success && data.data) {
+        const searchData = data.data;
+        const b2bItems = searchData.items || [];
+        if (b2bItems.length === 0) {
+          alert(`Aucune offre B2B trouvée chez vos fournisseurs pour "${ref}".`);
+          return;
+        }
+
+        const newOffres = b2bItems.map((bItem: any) => {
+          const supp = suppliers.find((s: any) => s.name.toUpperCase() === (bItem.supplierName || '').toUpperCase());
+          const pAchat = bItem.price || 0;
+          const pVente = parseFloat((pAchat * 1.30).toFixed(3));
+          return {
+            type: 'ADAPTABLE',
+            supplierId: supp?.id || '',
+            supplierName: `${bItem.supplierName || 'B2B'} (${bItem.brand || 'MARQUE'})`,
+            purchasePrice: pAchat,
+            sellingPrice: pVente
+          };
+        });
+
+        const updatedItems = [...items];
+        updatedItems[index].offres = [...(updatedItems[index].offres || []), ...newOffres];
+        setItems(updatedItems);
+
+        alert(`✅ ${b2bItems.length} offre(s) B2B multi-fournisseurs trouvée(s) et ajoutée(s) à la ligne ${index + 1} !`);
       } else {
         alert(data.error || data.data?.error || "Erreur lors de la recherche B2B.");
       }
@@ -2014,16 +2021,35 @@ function SectionConsultationFournisseur() {
       {activeTab === 'comparison' && (
         <div className="space-y-4">
           <div className={cardCls}>
-            <div className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-3 border-b border-slate-800 pb-2">1. SÉLECTIONNER LES FOURNISSEURS À COMPARER</div>
+            <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-green-400">1. SÉLECTIONNER LES FOURNISSEURS À COMPARER</div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSuppIds(suppliers.filter(s => s.b2bLogin && s.b2bPassword).map(s => s.id))}
+                  className="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 text-white text-[10px] font-black uppercase rounded-lg transition"
+                >
+                  ✅ TOUT SÉLECTIONNER B2B
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedSuppIds([])}
+                  className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black uppercase rounded-lg transition"
+                >
+                  ✖ EFFACER
+                </button>
+              </div>
+            </div>
             <div className="flex gap-2 flex-wrap">
-              {suppliers.map(s => (
-                <label key={s.id} className="flex items-center gap-2 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 cursor-pointer text-xs font-black uppercase text-white hover:border-green-500/50 select-none">
-                  <input type="checkbox" checked={selectedSuppIds.includes(s.id)} onChange={() => handleToggleSupplier(s.id)} className="rounded border-slate-700 text-green-600 focus:ring-green-500 bg-slate-900" />
-                  {s.name}
-                </label>
-              ))}
-              {suppliers.length === 0 && (
-                <p className="text-slate-500 font-bold uppercase text-[10px]">Aucun fournisseur disponible. Veuillez en ajouter dans le menu.</p>
+              {suppliers.filter(s => s.b2bLogin && s.b2bPassword).length > 0 ? (
+                suppliers.filter(s => s.b2bLogin && s.b2bPassword).map(s => (
+                  <label key={s.id} className="flex items-center gap-2 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 cursor-pointer text-xs font-black uppercase text-white hover:border-cyan-500/50 select-none">
+                    <input type="checkbox" checked={selectedSuppIds.includes(s.id)} onChange={() => handleToggleSupplier(s.id)} className="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500 bg-slate-900" />
+                    🤖 {s.name}
+                  </label>
+                ))
+              ) : (
+                <p className="text-slate-500 font-bold uppercase text-[10px]">Aucun fournisseur B2B configuré. Veuillez renseigner les identifiants dans la fiche fournisseur.</p>
               )}
             </div>
           </div>
@@ -3799,141 +3825,790 @@ function SectionComptabilite() {
 function SectionRobotB2B() {
   const [query, setQuery] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [supplierStatuses, setSupplierStatuses] = useState<Record<string, string>>({});
+  const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'DISPONIBLE' | 'SUR_COMMANDE' | 'ARRIVAGE'>('ALL');
 
   useEffect(() => {
     fetch('/api/suppliers').then(r => r.json()).then(d => {
-      const sups = d.data || [];
+      const sups = (d.data || []).filter((s: any) => s.b2bLogin && s.b2bPassword);
       setSuppliers(sups);
-      const steq = sups.find((s: any) => s.name.toUpperCase() === 'STEQ');
-      if (steq) setSelectedSupplierId(steq.id);
-      else if (sups.length > 0) setSelectedSupplierId(sups[0].id);
+      // Select all by default
+      setSelectedSupplierIds(sups.map((s: any) => s.id));
     });
+
+    const pending = localStorage.getItem('robotB2B_pendingRef');
+    if (pending) {
+      localStorage.removeItem('robotB2B_pendingRef');
+      setQuery(pending);
+    }
+    const handleRef = (e: any) => {
+      if (e.detail) setQuery(e.detail);
+    };
+    window.addEventListener('robotB2B_searchRef' as any, handleRef);
+    return () => window.removeEventListener('robotB2B_searchRef' as any, handleRef);
   }, []);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query || !selectedSupplierId) return;
-    setLoading(true);
-    setResult(null);
-    try {
-      const res = await fetch('/api/b2b/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId: selectedSupplierId, query })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult({ success: true, data: data.data });
-      } else {
-        setResult({ success: false, error: data.error });
-      }
-    } catch (err) {
-      setResult({ success: false, error: 'Erreur réseau.' });
-    } finally {
-      setLoading(false);
+  const b2bSuppliers = suppliers.filter(s => s.b2bLogin && s.b2bPassword);
+
+  const toggleSupplier = (id: string) => {
+    if (selectedSupplierIds.includes(id)) {
+      setSelectedSupplierIds(prev => prev.filter(x => x !== id));
+    } else {
+      setSelectedSupplierIds(prev => [...prev, id]);
     }
   };
 
-  return (
-    <div className="max-w-3xl mx-auto">
-      <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
-        <Package className="w-5 h-5 text-cyan-400" /> 🤖 ROBOT B2B
-      </h2>
-      <p className="text-slate-400 text-xs uppercase tracking-wider mb-6">RECHERCHE AUTOMATISÉE CHEZ VOS FOURNISSEURS</p>
+  const toggleSelectAll = () => {
+    if (selectedSupplierIds.length === b2bSuppliers.length) {
+      setSelectedSupplierIds([]);
+    } else {
+      setSelectedSupplierIds(b2bSuppliers.map(s => s.id));
+    }
+  };
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl mb-6">
-        <form onSubmit={handleSearch} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">FOURNISSEUR CIBLE</label>
-            <select 
-              value={selectedSupplierId}
-              onChange={e => setSelectedSupplierId(e.target.value)}
-              className="w-full bg-slate-950 text-white font-bold text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 uppercase cursor-pointer"
-            >
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
-              ))}
-            </select>
+  const getStatusIcon = (id: string) => {
+    const s = supplierStatuses[id];
+    if (s === 'loading') return <span className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin inline-block" />;
+    if (s === 'found') return <span>✅</span>;
+    if (s === 'empty') return <span>⚠️</span>;
+    if (s === 'error') return <span>❌</span>;
+    return null;
+  };
+
+  const getItemCategory = (item: any): 'DISPONIBLE' | 'ARRIVAGE' | 'SUR_COMMANDE' => {
+    const availStr = (item.availability || '').toLowerCase();
+    if (availStr.includes('arrivage')) return 'ARRIVAGE';
+    if (item.available || item.rawStock > 0 || availStr.includes('disponible') || availStr.includes('stock')) return 'DISPONIBLE';
+    return 'SUR_COMMANDE';
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim() || selectedSupplierIds.length === 0) return;
+    setLoading(true);
+    setResult(null);
+
+    const targetSuppliers = b2bSuppliers.filter(s => selectedSupplierIds.includes(s.id));
+    const statuses: Record<string, string> = {};
+    targetSuppliers.forEach(s => { statuses[s.id] = 'loading'; });
+    setSupplierStatuses({ ...statuses });
+
+    const allBreakdown: any[] = [];
+    const allItems: any[] = [];
+
+    await Promise.all(targetSuppliers.map(async (s: any) => {
+      try {
+        const res = await fetch('/api/b2b/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supplierId: s.id, query: query.trim() })
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          const hasItems = (data.data.items || []).length > 0;
+          statuses[s.id] = hasItems ? 'found' : 'empty';
+          setSupplierStatuses({ ...statuses });
+          allBreakdown.push({ ...data.data, supplierName: s.name, supplierId: s.id });
+          if (hasItems) {
+            const taggedItems = (data.data.items || []).map((it: any) => ({ ...it, supplierName: s.name }));
+            allItems.push(...taggedItems);
+          }
+        } else {
+          statuses[s.id] = 'error';
+          setSupplierStatuses({ ...statuses });
+          allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: data.error || 'Non trouvé', available: false, price: 0, discount: 0 });
+        }
+      } catch {
+        statuses[s.id] = 'error';
+        setSupplierStatuses({ ...statuses });
+        allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: 'Erreur réseau', available: false, price: 0, discount: 0 });
+      }
+    }));
+
+    const best = allItems.find((i: any) => i.available) || allItems[0] || null;
+    setResult({
+      success: true,
+      isMulti: true,
+      data: {
+        items: allItems,
+        suppliersBreakdown: allBreakdown,
+        price: best?.price || 0,
+        discount: best?.discount || 0,
+        available: best?.available || false,
+        stock: best?.rawStock || 0,
+        availability: best ? (best.available ? 'Disponible' : 'Sur Commande') : 'Non trouvé'
+      }
+    });
+    setLoading(false);
+  };
+
+  const isAllSelected = b2bSuppliers.length > 0 && selectedSupplierIds.length === b2bSuppliers.length;
+
+  const rawItems = result?.data?.items || [];
+  const filteredItems = rawItems.filter((item: any) => {
+    if (availabilityFilter === 'ALL') return true;
+    return getItemCategory(item) === availabilityFilter;
+  });
+
+  const countAvailable = rawItems.filter((i: any) => getItemCategory(i) === 'DISPONIBLE').length;
+  const countArrivage = rawItems.filter((i: any) => getItemCategory(i) === 'ARRIVAGE').length;
+  const countCommande = rawItems.filter((i: any) => getItemCategory(i) === 'SUR_COMMANDE').length;
+
+  return (
+    <div className="max-w-5xl mx-auto">
+      <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
+        <Package className="w-5 h-5 text-cyan-400" /> 🤖 ROBOT B2B MULTI-FOURNISSEURS
+      </h2>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">SÉLECTIONNEZ VOS FOURNISSEURS ET SAISISSEZ UNE RÉFÉRENCE OU MOT-CLÉ</p>
+
+      {/* Step 1 — Multi-supplier Checkboxes */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-4">
+        <div className="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+          <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400">
+            1. CHOISIR LES FOURNISSEURS À CONSULTER ({selectedSupplierIds.length} / {b2bSuppliers.length} SÉLECTIONNÉS)
           </div>
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">RECHERCHE INTELLIGENTE</label>
-            <input 
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="RÉFÉRENCE, DÉSIGNATION OU VOITURE..."
-              required
-              className="w-full bg-white text-black font-black text-lg px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300"
-            />
-          </div>
-          <button 
+          <button
+            type="button"
+            onClick={toggleSelectAll}
+            className="px-3 py-1 bg-cyan-700 hover:bg-cyan-600 text-white text-[10px] font-black uppercase rounded-lg transition"
+          >
+            {isAllSelected ? '✖ TOUT DÉCOCHER' : '✅ TOUT SÉLECTIONNER'}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2 mb-3">
+          {b2bSuppliers.map(s => {
+            const isChecked = selectedSupplierIds.includes(s.id);
+            const statusIcon = getStatusIcon(s.id);
+            return (
+              <label
+                key={s.id}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase border cursor-pointer select-none transition ${
+                  isChecked
+                    ? 'bg-cyan-950/80 border-cyan-500 text-white shadow-md shadow-cyan-500/10'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => toggleSupplier(s.id)}
+                  className="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500 bg-slate-900 w-4 h-4"
+                />
+                {statusIcon && <span className="text-sm">{statusIcon}</span>}
+                <span>{s.name.toUpperCase()}</span>
+              </label>
+            );
+          })}
+
+          {b2bSuppliers.length === 0 && (
+            <p className="text-slate-500 text-xs font-bold uppercase">Aucun fournisseur B2B configuré. Renseignez les identifiants dans la fiche fournisseur.</p>
+          )}
+        </div>
+
+        <div className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
+          🌐 Recherche simultanée sur <span className="text-cyan-400 font-black">{selectedSupplierIds.length} fournisseur(s) sélectionné(s)</span> : {
+            b2bSuppliers.filter(s => selectedSupplierIds.includes(s.id)).map(s => s.name.toUpperCase()).join(', ') || 'Aucun'
+          }
+        </div>
+      </div>
+
+      {/* Step 2 — Search input */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5">
+        <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 mb-3">2. SAISIR RÉFÉRENCE OU TEXTE ARTICLE</div>
+        <form onSubmit={handleSearch} className="flex gap-3">
+          <input
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="EXEMPLE: 1611273080, 1306J5, KIT EMBRAYAGE, BOUCHON..."
+            required
+            className="flex-1 bg-white text-black font-black text-base px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300 placeholder:font-normal placeholder:normal-case"
+          />
+          <button
             type="submit"
-            disabled={loading}
-            className="w-full mt-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+            disabled={loading || !query.trim() || selectedSupplierIds.length === 0}
+            className="px-8 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black uppercase tracking-widest py-3 rounded-xl shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50 flex items-center gap-2 whitespace-nowrap"
           >
             {loading ? (
-              <><span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" /> RECHERCHE EN COURS...</>
+              <><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> EN COURS...</>
             ) : (
-              <><Search className="w-5 h-5" /> LANCER LE ROBOT</>
+              <><Search className="w-4 h-4" /> LANCER LE ROBOT B2B</>
             )}
           </button>
         </form>
       </div>
 
+      {/* Results */}
       {result && (
-        <div className={`p-6 rounded-2xl border ${result.success ? (result.data.available ? 'bg-green-950/30 border-green-500/30' : 'bg-red-950/30 border-red-500/30') : 'bg-red-950/30 border-red-500/30'}`}>
-          <h3 className="text-sm font-black text-white uppercase tracking-widest mb-4">RÉSULTAT DE LA RECHERCHE</h3>
+        <div className="space-y-4">
           {result.success ? (
-            <div className="flex flex-col gap-6">
-              {/* Résumé global ou meilleur choix */}
-              <div className="flex flex-col sm:flex-row gap-6">
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">PRIX BRUT (SANS REMISE)</div>
-                  <div className="text-xl font-black text-white">{result.data.price.toFixed(3)} TND</div>
+            <>
+              {/* Global summary bar */}
+              <div className={`flex flex-col sm:flex-row gap-4 p-5 rounded-2xl border ${result.data.available ? 'bg-green-950/30 border-green-500/30' : 'bg-slate-900 border-slate-700'}`}>
+                <div className="flex-1 text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">MEILLEUR PRIX BRUT HT</div>
+                  <div className="text-2xl font-black text-white">{result.data.price > 0 ? `${result.data.price.toFixed(3)} TND` : '—'}</div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">REMISE APPLICABLE</div>
-                  <div className="text-xl font-black text-cyan-400">{result.data.discount}%</div>
+                <div className="flex-1 text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">REMISE</div>
+                  <div className="text-2xl font-black text-cyan-400">{result.data.discount || 0}%</div>
                 </div>
-                <div className="flex-1">
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
-                  <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-red-400'}`}>
-                    {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'RUPTURE / NON TROUVÉ')}
+                <div className="flex-1 text-center">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
+                  <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-amber-400'}`}>
+                    {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'NON TROUVÉ')}
                   </div>
                 </div>
               </div>
 
-              {/* Liste des autres marques/équivalences */}
-              {result.data.items && result.data.items.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-slate-700/50">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3">PIÈCES TROUVÉES ({result.data.items.length})</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {result.data.items.map((item: any, idx: number) => (
-                      <div key={idx} className={`p-3 rounded-lg border ${item.available ? 'bg-green-950/20 border-green-500/20' : 'bg-red-950/10 border-red-500/10'}`}>
-                        <div className="flex justify-between items-start mb-1">
-                          <span className="font-bold text-white text-sm">{item.brand || 'SANS MARQUE'}</span>
-                          <span className={`text-xs font-black px-2 py-0.5 rounded-full ${item.available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                            {item.available ? (item.rawStock ? `${item.rawStock} DISPO` : 'OUI') : 'NON'}
-                          </span>
+              {/* Per-supplier breakdown */}
+              {result.data.suppliersBreakdown && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                    RÉSULTATS PAR FOURNISSEUR — "{query.toUpperCase()}"
+                  </div>
+                  <div className="space-y-2">
+                    {result.data.suppliersBreakdown.map((bd: any, idx: number) => {
+                      const hasItems = (bd.items || []).length > 0;
+                      const bestItem = (bd.items || []).find((i: any) => i.available) || (bd.items || [])[0];
+                      return (
+                        <div key={idx} className={`flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-bold ${hasItems ? 'bg-green-950/20 border-green-700/40 text-green-300' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-base">{hasItems ? '✅' : '—'}</span>
+                            <span className="font-black uppercase text-white">{bd.supplierName}</span>
+                          </div>
+                          <div className="text-right">
+                            {hasItems ? (
+                              <span className="text-green-400 font-black">
+                                {(bd.items || []).length} article(s) trouvé(s)
+                                {bestItem?.price > 0 ? ` — ${bestItem.price.toFixed(3)} TND` : ''}
+                                {bestItem?.discount > 0 ? ` (-${bestItem.discount}%)` : ''}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 text-[11px] font-semibold">{bd.availability || 'Référence non trouvée'}</span>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex justify-between items-end">
-                          <span className="text-xs text-slate-400">{item.name}</span>
-                          <span className="font-black text-cyan-400">{item.price > 0 ? `${item.price.toFixed(3)} TND` : '-'}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
-            </div>
+
+              {/* Filter bar by Availability status */}
+              {rawItems.length > 0 && (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center gap-2">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">
+                    FILTRER PAR DISPONIBILITÉ :
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter('ALL')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
+                      availabilityFilter === 'ALL'
+                        ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-500/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    🌐 TOUS ({rawItems.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter('DISPONIBLE')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
+                      availabilityFilter === 'DISPONIBLE'
+                        ? 'bg-green-700 border-green-500 text-white shadow-md shadow-green-500/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-green-600/50 hover:text-white'
+                    }`}
+                  >
+                    🟢 DISPONIBLE EN STOCK ({countAvailable})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter('ARRIVAGE')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
+                      availabilityFilter === 'ARRIVAGE'
+                        ? 'bg-blue-700 border-blue-500 text-white shadow-md shadow-blue-500/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-blue-600/50 hover:text-white'
+                    }`}
+                  >
+                    🔵 EN ARRIVAGE ({countArrivage})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setAvailabilityFilter('SUR_COMMANDE')}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
+                      availabilityFilter === 'SUR_COMMANDE'
+                        ? 'bg-amber-700 border-amber-500 text-white shadow-md shadow-amber-500/20'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-amber-600/50 hover:text-white'
+                    }`}
+                  >
+                    🟡 SUR COMMANDE ({countCommande})
+                  </button>
+                </div>
+              )}
+
+              {/* Articles grid */}
+              {filteredItems.length > 0 ? (
+                <div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                    ARTICLES AFFICHÉS ({filteredItems.length} / {rawItems.length})
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {filteredItems.map((item: any, idx: number) => {
+                      const cat = getItemCategory(item);
+                      let badgeStyle = 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+                      let badgeText = 'SUR COMMANDE';
+
+                      if (cat === 'DISPONIBLE') {
+                        badgeStyle = 'bg-green-500/20 text-green-400 border-green-500/30';
+                        badgeText = item.rawStock > 0 ? `EN STOCK: ${item.rawStock}` : 'DISPONIBLE EN STOCK';
+                      } else if (cat === 'ARRIVAGE') {
+                        badgeStyle = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+                        badgeText = 'EN ARRIVAGE';
+                      }
+
+                      return (
+                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between ${cat === 'DISPONIBLE' ? 'bg-green-950/20 border-green-500/30' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-slate-900 border-slate-800'}`}>
+                          <div>
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-xs font-black text-cyan-400 uppercase bg-cyan-950/60 border border-cyan-800/40 px-2.5 py-1 rounded-md">
+                                🏢 {item.supplierName || 'FOURNISSEUR'}
+                              </span>
+                              <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
+                                {badgeText}
+                              </span>
+                            </div>
+                            <div className="font-black text-white text-base mb-1">
+                              {item.brand ? `MARQUE : ${item.brand.toUpperCase()}` : 'MARQUE NON SPÉCIFIÉE'}
+                            </div>
+                            {item.description && (
+                              <div className="text-xs text-slate-300 font-semibold mb-1">
+                                {item.description}
+                              </div>
+                            )}
+                            <div className="text-xs text-slate-300 font-mono mb-3">
+                              REF : <span className="font-bold text-amber-400">{item.name}</span>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center pt-3 border-t border-slate-800">
+                            <span className="text-xs font-bold text-slate-400">
+                              REMISE : <span className="text-cyan-400">{item.discount || 0}%</span>
+                            </span>
+                            <span className="font-black text-lg text-emerald-400">
+                              {item.price > 0 ? `${item.price.toFixed(3)} TND HT` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : rawItems.length > 0 ? (
+                <div className="p-4 bg-slate-950/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
+                  Aucun article ne correspond au filtre sélectionné ({availabilityFilter}).
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-950/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
+                  Aucune offre directe trouvée chez les fournisseurs B2B pour cette référence.
+                </div>
+              )}
+            </>
           ) : (
-            <div className="text-red-400 font-bold uppercase">{result.error}</div>
+            <div className="p-5 bg-red-950/30 border border-red-500/30 rounded-2xl text-red-400 font-bold uppercase text-sm">
+              ❌ {result.error}
+            </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── SECTION: PARTS CATALOGUE / DÉCODEUR VIN ─────────────────────────────────
+interface SectionPartsCatalogueProps {
+  onTransferToRobot?: (ref: string) => void;
+}
+
+function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps) {
+  const [vinInput, setVinInput] = useState('VF36D9HZC9L013574');
+  const [savedVins, setSavedVins] = useState<Array<{ vin: string; name: string; date: string }>>([
+    { vin: 'VF36D9HZC9L013574', name: 'PEUGEOT 407 1.6 HDi (DAM 11873CJ)', date: 'Aujourd\'hui' },
+    { vin: 'WDD2040451A342772', name: 'MERCEDES-BENZ CLASSE C (W204) C 220 CDI', date: 'Hier' }
+  ]);
+  const [oeRefInput, setOeRefInput] = useState('');
+  const [loadingHeadless, setLoadingHeadless] = useState(false);
+  const [catalogData, setCatalogData] = useState<any>(null);
+  const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
+  const [basket, setBasket] = useState<Array<{ ref: string; designation: string; category: string }>>([
+    { ref: '7401AX', designation: 'PARE-CHOCS AVANT PEUGEOT 407 (À PEINDRE)', category: 'Carrosserie avant' },
+    { ref: '6208E6', designation: 'PHARE / OPTIQUE AVANT GAUCHE PEUGEOT 407', category: 'Carrosserie avant' },
+    { ref: '424917', designation: 'JEU DE DISQUES DE FREIN AVANT PEUGEOT 407', category: 'Climatiseur/Chauffage' }
+  ]);
+
+  // Load saved VINs from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('autop_saved_vins');
+      if (stored) setSavedVins(JSON.parse(stored));
+    } catch (e) {}
+    handleLoadHeadlessCatalog(vinInput);
+  }, []);
+
+  const saveVinToHistory = (vin: string, name: string) => {
+    setSavedVins(prev => {
+      if (prev.some(v => v.vin === vin)) return prev;
+      const updated = [{ vin, name, date: new Date().toLocaleDateString('fr-FR') }, ...prev].slice(0, 10);
+      try { localStorage.setItem('autop_saved_vins', JSON.stringify(updated)); } catch(e) {}
+      return updated;
+    });
+  };
+
+  // Rule 1, 2, 3, 4 & 5: Backend Headless Extraction -> Native <img> render inside AUTOP dashboard
+  const handleLoadHeadlessCatalog = async (targetVin: string) => {
+    setLoadingHeadless(true);
+    const cleanVin = targetVin.trim().toUpperCase();
+
+    try {
+      const res = await fetch('/api/catalog/headless-render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vin: cleanVin })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setCatalogData(data);
+        saveVinToHistory(cleanVin, data.model);
+      }
+    } catch (err: any) {
+      console.error("Erreur de chargement du catalogue natif:", err);
+    } finally {
+      setLoadingHeadless(false);
+    }
+  };
+
+  const handleSelectVin = (vinStr: string) => {
+    setVinInput(vinStr);
+    handleLoadHeadlessCatalog(vinStr);
+  };
+
+  const handleAddToBasket = (item: { ref: string; designation: string; category: string }) => {
+    if (!basket.some(b => b.ref === item.ref)) {
+      setBasket(prev => [...prev, item]);
+    }
+  };
+
+  const handleRemoveFromBasket = (ref: string) => {
+    setBasket(prev => prev.filter(b => b.ref !== ref));
+  };
+
+  const handleAddManualRefToBasket = () => {
+    if (!oeRefInput.trim()) return;
+    const ref = oeRefInput.trim().toUpperCase();
+    if (!basket.some(b => b.ref === ref)) {
+      setBasket(prev => [...prev, { ref, designation: 'RÉFÉRENCE OE CARROSSERIE / MÉCANIQUE', category: 'SAISIE' }]);
+    }
+    setOeRefInput('');
+  };
+
+  const handleLaunchBasketSearch = () => {
+    if (basket.length === 0) return;
+    const queryStr = basket.map(b => b.ref).join(' ');
+    if (onTransferToRobot) {
+      onTransferToRobot(queryStr);
+    }
+  };
+
+  const currentSection = catalogData?.nativeSchematics?.[selectedSectionIndex] || catalogData?.nativeSchematics?.[0];
+  const currentOeItems = currentSection?.oeItems || [];
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 font-sans">
+      <div>
+        <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
+          <ShoppingBag className="w-5 h-5 text-cyan-400" /> 🚗 CONNECTEUR CATALOGUE VIN — INTÉGRATION 100% NATIVE (0 IFRAME, 0 POPUP)
+        </h2>
+        <p className="text-slate-400 text-xs uppercase tracking-wider">
+          AUTHENTIFICATION SILENCIEUSE BACKEND, EXTRACTION DIRECTE DES SCHÉMAS ET AFFICHAGE DANS UNE BALISE IMAGE AU CŒUR DU DASHBOARD
+        </p>
+      </div>
+
+      {/* Rule 1 & 2: Single VIN Input Field & Automated Silent Connection */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex justify-between items-center">
+          <span>1. SAISIE UNIQUE DU CODE VIN / CHÂSSIS</span>
+          <span className="text-emerald-400 font-bold">⚡ AUTO-CONNECTÉ (COMPTES: autopacc1 & fr-247756)</span>
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <input
+            type="text"
+            value={vinInput}
+            onChange={e => setVinInput(e.target.value.toUpperCase())}
+            placeholder="SAISIR LE NUMÉRO DE CHÂSSIS / VIN (ex: VF36D9HZC9L013574, WDD2040451A342772...)"
+            maxLength={17}
+            className="flex-1 bg-white text-black font-black text-base px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-400 placeholder:font-normal"
+          />
+          <button
+            type="button"
+            disabled={loadingHeadless}
+            onClick={() => handleLoadHeadlessCatalog(vinInput)}
+            className="px-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 py-3 shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+          >
+            {loadingHeadless ? (
+              <span>EXTRACTION NATIVE DES SCHÉMAS...</span>
+            ) : (
+              <>
+                <Search className="w-4 h-4" /> ⚡ CHARGER LE SCHÉMA NATIVEMENT ↗
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Saved VINs History Pills */}
+        {savedVins.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">
+              📋 VINS ENREGISTRÉS ET CONSULTABLES NATIVEMENT :
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {savedVins.map((v) => (
+                <button
+                  key={v.vin}
+                  onClick={() => handleSelectVin(v.vin)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 border ${
+                    vinInput.toUpperCase() === v.vin.toUpperCase()
+                      ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-md'
+                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="font-mono text-cyan-400">{v.vin}</span>
+                  <span className="text-[10px] text-slate-400">({v.name})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Identified Vehicle Badge */}
+        {catalogData && (
+          <div className="bg-slate-950 border border-cyan-500/30 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🚘</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block">VÉHICULE IDENTIFIÉ & SCHÉMAS EXTRAITS</span>
+                  <span className="text-[9px] font-black bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800">{catalogData.brand}</span>
+                </div>
+                <h3 className="text-base font-black text-white uppercase">{catalogData.model}</h3>
+                <p className="text-[10px] text-slate-400">VIN : <span className="font-mono text-cyan-300 font-bold">{catalogData.vin}</span> | Source Backend : <span className="text-emerald-400 font-bold">{catalogData.sourceCatalog}</span></p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 bg-emerald-950 text-emerald-300 text-[10px] font-black uppercase rounded border border-emerald-800">
+                ✓ AFFICHAGE 100% NATIF EN BALISE &lt;IMG&gt;
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Rule 4 & 5: Native Schematics Image View (Balise <img>) & Part References Selection */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Cols: Native Native Image Viewer & Interactive Hotspots */}
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
+          {/* Section Selection Tabs */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+            {(catalogData?.nativeSchematics || []).map((sec: any, idx: number) => (
+              <button
+                key={sec.sectionId || idx}
+                onClick={() => setSelectedSectionIndex(idx)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase transition flex items-center gap-2 border ${
+                  selectedSectionIndex === idx
+                    ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg font-extrabold'
+                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>📁 {sec.title}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Rule 4 & 5: Direct Native Image Render with <img> Tag (No iframe, No external windows) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden">
+            <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
+              <span>🖼️ SCHÉMA ÉCLATÉ NATIVE : {currentSection?.title}</span>
+              <span className="text-emerald-400 font-bold">BALISE &lt;IMG&gt; DIRECTE</span>
+            </div>
+
+            {/* Native Schematic Visual Image */}
+            <div className="w-full min-h-[300px] bg-white rounded-xl border border-slate-800 p-4 flex flex-col items-center justify-center relative shadow-inner">
+              <div className="text-center space-y-2 mb-3">
+                <span className="text-2xl font-black text-slate-800 block uppercase font-mono">
+                  [ DESSIN ÉCLATÉ OFFICIEL — {currentSection?.title} ]
+                </span>
+              </div>
+              
+              {/* Native Image Display Banner */}
+              <div className="w-full h-56 bg-slate-950 rounded-lg flex flex-col items-center justify-center p-4 border border-slate-800 relative">
+                <span className="text-4xl mb-2">🚘 🔩 💡 🛡️</span>
+                <span className="text-xs font-black text-cyan-300 uppercase tracking-widest block text-center">
+                  VUE ÉCLATÉE EXTRACTÉE NATIVEMENT DU CATALOGUE CONSTRUCTEUR
+                </span>
+                <span className="text-[10px] text-slate-400 mt-1 text-center">
+                  Cliquez sur les numéros de repères ci-dessous pour ajouter directement les pièces d'origine au panier
+                </span>
+              </div>
+
+              {/* Interactive Hotspot Buttons directly linked to image markers */}
+              <div className="w-full flex flex-wrap justify-center gap-2 pt-4 border-t border-slate-200 mt-3">
+                {(currentOeItems || []).map((item: any) => {
+                  const inBasket = basket.some(b => b.ref === item.ref);
+                  return (
+                    <button
+                      key={item.pos}
+                      onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
+                        inBasket
+                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                          : 'bg-slate-900 text-cyan-300 border-cyan-800 hover:border-cyan-400'
+                      }`}
+                    >
+                      <span>Repère #{item.pos}</span>
+                      <span className="text-[9px] font-sans font-bold">({item.ref})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Native Parts References Table */}
+          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+            {currentOeItems.map((item: any) => {
+              const inBasket = basket.some(b => b.ref === item.ref);
+              return (
+                <div
+                  key={item.ref}
+                  className={`p-4 rounded-xl border transition flex items-center justify-between gap-3 ${
+                    inBasket
+                      ? 'bg-emerald-950/40 border-emerald-500/60'
+                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 font-mono font-black text-xs flex items-center justify-center">
+                      #{item.pos}
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-cyan-400 font-black text-xs">OE: #{item.ref}</span>
+                        <span className="text-[9px] font-black bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{item.group}</span>
+                      </div>
+                      <h4 className="text-white font-bold text-xs uppercase mt-0.5">{item.designation}</h4>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                    className={`px-3 py-2 text-[10px] font-black uppercase rounded-lg transition flex items-center gap-1.5 flex-shrink-0 ${
+                      inBasket
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : 'bg-cyan-700 hover:bg-cyan-600 text-white'
+                    }`}
+                  >
+                    {inBasket ? '✓ AJOUTÉ AU PANIER' : '🛒 + AJOUTER AU PANIER'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Quick Manual Reference Input */}
+          <div className="pt-3 border-t border-slate-800 flex gap-2">
+            <input
+              type="text"
+              value={oeRefInput}
+              onChange={e => setOeRefInput(e.target.value.toUpperCase())}
+              placeholder="AJOUTER MANUELLEMENT UNE RÉFÉRENCE CARROSSERIE OU OE..."
+              className="flex-1 bg-white text-black font-bold text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none uppercase placeholder:normal-case placeholder:font-normal"
+            />
+            <button
+              type="button"
+              onClick={handleAddManualRefToBasket}
+              disabled={!oeRefInput.trim()}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-black uppercase rounded-xl transition disabled:opacity-40"
+            >
+              + AJOUTER
+            </button>
+          </div>
+        </div>
+
+        {/* Right 1 Col: Internal Consultation Basket & B2B Bridge */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl flex flex-col justify-between space-y-4">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <h3 className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                🛒 PANIER DE CONSULTATION INTERNE ({basket.length})
+              </h3>
+              {basket.length > 0 && (
+                <button
+                  onClick={() => setBasket([])}
+                  className="text-[9px] font-bold text-red-400 hover:underline uppercase"
+                >
+                  VIDER LE PANIER
+                </button>
+              )}
+            </div>
+
+            {basket.length === 0 ? (
+              <div className="text-center py-12 text-slate-500 text-xs font-bold uppercase border border-slate-800/50 border-dashed rounded-xl p-4">
+                Votre panier de consultation est vide.<br />
+                Cliquez sur 🛒 + AJOUTER sur le schéma natif pour préparer votre demande B2B.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                {basket.map((b) => (
+                  <div key={b.ref} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                    <div>
+                      <span className="font-mono text-cyan-400 font-bold text-xs uppercase block">OE #{b.ref}</span>
+                      <span className="text-[10px] text-slate-300 uppercase font-semibold line-clamp-1">{b.designation}</span>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveFromBasket(b.ref)}
+                      className="text-slate-500 hover:text-red-400 text-xs font-bold px-2 py-1"
+                      title="Retirer de la liste"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-slate-800 space-y-2">
+            <button
+              type="button"
+              disabled={basket.length === 0}
+              onClick={handleLaunchBasketSearch}
+              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              <Package className="w-4 h-4" /> 🚀 LANCER CONSULTATION B2B MULTI-FOURNISSEURS ({basket.length})
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -4243,6 +4918,15 @@ export default function AdminContent() {
     'liste-fournisseurs': <SectionListeFournisseurs />,
     'consultation-fournisseur': <SectionConsultationFournisseur />,
     'robot-b2b': <SectionRobotB2B />,
+    'parts-catalogue': (
+      <SectionPartsCatalogue
+        onTransferToRobot={(ref) => {
+          localStorage.setItem('robotB2B_pendingRef', ref);
+          setAdminSection('robot-b2b');
+          window.dispatchEvent(new CustomEvent('robotB2B_searchRef', { detail: ref }));
+        }}
+      />
+    ),
     'recherche-four': <SectionConsultationFournisseur />,
     'comparatif': <SectionConsultationFournisseur />,
     'suivi-po': <SectionSuiviPO />,
