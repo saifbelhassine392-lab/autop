@@ -4443,52 +4443,42 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             ))}
           </div>
 
-          {/* Rule 4 & 5: Direct Native Image Render with <img> Tag (No iframe, No external windows) */}
+          {/* Direct Native Schematics Render (Webview for Electron Local Desktop Admin or <img> for Web) */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden">
             <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
-              <span>🖼️ SCHÉMA ÉCLATÉ NATIVE : {currentSection?.title}</span>
-              <span className="text-emerald-400 font-bold">BALISE &lt;IMG&gt; DIRECTE</span>
+              <span>🖼️ SCHÉMA ÉCLATÉ & CATALOGUE : {currentSection?.title}</span>
+              <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD NATIF (ELECTRON WEBVIEW / WEB)</span>
             </div>
 
-            {/* Native Schematic Visual Image */}
-            <div className="w-full min-h-[300px] bg-white rounded-xl border border-slate-800 p-4 flex flex-col items-center justify-center relative shadow-inner">
-              <div className="text-center space-y-2 mb-3">
-                <span className="text-2xl font-black text-slate-800 block uppercase font-mono">
-                  [ DESSIN ÉCLATÉ OFFICIEL — {currentSection?.title} ]
-                </span>
-              </div>
-              
-              {/* Native Image Display Banner */}
-              <div className="w-full h-56 bg-slate-950 rounded-lg flex flex-col items-center justify-center p-4 border border-slate-800 relative">
-                <span className="text-4xl mb-2">🚘 🔩 💡 🛡️</span>
-                <span className="text-xs font-black text-cyan-300 uppercase tracking-widest block text-center">
-                  VUE ÉCLATÉE EXTRACTÉE NATIVEMENT DU CATALOGUE CONSTRUCTEUR
-                </span>
-                <span className="text-[10px] text-slate-400 mt-1 text-center">
-                  Cliquez sur les numéros de repères ci-dessous pour ajouter directement les pièces d'origine au panier
-                </span>
-              </div>
+            {/* Electron <webview> Container Element */}
+            <div className="w-full h-[450px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden relative shadow-inner">
+              {/* @ts-ignore : balise webview Electron native */}
+              <webview
+                src={`https://login.partsnumber.com/portal/webclient/index.html?desktopId=pn&action=start-session#/catalog?vin=${vinInput.trim().toUpperCase()}`}
+                className="w-full h-full border-0 bg-white"
+                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+              />
+            </div>
 
-              {/* Interactive Hotspot Buttons directly linked to image markers */}
-              <div className="w-full flex flex-wrap justify-center gap-2 pt-4 border-t border-slate-200 mt-3">
-                {(currentOeItems || []).map((item: any) => {
-                  const inBasket = basket.some(b => b.ref === item.ref);
-                  return (
-                    <button
-                      key={item.pos}
-                      onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
-                        inBasket
-                          ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
-                          : 'bg-slate-900 text-cyan-300 border-cyan-800 hover:border-cyan-400'
-                      }`}
-                    >
-                      <span>Repère #{item.pos}</span>
-                      <span className="text-[9px] font-sans font-bold">({item.ref})</span>
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Interactive Hotspot Buttons directly linked to image markers */}
+            <div className="w-full flex flex-wrap justify-center gap-2 pt-2 border-t border-slate-800">
+              {(currentOeItems || []).map((item: any) => {
+                const inBasket = basket.some(b => b.ref === item.ref);
+                return (
+                  <button
+                    key={item.pos}
+                    onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
+                      inBasket
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                        : 'bg-slate-900 text-cyan-300 border-cyan-800 hover:border-cyan-400'
+                    }`}
+                  >
+                    <span>Repère #{item.pos}</span>
+                    <span className="text-[9px] font-sans font-bold">({item.ref})</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
