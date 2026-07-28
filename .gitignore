@@ -2,7 +2,7 @@
 .env*
 node_modules
 .next
+dist-electron
+dist
 *.html
 scratch/
-
-.env*
