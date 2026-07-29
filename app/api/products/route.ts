@@ -71,9 +71,9 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(products);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Products GET error:', error);
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur serveur', details: error.message || String(error) }, { status: 500 });
   }
 }
 
