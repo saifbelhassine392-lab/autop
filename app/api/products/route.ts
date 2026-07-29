@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
+import { ensureCatalogSeeded } from '@/lib/autoSeed';
 
 async function fetchAndSaveProductImage(productId: string, reference: string, brand?: string) {
   try {
@@ -32,6 +33,8 @@ async function fetchAndSaveProductImage(productId: string, reference: string, br
 
 export async function GET(req: NextRequest) {
   try {
+    await ensureCatalogSeeded();
+
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const category = searchParams.get('category') || '';

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
+import { ensureCatalogSeeded } from '@/lib/autoSeed';
 
 const DEFAULT_SUPPLIER_NAMES = [
   { name: 'FAD', contactName: 'Service Commercial', phone: '+216 71 000 001', city: 'Tunis' },
