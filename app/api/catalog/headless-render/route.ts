@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { crossReferenceOeItems } from '@/lib/equivalentsDictionary';
 
 export async function POST(req: Request) {
   try {
@@ -29,12 +30,11 @@ export async function POST(req: Request) {
     }
 
     // Step 2: Headless Extraction of SVG / PNG Schematic Diagrams & OE Part Data
-    // Extracts absolute diagram image URLs directly to render in native <img> tags
-    const extractedNativeSchematics = [
+    const rawNativeSchematics = [
       {
         sectionId: 'SEC_CAR_AV',
         title: '01. CARROSSERIE AVANT, CHÂSSIS & OPTIQUES',
-        imageUrl: 'https://img.partsouq.com/catalogs/peugeot/407/74a.png', // Fallback CDN URL for Peugeot 407 front bumper
+        imageUrl: 'https://img.partsouq.com/catalogs/peugeot/407/74a.png',
         svgDiagram: `/images/diagrams/peugeot_407_carrosserie_avant.png`,
         oeItems: [
           { pos: '01', ref: cleanVin.startsWith('VF3') ? '7401AX' : cleanVin.startsWith('WDD') ? 'A2048800124' : '5G0807217', designation: 'PARE-CHOCS AVANT COMPLET (À PEINDRE)', group: 'Carrosserie avant' },
@@ -79,6 +79,12 @@ export async function POST(req: Request) {
         ]
       }
     ];
+
+    // Cross-référencement automatique avec le dictionnaire d'équivalents
+    const extractedNativeSchematics = rawNativeSchematics.map(sec => ({
+      ...sec,
+      oeItems: crossReferenceOeItems(sec.oeItems)
+    }));
 
     return NextResponse.json({
       success: true,

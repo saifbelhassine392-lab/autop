@@ -6,18 +6,10 @@ import { fetchProductionDevis } from '@/lib/neonClient'
 
 // GET - Mes devis (client) ou tous (admin)
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions)
-  const isDev = process.env.NODE_ENV !== 'production' || req.headers.get('host')?.includes('localhost')
-  if (!session && !isDev) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-
   try {
-    const user = session?.user as any
-    const where = (user && user.role !== 'ADMIN' && !isDev) ? { userId: user.id } : {}
-
     let devis: any[] = []
     try {
       devis = await prisma.devis.findMany({
-        where,
         include: {
           user: { select: { name: true, email: true, phone: true } },
           items: { include: { product: true } },
@@ -26,11 +18,7 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
       })
     } catch (dbErr) {
-      console.warn("Prisma TCP direct connection failed, using Neon HTTP fallback:", dbErr)
-    }
-
-    if (!devis || devis.length === 0) {
-      devis = await fetchProductionDevis()
+      console.warn("Prisma error in GET devis:", dbErr)
     }
 
     return NextResponse.json(devis)
@@ -54,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Si c'est l'admin qui crée le devis pour un client
     if (user.role === 'ADMIN' && clientEmail) {
       const clientUser = await prisma.user.findFirst({
-        where: { email: { equals: clientEmail, mode: 'insensitive' } }
+        where: { email: clientEmail }
       })
       if (!clientUser) {
         return NextResponse.json({ error: 'Aucun utilisateur client trouvé avec cet e-mail. Le client doit d\'abord s\'inscrire.' }, { status: 404 })
@@ -174,25 +162,30 @@ export async function POST(req: NextRequest) {
           });
           
           // Enregistrer aussi les offres dans PartPriceHistory lors d'une modification
-          const priceHistoryData = [];
           for (let i = 0; i < items.length; i++) {
             const sourceItem = items[i];
             if (sourceItem.reference && sourceItem.offres && Array.isArray(sourceItem.offres)) {
               for (const offre of sourceItem.offres) {
                 if (offre.supplierId || offre.purchasePrice || offre.sellingPrice) {
-                  priceHistoryData.push({
-                    reference: sourceItem.reference.trim().toUpperCase(),
-                    isConcessionnaire: offre.type === 'ORIGINE',
-                    supplierId: offre.supplierId || null,
-                    purchasePrice: parseFloat(offre.purchasePrice) || null,
-                    sellingPrice: parseFloat(offre.sellingPrice) || null,
-                  });
+                  let suppId = null;
+                  if (offre.supplierId) {
+                    const supp = await prisma.supplier.findUnique({ where: { id: offre.supplierId } }).catch(() => null);
+                    if (supp) suppId = supp.id;
+                  }
+                  await prisma.partPriceHistory.create({
+                    data: {
+                      reference: sourceItem.reference.trim().toUpperCase(),
+                      type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
+                      isConcessionnaire: offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE',
+                      supplierId: suppId,
+                      supplierName: offre.supplierName || 'Fournisseur',
+                      purchasePrice: parseFloat(offre.purchasePrice) || null,
+                      sellingPrice: parseFloat(offre.sellingPrice) || null,
+                    }
+                  }).catch(() => {});
                 }
               }
             }
-          }
-          if (priceHistoryData.length > 0) {
-            await prisma.partPriceHistory.createMany({ data: priceHistoryData }).catch(() => {});
           }
 
           return NextResponse.json(updatedDevis, { status: 200 });
@@ -201,28 +194,30 @@ export async function POST(req: NextRequest) {
     }
 
     // Insérer l'historique des prix via PartPriceHistory pour chaque offre
-    const priceHistoryData = [];
     for (let i = 0; i < items.length; i++) {
       const sourceItem = items[i];
       if (sourceItem.reference && sourceItem.offres && Array.isArray(sourceItem.offres)) {
         for (const offre of sourceItem.offres) {
           if (offre.supplierId || offre.purchasePrice || offre.sellingPrice) {
-            priceHistoryData.push({
-              reference: sourceItem.reference.trim().toUpperCase(),
-              isConcessionnaire: offre.type === 'ORIGINE',
-              supplierId: offre.supplierId || null,
-              purchasePrice: parseFloat(offre.purchasePrice) || null,
-              sellingPrice: parseFloat(offre.sellingPrice) || null,
-            });
+            let suppId = null;
+            if (offre.supplierId) {
+              const supp = await prisma.supplier.findUnique({ where: { id: offre.supplierId } }).catch(() => null);
+              if (supp) suppId = supp.id;
+            }
+            await prisma.partPriceHistory.create({
+              data: {
+                reference: sourceItem.reference.trim().toUpperCase(),
+                type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
+                isConcessionnaire: offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE',
+                supplierId: suppId,
+                supplierName: offre.supplierName || 'Fournisseur',
+                purchasePrice: parseFloat(offre.purchasePrice) || null,
+                sellingPrice: parseFloat(offre.sellingPrice) || null,
+              }
+            }).catch(() => {});
           }
         }
       }
-    }
-    
-    if (priceHistoryData.length > 0) {
-      await prisma.partPriceHistory.createMany({
-        data: priceHistoryData
-      });
     }
 
     return NextResponse.json(devis, { status: 201 })

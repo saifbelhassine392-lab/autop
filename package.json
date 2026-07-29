@@ -54,6 +54,8 @@
   "build": {
     "appId": "fr.autop.admin",
     "productName": "AUTOP Console Admin",
+    "asar": false,
+    "cscLink": null,
     "directories": {
       "output": "dist-electron"
     },
@@ -71,11 +73,12 @@
     "extraResources": [],
     "win": {
       "target": [
-        "portable"
+        "dir"
       ],
       "verifyUpdateCodeSignature": false,
       "forceCodeSigning": false,
-      "sign": null
+      "sign": null,
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": true,

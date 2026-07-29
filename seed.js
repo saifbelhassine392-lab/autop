@@ -59,29 +59,28 @@ async function main() {
   // ============================================
   // ADRESSES
   // ============================================
-  await prisma.address.createMany({
-    data: [
-      {
-        userId: customer.id,
-        label: 'Domicile',
-        street: '12 Rue de Paris',
-        city: 'Lyon',
-        zipCode: '69001',
-        country: 'France',
-        isDefault: true,
-      },
-      {
-        userId: proUser.id,
-        label: 'Garage',
-        street: '45 Avenue des Champs',
-        city: 'Marseille',
-        zipCode: '13001',
-        country: 'France',
-        isDefault: true,
-      },
-    ],
-    skipDuplicates: true,
-  });
+  for (const addr of [
+    {
+      userId: customer.id,
+      label: 'Domicile',
+      street: '12 Rue de Paris',
+      city: 'Lyon',
+      zipCode: '69001',
+      country: 'France',
+      isDefault: true,
+    },
+    {
+      userId: proUser.id,
+      label: 'Garage',
+      street: '45 Avenue des Champs',
+      city: 'Marseille',
+      zipCode: '13001',
+      country: 'France',
+      isDefault: true,
+    },
+  ]) {
+    try { await prisma.address.create({ data: addr }); } catch (e) {}
+  }
 
   // ============================================
   // CATÉGORIES
@@ -280,31 +279,30 @@ async function main() {
   // ============================================
   // BANNERS
   // ============================================
-  await prisma.banner.createMany({
-    data: [
-      {
-        title: 'Promo Freinage Été 2026',
-        subtitle: 'Jusqu\'à -30% sur les disques et plaquettes',
-        image: '/banners/freinage-promo.jpg',
-        link: '/categorie/freinage',
-        linkText: 'Découvrir les offres',
-        position: 'home_hero',
-        sortOrder: 1,
-        isActive: true,
-      },
-      {
-        title: 'Nouvelle Gamme Batteries',
-        subtitle: 'Varta, Bosch, Exide - Toutes marques disponibles',
-        image: '/banners/batteries-nouveau.jpg',
-        link: '/categorie/electricite',
-        linkText: 'Voir les batteries',
-        position: 'home_hero',
-        sortOrder: 2,
-        isActive: true,
-      },
-    ],
-    skipDuplicates: true,
-  });
+  for (const b of [
+    {
+      title: 'Promo Freinage Été 2026',
+      subtitle: 'Jusqu\'à -30% sur les disques et plaquettes',
+      image: '/banners/freinage-promo.jpg',
+      link: '/categorie/freinage',
+      linkText: 'Découvrir les offres',
+      position: 'home_hero',
+      sortOrder: 1,
+      isActive: true,
+    },
+    {
+      title: 'Nouvelle Gamme Batteries',
+      subtitle: 'Varta, Bosch, Exide - Toutes marques disponibles',
+      image: '/banners/batteries-nouveau.jpg',
+      link: '/categorie/electricite',
+      linkText: 'Voir les batteries',
+      position: 'home_hero',
+      sortOrder: 2,
+      isActive: true,
+    },
+  ]) {
+    try { await prisma.banner.create({ data: b }); } catch (e) {}
+  }
 
   // ============================================
   // PARAMÈTRES

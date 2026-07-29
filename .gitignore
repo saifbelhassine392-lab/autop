@@ -6,3 +6,6 @@ dist-electron
 dist
 *.html
 scratch/
+*.db
+prisma/*.db
+

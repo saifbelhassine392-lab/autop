@@ -21,7 +21,7 @@ const suppliers = [
 async function main() {
   for (const s of suppliers) {
     const exists = await prisma.supplier.findFirst({
-      where: { name: { equals: s.name, mode: 'insensitive' } }
+      where: { name: s.name }
     });
     if (!exists) {
       await prisma.supplier.create({

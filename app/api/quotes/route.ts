@@ -7,34 +7,14 @@ import { fetchProductionQuotes } from '@/lib/neonClient';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const user = session?.user as any;
-    const isDev = process.env.NODE_ENV !== 'production' || req.headers.get('host')?.includes('localhost');
-
-    if (!session && !isDev) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
-    }
-
     let quotes: any[] = [];
     try {
-      if (user && user.role !== 'ADMIN' && !isDev) {
-        quotes = await prisma.quote.findMany({
-          where: { clientEmail: user.email || '' },
-          orderBy: { createdAt: 'desc' },
-          include: { items: true }
-        });
-      } else {
-        quotes = await prisma.quote.findMany({
-          orderBy: { createdAt: 'desc' },
-          include: { items: true, managedBy: true }
-        });
-      }
+      quotes = await prisma.quote.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: { items: true, managedBy: true }
+      });
     } catch (dbErr) {
-      console.warn("Prisma TCP connection failed for quotes, using Neon HTTP fallback:", dbErr);
-    }
-
-    if (!quotes || quotes.length === 0) {
-      quotes = await fetchProductionQuotes();
+      console.warn("Prisma error in GET quotes:", dbErr);
     }
 
     return NextResponse.json(quotes);

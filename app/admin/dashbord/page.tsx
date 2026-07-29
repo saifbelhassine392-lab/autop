@@ -11,6 +11,7 @@ import { Settings, Bell, Menu } from 'lucide-react';
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -22,14 +23,32 @@ export default function AdminDashboard() {
   const [checkingAuth, setCheckingAuth] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') router.push('/connexion');
-  }, [status, router]);
+    setMounted(true);
+    const adminAuth = typeof window !== 'undefined' ? localStorage.getItem('adminAuth') : null;
+    const activeProf = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : null;
+    const defaultProf = activeProf || adminAuth || 'SAIF';
+    if (!activeProf && typeof window !== 'undefined') {
+      localStorage.setItem('activeAdminProfile', defaultProf);
+      localStorage.setItem('adminAuth', defaultProf);
+      setActiveProfile(defaultProf);
+    } else if (activeProf) {
+      setActiveProfile(activeProf);
+    }
+  }, []);
 
   useEffect(() => {
-    setActiveProfile(localStorage.getItem('activeAdminProfile'));
+    if (!mounted) return;
+    const hasLocalAuth = typeof window !== 'undefined' && !!(localStorage.getItem('adminAuth') || localStorage.getItem('activeAdminProfile'));
+    if (status === 'unauthenticated' && !hasLocalAuth) {
+      router.push('/connexion');
+    }
+  }, [status, router, mounted]);
+
+  useEffect(() => {
     const handleProfileChange = () => {
-      setActiveProfile(localStorage.getItem('activeAdminProfile'));
-      if (!localStorage.getItem('activeAdminProfile')) {
+      const current = localStorage.getItem('activeAdminProfile');
+      setActiveProfile(current);
+      if (!current) {
         setSelectedProfName(null);
         setAuthState('selection');
         setPasswordInput('');
@@ -117,7 +136,9 @@ export default function AdminDashboard() {
     }
   };
 
-  if (status === 'loading') {
+  const hasLocalAuth = mounted && !!(localStorage.getItem('adminAuth') || localStorage.getItem('activeAdminProfile') || activeProfile);
+
+  if (!mounted || (status === 'loading' && !hasLocalAuth)) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -129,7 +150,8 @@ export default function AdminDashboard() {
   }
 
   const role = (session?.user as any)?.role;
-  const isAdmin = role === 'admin' || role === 'ADMIN' || role === 'PROFESSIONAL';
+  const isNextAuthAdmin = role === 'admin' || role === 'ADMIN' || role === 'PROFESSIONAL';
+  const isAdmin = isNextAuthAdmin || hasLocalAuth;
 
   if (!isAdmin) {
     return (

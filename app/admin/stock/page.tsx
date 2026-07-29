@@ -41,14 +41,24 @@ export default function AdminStockPage() {
   };
   const [newItem, setNewItem] = useState<StockItem>({ ...newItemTemplate });
 
-  const userRole = (session?.user as any)?.role;
-  const isAdmin = userRole === 'ADMIN' || userRole === 'PROFESSIONAL';
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (status === 'unauthenticated') router.push('/connexion');
-    if (status === 'authenticated' && !isAdmin) router.push('/');
-    if (status === 'authenticated' && isAdmin) fetchProducts();
-  }, [status, isAdmin]);
+    setMounted(true);
+  }, []);
+
+  const userRole = (session?.user as any)?.role;
+  const isNextAuthAdmin = userRole === 'ADMIN' || userRole === 'PROFESSIONAL';
+  const isLocalAdmin = mounted && !!(localStorage.getItem('adminAuth') || localStorage.getItem('activeAdminProfile'));
+  const isAdmin = isNextAuthAdmin || isLocalAdmin;
+
+  useEffect(() => {
+    if (!mounted) return;
+    const isLocal = !!(localStorage.getItem('adminAuth') || localStorage.getItem('activeAdminProfile'));
+    if (status === 'unauthenticated' && !isLocal) router.push('/connexion');
+    if ((status === 'authenticated' || isLocal) && !isAdmin) router.push('/');
+    if ((status === 'authenticated' || isLocal) && isAdmin) fetchProducts();
+  }, [status, isAdmin, mounted]);
 
   const fetchProducts = async () => {
     try {

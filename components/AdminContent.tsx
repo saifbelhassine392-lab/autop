@@ -725,6 +725,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                       const supp = suppliers.find(s => s.id === o.supplierId);
                       allOffresToSave.push({
                         reference: it.reference,
+                        designation: it.designation,
                         type: o.type,
                         supplierId: o.supplierId,
                         supplierName: supp?.name || o.supplierName || 'Fournisseur',
@@ -913,10 +914,13 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].type = newType;
                                         const pAchat = parseFloat(newOffres[oIdx].purchasePrice) || 0;
+                                        const disc = parseFloat(newOffres[oIdx].discount) || 0;
                                         if (newType === 'ADAPTABLE' && pAchat > 0) {
                                           newOffres[oIdx].sellingPrice = parseFloat((pAchat * 1.30).toFixed(3));
-                                        } else if ((newType === 'ORIGINE' || newType === 'CONCESSIONNAIRE') && pAchat > 0) {
-                                          newOffres[oIdx].sellingPrice = pAchat;
+                                        } else if (newType === 'ORIGINE' || newType === 'CONCESSIONNAIRE') {
+                                          if (pAchat > 0) {
+                                            newOffres[oIdx].sellingPrice = disc > 0 ? parseFloat((pAchat / (1 - disc / 100)).toFixed(3)) : pAchat;
+                                          }
                                         }
                                         updateLine(i, 'offres', newOffres);
                                       }}
@@ -941,13 +945,15 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                                 body: JSON.stringify({ name: name.trim().toUpperCase() })
                                               });
                                               const data = await res.json();
-                                              if (data.success && data.data) {
+                                              if ((data.success || res.ok) && data.data) {
                                                 setSuppliers(prev => [...prev, data.data]);
                                                 const newOffres = [...it.offres];
                                                 newOffres[oIdx].supplierId = data.data.id;
                                                 newOffres[oIdx].supplierName = data.data.name;
                                                 updateLine(i, 'offres', newOffres);
                                                 return;
+                                              } else {
+                                                alert(data.error || "Erreur lors de la création du fournisseur");
                                               }
                                             } catch (err) {
                                               console.error(err);
@@ -978,10 +984,10 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                         if (newOffres[oIdx].type === 'ADAPTABLE') {
                                           newOffres[oIdx].sellingPrice = parseFloat((pVal * 1.30).toFixed(3));
                                         } else if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
-                                          if (disc > 0 && pVal > 0) {
-                                            newOffres[oIdx].sellingPrice = parseFloat((pVal / (1 - disc / 100)).toFixed(3));
-                                          } else if (!newOffres[oIdx].sellingPrice) {
-                                            newOffres[oIdx].sellingPrice = pVal;
+                                          if (pVal > 0) {
+                                            newOffres[oIdx].sellingPrice = disc > 0 ? parseFloat((pVal / (1 - disc / 100)).toFixed(3)) : pVal;
+                                          } else {
+                                            newOffres[oIdx].sellingPrice = 0;
                                           }
                                         }
                                         updateLine(i, 'offres', newOffres);
@@ -996,8 +1002,11 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                         newOffres[oIdx].discount = disc;
                                         if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
                                           const sVal = parseFloat(newOffres[oIdx].sellingPrice) || 0;
+                                          const pVal = parseFloat(newOffres[oIdx].purchasePrice) || 0;
                                           if (sVal > 0) {
                                             newOffres[oIdx].purchasePrice = parseFloat((sVal * (1 - disc / 100)).toFixed(3));
+                                          } else if (pVal > 0) {
+                                            newOffres[oIdx].sellingPrice = disc > 0 ? parseFloat((pVal / (1 - disc / 100)).toFixed(3)) : pVal;
                                           }
                                         }
                                         updateLine(i, 'offres', newOffres);
@@ -4483,42 +4492,107 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
           </div>
 
           {/* Native Parts References Table */}
-          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
             {currentOeItems.map((item: any) => {
               const inBasket = basket.some(b => b.ref === item.ref);
+              const equivalents = item.equivalents || [];
+
               return (
                 <div
                   key={item.ref}
-                  className={`p-4 rounded-xl border transition flex items-center justify-between gap-3 ${
+                  className={`p-4 rounded-xl border transition flex flex-col gap-3 ${
                     inBasket
                       ? 'bg-emerald-950/40 border-emerald-500/60'
                       : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 font-mono font-black text-xs flex items-center justify-center">
-                      #{item.pos}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono text-cyan-400 font-black text-xs">OE: #{item.ref}</span>
-                        <span className="text-[9px] font-black bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{item.group}</span>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 font-mono font-black text-xs flex items-center justify-center">
+                        #{item.pos}
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-cyan-400 font-black text-xs">OE: #{item.ref}</span>
+                          <span className="text-[9px] font-black bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{item.group}</span>
+                          {equivalents.length > 0 && (
+                            <span className="text-[9px] font-black bg-amber-950/80 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
+                              ⚡ {equivalents.length} ÉQUIVALENT(S)
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-white font-bold text-xs uppercase mt-0.5">{item.designation}</h4>
                       </div>
-                      <h4 className="text-white font-bold text-xs uppercase mt-0.5">{item.designation}</h4>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onTransferToRobot) onTransferToRobot(item.ref);
+                        }}
+                        title="Chercher chez tous les fournisseurs B2B"
+                        className="px-2.5 py-1.5 bg-indigo-900/60 hover:bg-indigo-600 text-indigo-200 hover:text-white text-[10px] font-black uppercase rounded-lg border border-indigo-500/30 transition flex items-center gap-1"
+                      >
+                        <Search className="w-3 h-3" /> ROBOT B2B
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                        className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition flex items-center gap-1.5 flex-shrink-0 ${
+                          inBasket
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'bg-cyan-700 hover:bg-cyan-600 text-white'
+                        }`}
+                      >
+                        {inBasket ? '✓ AJOUTÉ' : '🛒 + OE'}
+                      </button>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
-                    className={`px-3 py-2 text-[10px] font-black uppercase rounded-lg transition flex items-center gap-1.5 flex-shrink-0 ${
-                      inBasket
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        : 'bg-cyan-700 hover:bg-cyan-600 text-white'
-                    }`}
-                  >
-                    {inBasket ? '✓ AJOUTÉ AU PANIER' : '🛒 + AJOUTER AU PANIER'}
-                  </button>
+                  {/* Render Equivalent Parts Pills & Instant Add */}
+                  {equivalents.length > 0 && (
+                    <div className="bg-slate-900/80 rounded-lg p-2.5 border border-slate-800/80 space-y-1.5">
+                      <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest block">
+                        🔗 RÉFÉRENCES ÉQUIVALENTES (DICTIONNAIRE & B2B) :
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {equivalents.map((eq: any, eqIdx: number) => {
+                          const eqInBasket = basket.some(b => b.ref === eq.reference);
+                          return (
+                            <div
+                              key={eqIdx}
+                              className={`px-2.5 py-1 rounded-md text-[10px] border flex items-center gap-2 transition ${
+                                eqInBasket
+                                  ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
+                                  : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-600'
+                              }`}
+                            >
+                              <span className="font-extrabold text-amber-300 uppercase">{eq.brand}:</span>
+                              <span className="font-mono font-bold text-white">{eq.reference}</span>
+                              {eq.estimatedPrice && (
+                                <span className="text-emerald-400 font-mono font-bold">{eq.estimatedPrice.toFixed(2)} TND</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (eqInBasket) {
+                                    handleRemoveFromBasket(eq.reference);
+                                  } else {
+                                    handleAddToBasket({ ref: eq.reference, designation: `${eq.designation} (${eq.brand})`, category: item.group });
+                                  }
+                                }}
+                                className="text-[9px] text-cyan-400 hover:text-white font-bold underline uppercase ml-1"
+                              >
+                                {eqInBasket ? 'Suppr' : '+ Panier'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

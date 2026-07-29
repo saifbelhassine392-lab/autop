@@ -21,7 +21,7 @@ async function fetchAndSaveProductImage(productId: string, reference: string, br
     if (imgUrls.length > 0) {
       await prisma.product.update({
         where: { id: productId },
-        data: { images: imgUrls }
+        data: { images: JSON.stringify(imgUrls) }
       });
       console.log(`[Image Fetcher] Saved ${imgUrls.length} images for product ${reference}`);
     }
@@ -40,9 +40,9 @@ export async function GET(req: NextRequest) {
 
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { reference: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { reference: { contains: search } },
+        { description: { contains: search } },
       ];
     }
 
@@ -78,11 +78,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     
-    // Auto-fill SKU and slug if not provided
-    const reference = body.reference || 'REF-' + Date.now();
-    const sku = body.sku || reference;
-    const name = body.name || body.designation;
-    const slug = body.slug || (slugify(name) + '-' + reference);
+    const reference = body.reference ? body.reference.trim().toUpperCase() : ('REF-' + Date.now());
+    const sku = body.sku ? body.sku.trim().toUpperCase() : reference;
+    const name = body.name || body.designation || `ARTICLE ${reference}`;
+    const slug = body.slug || (slugify(name) + '-' + reference.toLowerCase());
 
     let categoryId = body.categoryId;
     if (!categoryId) {
@@ -98,31 +97,55 @@ export async function POST(req: NextRequest) {
       categoryId = category.id;
     }
 
-    const product = await prisma.product.create({
-      data: {
-        sku,
-        name,
-        slug,
-        description: body.description,
-        price: parseFloat(body.price) || parseFloat(body.sellingPrice) || 0,
-        costPrice: parseFloat(body.costPrice) || 0,
-        oldPrice: parseFloat(body.oldPrice) || parseFloat(body.costPrice) || null,
-        stock: parseInt(body.stock) || parseInt(body.stockQty) || 0,
-        images: body.images || [],
-        reference,
-        brand: body.brand,
-        vehicleCompat: body.vehicleCompat || null,
-        categoryId,
-        status: body.status || 'ACTIVE',
-      },
-      include: {
-        category: true,
-      },
+    const price = parseFloat(body.price) || parseFloat(body.sellingPrice) || 0;
+    const costPrice = parseFloat(body.costPrice) || (price * 0.8);
+
+    const existing = await prisma.product.findFirst({
+      where: { OR: [{ reference }, { sku }] }
     });
 
+    let product;
+    if (existing) {
+      product = await prisma.product.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          price: price > 0 ? price : existing.price,
+          costPrice: costPrice > 0 ? costPrice : existing.costPrice,
+          stock: body.stock !== undefined ? parseInt(body.stock) : existing.stock,
+          description: body.description || existing.description,
+          brand: body.brand || existing.brand,
+          status: body.status || existing.status,
+        },
+        include: { category: true }
+      });
+    } else {
+      product = await prisma.product.create({
+        data: {
+          sku,
+          name,
+          slug: slug + '-' + Date.now(),
+          description: body.description,
+          price,
+          costPrice,
+          oldPrice: parseFloat(body.oldPrice) || null,
+          stock: parseInt(body.stock) || parseInt(body.stockQty) || 0,
+          images: Array.isArray(body.images) ? JSON.stringify(body.images) : (body.images || '[]'),
+          reference,
+          brand: body.brand,
+          vehicleCompat: body.vehicleCompat || null,
+          categoryId,
+          status: body.status || 'ACTIVE',
+        },
+        include: {
+          category: true,
+        },
+      });
+    }
+
     return NextResponse.json(product);
-  } catch (error) {
-    console.error('Create product error:', error);
-    return NextResponse.json({ error: 'Erreur creation produit' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Create/update product error:', error);
+    return NextResponse.json({ error: `Erreur gestion produit: ${error.message || String(error)}` }, { status: 500 });
   }
 }

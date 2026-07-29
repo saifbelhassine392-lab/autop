@@ -1,6 +1,9 @@
 import { neon } from '@neondatabase/serverless';
 
-const connectionString = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || "postgresql://neondb_owner:npg_8WEqwMUlL2yP@ep-noisy-king-adp4rgrl.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require";
+const rawUrl = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL || '';
+const connectionString = (rawUrl && rawUrl.startsWith('postgresql'))
+  ? rawUrl
+  : "postgresql://neondb_owner:npg_8WEqwMUlL2yP@ep-noisy-king-adp4rgrl.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require";
 
 export const neonSql = neon(connectionString);
 

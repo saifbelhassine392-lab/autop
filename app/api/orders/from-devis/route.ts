@@ -86,13 +86,13 @@ export async function POST(req: NextRequest) {
         status: 'PENDING',
         paymentStatus: 'PENDING',
         paymentMethod: paymentMethod || 'CASH_ON_DELIVERY',
-        shippingAddress: {
+        shippingAddress: JSON.stringify({
           street: shippingAddress || 'À spécifier',
           city: 'Tunis',
           zipCode: '2035',
           country: 'Tunisie',
           shippingMethod: actualShippingMethod
-        },
+        }),
         subtotal,
         shippingCost,
         tax,
@@ -121,7 +121,8 @@ export async function POST(req: NextRequest) {
 
     // Envoyer l'e-mail de confirmation au comptoir et au client
     try {
-      const itemsList = order.items.map(it => `<li>${it.productName} x ${it.quantity} - Price: ${it.price.toFixed(2)} TND</li>`).join('');
+      const orderWithItems = order as any;
+      const itemsList = orderWithItems.items ? orderWithItems.items.map((it: any) => `<li>${it.productName} x ${it.quantity} - Price: ${it.price.toFixed(2)} TND</li>`).join('') : '';
       const attachments = fileBase64 && fileName ? [{
         filename: fileName,
         content: fileBase64

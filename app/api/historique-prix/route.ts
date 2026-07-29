@@ -37,10 +37,7 @@ export async function GET(request: Request) {
 
     const histories = await prisma.partPriceHistory.findMany({
       where: {
-        reference: {
-          equals: reference,
-          mode: 'insensitive'
-        }
+        reference: reference
       },
       include: {
         supplier: true
@@ -57,6 +54,70 @@ export async function GET(request: Request) {
   }
 }
 
+async function resolveSupplierId(supplierId?: string | null, supplierName?: string | null) {
+  if (supplierId) {
+    const supp = await prisma.supplier.findUnique({ where: { id: supplierId } }).catch(() => null);
+    if (supp) return supp.id;
+  }
+  if (supplierName && supplierName.trim()) {
+    const suppByName = await prisma.supplier.findFirst({
+      where: { name: supplierName.trim() }
+    }).catch(() => null);
+    if (suppByName) return suppByName.id;
+  }
+  return null;
+}
+
+async function upsertProductCatalog(reference: string, designation?: string | null, price?: number | null, costPrice?: number | null) {
+  if (!reference) return;
+  const refUpper = reference.trim().toUpperCase();
+  try {
+    const existing = await prisma.product.findFirst({
+      where: { OR: [{ reference: refUpper }, { sku: refUpper }] }
+    });
+
+    const sellPrice = price && price > 0 ? price : (existing?.price || 0);
+    const costP = costPrice && costPrice > 0 ? costPrice : (existing?.costPrice || (sellPrice * 0.8));
+
+    if (existing) {
+      await prisma.product.update({
+        where: { id: existing.id },
+        data: {
+          price: sellPrice,
+          costPrice: costP,
+          ...(designation ? { name: designation } : {})
+        }
+      });
+    } else {
+      let category = await prisma.category.findFirst();
+      if (!category) {
+        category = await prisma.category.create({
+          data: { name: 'Général', slug: 'general' }
+        });
+      }
+
+      const prodName = designation || `ARTICLE ${refUpper}`;
+      const slug = `${prodName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${refUpper.toLowerCase()}-${Date.now()}`;
+
+      await prisma.product.create({
+        data: {
+          sku: refUpper,
+          reference: refUpper,
+          name: prodName,
+          slug,
+          price: sellPrice,
+          costPrice: costP,
+          stock: 0,
+          categoryId: category.id,
+          status: 'ACTIVE'
+        }
+      });
+    }
+  } catch (err) {
+    console.warn(`[Catalog Sync Warning] Could not sync product ${refUpper}:`, err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const data = await request.json();
@@ -70,6 +131,10 @@ export async function POST(request: Request) {
         const type = o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE');
         const isConcessionnaire = type === 'OEM' || type === 'PVP' || type === 'CONCESSIONNAIRE';
         const suppName = o.supplierName || 'Fournisseur';
+        const validSupplierId = await resolveSupplierId(o.supplierId, suppName);
+
+        const purchasePrice = parseFloat(o.purchasePrice) || 0;
+        const sellingPrice = parseFloat(o.sellingPrice) || purchasePrice;
 
         const existing = await prisma.partPriceHistory.findFirst({
           where: { reference: refUpper, supplierName: suppName, type }
@@ -79,39 +144,46 @@ export async function POST(request: Request) {
           await prisma.partPriceHistory.update({
             where: { id: existing.id },
             data: {
-              purchasePrice: parseFloat(o.purchasePrice) || 0,
-              sellingPrice: parseFloat(o.sellingPrice) || parseFloat(o.purchasePrice) || 0
+              supplierId: validSupplierId,
+              purchasePrice,
+              sellingPrice
             }
           });
         } else {
           await prisma.partPriceHistory.create({
             data: {
               reference: refUpper,
-              supplierId: o.supplierId || null,
+              supplierId: validSupplierId,
               supplierName: suppName,
-              purchasePrice: parseFloat(o.purchasePrice) || 0,
-              sellingPrice: parseFloat(o.sellingPrice) || parseFloat(o.purchasePrice) || 0,
+              purchasePrice,
+              sellingPrice,
               type,
               isConcessionnaire
             }
           });
         }
+
+        // Auto-enrichissement du catalogue général (Product)
+        await upsertProductCatalog(refUpper, o.designation || o.name, sellingPrice, purchasePrice);
         results.push(refUpper);
       }
-      return NextResponse.json({ success: true, message: 'Offres enregistrées en historique', references: results });
+      return NextResponse.json({ success: true, message: 'Offres enregistrées et catalogue enrichi avec succès', references: results });
     }
 
     // Support pour sauvegarde groupée (Synthèse meilleures offres)
     if (data.syntheseList && Array.isArray(data.syntheseList)) {
       const results = [];
       for (const item of data.syntheseList) {
-        const { reference, pvp, bestOemPrice, oemSupplierName, bestAdaptablePrice, adaptableSupplierName } = item;
+        const { reference, designation, pvp, bestOemPrice, oemSupplierName, bestAdaptablePrice, adaptableSupplierName } = item;
         if (!reference) continue;
         const refUpper = reference.trim().toUpperCase();
+
+        let maxPrice = 0;
 
         // 1. PVP (Concessionnaire)
         if (pvp !== undefined && pvp !== null && pvp !== '') {
           const pvpVal = parseFloat(pvp) || 0;
+          if (pvpVal > maxPrice) maxPrice = pvpVal;
           const existingPvp = await prisma.partPriceHistory.findFirst({
             where: { reference: refUpper, isConcessionnaire: true }
           });
@@ -130,18 +202,20 @@ export async function POST(request: Request) {
         // 2. Meilleur OEM
         if (bestOemPrice !== undefined && bestOemPrice !== null && bestOemPrice !== '') {
           const oemVal = parseFloat(bestOemPrice) || 0;
+          if (oemVal > maxPrice) maxPrice = oemVal;
           const suppName = oemSupplierName?.trim() || 'OEM Supplier';
+          const validSuppId = await resolveSupplierId(null, suppName);
           const existingOem = await prisma.partPriceHistory.findFirst({
             where: { reference: refUpper, type: 'OEM' }
           });
           if (existingOem) {
             await prisma.partPriceHistory.update({
               where: { id: existingOem.id },
-              data: { sellingPrice: oemVal, purchasePrice: oemVal, supplierName: suppName }
+              data: { sellingPrice: oemVal, purchasePrice: oemVal, supplierName: suppName, supplierId: validSuppId }
             });
           } else {
             await prisma.partPriceHistory.create({
-              data: { reference: refUpper, sellingPrice: oemVal, purchasePrice: oemVal, supplierName: suppName, type: 'OEM', isConcessionnaire: false }
+              data: { reference: refUpper, sellingPrice: oemVal, purchasePrice: oemVal, supplierName: suppName, supplierId: validSuppId, type: 'OEM', isConcessionnaire: false }
             });
           }
         }
@@ -149,40 +223,45 @@ export async function POST(request: Request) {
         // 3. Meilleur Adaptable
         if (bestAdaptablePrice !== undefined && bestAdaptablePrice !== null && bestAdaptablePrice !== '') {
           const adVal = parseFloat(bestAdaptablePrice) || 0;
+          if (adVal > maxPrice) maxPrice = adVal;
           const suppName = adaptableSupplierName?.trim() || 'Adaptable Supplier';
+          const validSuppId = await resolveSupplierId(null, suppName);
           const existingAd = await prisma.partPriceHistory.findFirst({
             where: { reference: refUpper, type: 'ADAPTABLE', isConcessionnaire: false }
           });
           if (existingAd) {
             await prisma.partPriceHistory.update({
               where: { id: existingAd.id },
-              data: { sellingPrice: adVal, purchasePrice: adVal, supplierName: suppName }
+              data: { sellingPrice: adVal, purchasePrice: adVal, supplierName: suppName, supplierId: validSuppId }
             });
           } else {
             await prisma.partPriceHistory.create({
-              data: { reference: refUpper, sellingPrice: adVal, purchasePrice: adVal, supplierName: suppName, type: 'ADAPTABLE', isConcessionnaire: false }
+              data: { reference: refUpper, sellingPrice: adVal, purchasePrice: adVal, supplierName: suppName, supplierId: validSuppId, type: 'ADAPTABLE', isConcessionnaire: false }
             });
           }
         }
 
+        // Auto-enrichissement du catalogue général (Product)
+        await upsertProductCatalog(refUpper, designation, maxPrice);
         results.push(refUpper);
       }
-      return NextResponse.json({ success: true, message: 'Synthèse enregistrée avec succès en base de données', references: results });
+      return NextResponse.json({ success: true, message: 'Synthèse enregistrée et catalogue enrichi avec succès', references: results });
     }
 
     // Sauvegarde individuelle (Comportement classique)
-    const { reference, supplierId, supplierName, purchasePrice, sellingPrice, isConcessionnaire, type } = data;
+    const { reference, designation, supplierId, supplierName, purchasePrice, sellingPrice, isConcessionnaire, type } = data;
 
     if (!reference) {
       return NextResponse.json({ success: false, error: "Référence requise" }, { status: 400 });
     }
 
     const refUpper = reference.trim().toUpperCase();
-    let existingHistory;
+    const validSupplierId = await resolveSupplierId(supplierId, supplierName);
 
-    if (supplierId) {
+    let existingHistory;
+    if (validSupplierId) {
       existingHistory = await prisma.partPriceHistory.findFirst({
-        where: { reference: refUpper, supplierId }
+        where: { reference: refUpper, supplierId: validSupplierId }
       });
     } else if (isConcessionnaire) {
       existingHistory = await prisma.partPriceHistory.findFirst({
@@ -198,6 +277,7 @@ export async function POST(request: Request) {
           purchasePrice: purchasePrice ?? existingHistory.purchasePrice,
           sellingPrice: sellingPrice ?? existingHistory.sellingPrice,
           supplierName: supplierName ?? existingHistory.supplierName,
+          supplierId: validSupplierId,
           type: type || existingHistory.type
         }
       });
@@ -205,7 +285,7 @@ export async function POST(request: Request) {
       record = await prisma.partPriceHistory.create({
         data: {
           reference: refUpper,
-          supplierId,
+          supplierId: validSupplierId,
           supplierName,
           purchasePrice,
           sellingPrice,
@@ -214,6 +294,9 @@ export async function POST(request: Request) {
         }
       });
     }
+
+    // Auto-enrichissement du catalogue général (Product)
+    await upsertProductCatalog(refUpper, designation, sellingPrice, purchasePrice);
 
     return NextResponse.json({ success: true, data: record });
   } catch (error) {

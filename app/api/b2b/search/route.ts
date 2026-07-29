@@ -336,54 +336,75 @@ async function scrapeSAGAP(supplierId: string, query: string, b2bLogin: string, 
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     let token = supplierCookies[supplierId] || "";
+
     if (!token) {
-      const loginRes = await fetch("https://b2b.sagap.tn/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
-      });
-      if (loginRes.ok) {
-        const d = await loginRes.json();
-        token = d?.token || d?.access_token || d?.data?.token || "";
-      }
-      if (!token) {
-        // Try /account/login form
-        const formRes = await fetch("https://b2b.sagap.tn/account/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-          body: new URLSearchParams({ Email: b2bLogin, Password: b2bPassword }).toString(),
-          redirect: "manual",
-        });
-        const cookieHdr = formRes.headers.get("set-cookie") || "";
-        const m = cookieHdr.match(/(?:session|.AspNetCore.Antiforgery|auth|PHPSESSID|token)[^;]+/i);
-        if (m) token = m[0];
+      // SAGAP uses NuxtJS - try Laravel Sanctum / Nuxt API auth patterns
+      const loginAttempts = [
+        { url: "https://b2b.sagap.tn/api/auth/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://b2b.sagap.tn/api/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://b2b.sagap.tn/api/v1/auth/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://b2b.sagap.tn/api/sanctum/token", body: { email: b2bLogin, password: b2bPassword, device_name: "autop" } },
+      ];
+      for (const attempt of loginAttempts) {
+        try {
+          const r = await fetch(attempt.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+            body: JSON.stringify(attempt.body),
+          });
+          if (r.ok) {
+            const d = await r.json().catch(() => null);
+            if (d) {
+              token = d?.token || d?.access_token || d?.data?.token || d?.data?.access_token || "";
+              if (token) break;
+            }
+          }
+        } catch {}
       }
       if (token) supplierCookies[supplierId] = token;
     }
 
-    const authHeader: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    // Try product search API
-    const searchRes = await fetch(`https://b2b.sagap.tn/api/products/search?query=${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0", ...authHeader }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.products || []);
-      if (articles.length > 0) {
-        const parsedItems = articles.slice(0, 20).map((i: any) => ({
-          name: i.reference || i.ref || i.partNumber || query,
-          brand: i.brand || i.marque || i.manufacturer || "",
-          price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
-          discount: parseFloat(i.discount || i.remise || 0) || 0,
-          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-          rawStock: parseInt(i.stock || i.qty || 0),
-          available: parseInt(i.stock || i.qty || 0) > 0
-        }));
-        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-      }
+    const authHeader: Record<string, string> = token && !token.includes("=")
+      ? { "Authorization": `Bearer ${token}` }
+      : (token ? { "Cookie": token } : {});
+
+    // Try multiple SAGAP search endpoints
+    const searchEndpoints = [
+      `https://b2b.sagap.tn/api/products/search?query=${encodeURIComponent(query)}`,
+      `https://b2b.sagap.tn/api/articles?search=${encodeURIComponent(query)}`,
+      `https://b2b.sagap.tn/api/catalogue?ref=${encodeURIComponent(query)}`,
+      `https://b2b.sagap.tn/api/search?q=${encodeURIComponent(query)}`,
+    ];
+
+    for (const endpoint of searchEndpoints) {
+      try {
+        const r = await fetch(endpoint, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHeader }
+        });
+        if (r.ok) {
+          const text = await r.text();
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.products || []);
+            if (articles.length > 0) {
+              const parsedItems = articles.slice(0, 20).map((i: any) => ({
+                name: i.reference || i.ref || i.partNumber || query,
+                brand: i.brand || i.marque || i.manufacturer || "",
+                price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
+                discount: parseFloat(i.discount || i.remise || 0) || 0,
+                availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+                rawStock: parseInt(i.stock || i.qty || 0),
+                available: parseInt(i.stock || i.qty || 0) > 0
+              }));
+              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+            }
+          }
+        }
+      } catch {}
     }
-    return { price: 0, discount: 0, available: false, availability: `SAGAP B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+
+    return { price: 0, discount: 0, available: false, availability: `SAGAP B2B connecté (${b2bLogin}). Référence ${query} non trouvée dans le catalogue.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur SAGAP: ${err.message}`, items: [] };
   }
@@ -395,61 +416,109 @@ async function scrapeSAGAP(supplierId: string, query: string, b2bLogin: string, 
 async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    const baseUrl = "http://cdgros.com/Site_CDG25";
+    const baseUrl = "http://cdgros.com";
     let cookie = supplierCookies[supplierId] || "";
+
     if (!cookie) {
-      const loginParams = new URLSearchParams();
-      loginParams.append("CodeClient", b2bLogin);
-      loginParams.append("MotDePasse", b2bPassword);
-      loginParams.append("Login", "Connexion");
-      const loginRes = await fetch(`${baseUrl}/login.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-        body: loginParams.toString(),
-        redirect: "manual",
+      // Step 1: GET login page to get DYN_SECURITE cookie + WEBDEV form action
+      const r1 = await fetch(`${baseUrl}/Site_CDG25/login.php`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
       });
-      const cookieHdr = loginRes.headers.get("set-cookie") || "";
-      const m = cookieHdr.match(/PHPSESSID=[^;]+/);
-      if (m) cookie = m[0];
-      if (!cookie) {
-        // Alternative: try index.php
-        const loginParams2 = new URLSearchParams({ code: b2bLogin, mdp: b2bPassword });
-        const loginRes2 = await fetch(`${baseUrl}/index.php`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-          body: loginParams2.toString(), redirect: "manual",
-        });
-        const c2 = loginRes2.headers.get("set-cookie") || "";
-        const m2 = c2.match(/PHPSESSID=[^;]+/);
-        if (m2) cookie = m2[0];
-      }
+      const html1 = await r1.text();
+      const dynCookie = r1.headers.get("set-cookie")?.match(/DYN_SECURITE[^;]+/)?.[0] || "";
+      // WEBDEV form action changes per session
+      const formAction = html1.match(/action="([^"]+)"/)?.[1] || "/Site_CDG25/login.php";
+      const wdJson = html1.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/)?.[1] || "";
+
+      // Step 2: POST with WEBDEV field A3 = code client
+      const loginBody = new URLSearchParams({
+        "WD_JSON_PROPRIETE_": wdJson,
+        "WD_BUTTON_CLICK_": "",
+        "WD_ACTION_": "",
+        "A3": b2bLogin,
+        "A3_DEB": "0",
+        "_A3_OCC": "1",
+      });
+
+      const r2 = await fetch(`${baseUrl}${formAction}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": dynCookie,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": `${baseUrl}/Site_CDG25/login.php`
+        },
+        body: loginBody.toString(),
+        redirect: "manual"
+      });
+      const c2 = r2.headers.get("set-cookie") || "";
+      const newDyn = c2.match(/DYN_SECURITE[^;]+/)?.[0] || dynCookie;
+      cookie = newDyn;
       if (cookie) supplierCookies[supplierId] = cookie;
     }
-    const searchRes = await fetch(`${baseUrl}/recherche.php?ref=${encodeURIComponent(query)}&recherche=${encodeURIComponent(query)}`, {
-      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
-    });
-    if (searchRes.ok) {
-      const html = await searchRes.text();
-      // Try to extract JSON embedded in page
-      const jsonMatch = html.match(/var\s+(?:articles|items|products)\s*=\s*(\[[\s\S]*?\]);/);
+
+    // Step 3: Search - try multiple CDG search endpoints
+    const searchUrls = [
+      `${baseUrl}/Site_CDG25/recherche.php?ref=${encodeURIComponent(query)}`,
+      `${baseUrl}/Site_CDG25/recherche.php?recherche=${encodeURIComponent(query)}`,
+      `${baseUrl}/Site_CDG25/ajax_recherche.php?ref=${encodeURIComponent(query)}`,
+    ];
+
+    for (const searchUrl of searchUrls) {
+      const r = await fetch(searchUrl, {
+        headers: {
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        }
+      }).catch(() => null);
+      if (!r || !r.ok) continue;
+      const text = await r.text();
+
+      // Try JSON response
+      if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+        try {
+          const data = JSON.parse(text);
+          const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.articles || []);
+          if (articles.length > 0) {
+            const parsedItems = articles.map((i: any) => ({
+              name: i.reference || i.ref || i.code || i.CodeArticle || query,
+              brand: i.brand || i.marque || i.Marque || "",
+              price: parseFloat(i.price || i.prix || i.Prix || i.PrixVente || 0) || 0,
+              discount: parseFloat(i.discount || i.remise || i.Remise || 0) || 0,
+              availability: parseInt(i.stock || i.qty || i.Stock || i.Dispo || 0) > 0 ? "Disponible en Stock" : "Sur Commande",
+              rawStock: parseInt(i.stock || i.qty || i.Stock || 0),
+              available: parseInt(i.stock || i.qty || i.Stock || 0) > 0
+            }));
+            const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+            return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+          }
+        } catch {}
+      }
+
+      // Try JSON embedded in HTML
+      const jsonMatch = text.match(/var\s+(?:articles|items|products|data)\s*=\s*(\[[\s\S]*?\]);/);
       if (jsonMatch) {
         try {
           const articles = JSON.parse(jsonMatch[1]);
-          const parsedItems = articles.map((i: any) => ({
-            name: i.reference || i.ref || i.code || query,
-            brand: i.brand || i.marque || "",
-            price: parseFloat(i.price || i.prix || 0) || 0,
-            discount: parseFloat(i.discount || i.remise || 0) || 0,
-            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-            rawStock: parseInt(i.stock || i.qty || 0),
-            available: parseInt(i.stock || i.qty || 0) > 0
-          }));
-          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+          if (articles.length > 0) {
+            const parsedItems = articles.map((i: any) => ({
+              name: i.reference || i.ref || i.code || query,
+              brand: i.brand || i.marque || "",
+              price: parseFloat(i.price || i.prix || 0) || 0,
+              discount: parseFloat(i.discount || i.remise || 0) || 0,
+              availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+              rawStock: parseInt(i.stock || i.qty || 0),
+              available: parseInt(i.stock || i.qty || 0) > 0
+            }));
+            const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+            return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+          }
         } catch {}
       }
     }
-    return { price: 0, discount: 0, available: false, availability: `CDG B2B actif (Code: ${b2bLogin}). Portail disponible sur cdgros.com.`, items: [] };
+
+    return { price: 0, discount: 0, available: false, availability: `CDG B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur CDG: ${err.message}`, items: [] };
   }
@@ -462,51 +531,74 @@ async function scrapeGPG(supplierId: string, query: string, b2bLogin: string, b2
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     let token = supplierCookies[supplierId] || "";
+
     if (!token) {
-      const loginRes = await fetch("https://gpgb2b.tn/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
-      });
-      if (loginRes.ok) {
-        const d = await loginRes.json();
-        token = d?.token || d?.access_token || d?.data?.token || "";
-      }
-      if (!token) {
-        const formRes = await fetch("https://gpgb2b.tn/account/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-          body: new URLSearchParams({ Email: b2bLogin, Password: b2bPassword }).toString(),
-          redirect: "manual",
-        });
-        const c = formRes.headers.get("set-cookie") || "";
-        const m = c.match(/(?:session|auth|PHPSESSID|.AspNetCore)[^;]+/i);
-        if (m) token = m[0];
+      // GPG uses NuxtJS + Laravel backend - try multiple auth endpoints
+      const loginAttempts = [
+        { url: "https://gpgb2b.tn/api/auth/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://gpgb2b.tn/api/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://gpgb2b.tn/api/v1/login", body: { email: b2bLogin, password: b2bPassword } },
+        { url: "https://gpgb2b.tn/api/sanctum/token", body: { email: b2bLogin, password: b2bPassword, device_name: "autop" } },
+      ];
+      for (const attempt of loginAttempts) {
+        try {
+          const r = await fetch(attempt.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+            body: JSON.stringify(attempt.body),
+          });
+          if (r.ok) {
+            const d = await r.json().catch(() => null);
+            if (d) {
+              token = d?.token || d?.access_token || d?.data?.token || "";
+              if (token) break;
+            }
+          }
+        } catch {}
       }
       if (token) supplierCookies[supplierId] = token;
     }
-    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    const searchRes = await fetch(`https://gpgb2b.tn/api/products?search=${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-      if (articles.length > 0) {
-        const parsedItems = articles.slice(0, 20).map((i: any) => ({
-          name: i.reference || i.ref || i.partNumber || query,
-          brand: i.brand || i.marque || "",
-          price: parseFloat(i.price || i.prix || 0) || 0,
-          discount: parseFloat(i.discount || 0) || 0,
-          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-          rawStock: parseInt(i.stock || i.qty || 0),
-          available: parseInt(i.stock || i.qty || 0) > 0
-        }));
-        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-      }
+
+    const authHdr: Record<string, string> = token && !token.includes("=")
+      ? { "Authorization": `Bearer ${token}` }
+      : (token ? { "Cookie": token } : {});
+
+    const searchEndpoints = [
+      `https://gpgb2b.tn/api/products?search=${encodeURIComponent(query)}`,
+      `https://gpgb2b.tn/api/articles?search=${encodeURIComponent(query)}`,
+      `https://gpgb2b.tn/api/catalogue?ref=${encodeURIComponent(query)}`,
+      `https://gpgb2b.tn/api/search?q=${encodeURIComponent(query)}`,
+    ];
+
+    for (const endpoint of searchEndpoints) {
+      try {
+        const r = await fetch(endpoint, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
+        });
+        if (r.ok) {
+          const text = await r.text();
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+            if (articles.length > 0) {
+              const parsedItems = articles.slice(0, 20).map((i: any) => ({
+                name: i.reference || i.ref || i.partNumber || query,
+                brand: i.brand || i.marque || "",
+                price: parseFloat(i.price || i.prix || 0) || 0,
+                discount: parseFloat(i.discount || 0) || 0,
+                availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+                rawStock: parseInt(i.stock || i.qty || 0),
+                available: parseInt(i.stock || i.qty || 0) > 0
+              }));
+              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+            }
+          }
+        }
+      } catch {}
     }
-    return { price: 0, discount: 0, available: false, availability: `GPG B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+
+    return { price: 0, discount: 0, available: false, availability: `GPG B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur GPG: ${err.message}`, items: [] };
   }
@@ -520,38 +612,85 @@ async function scrapeITALCAR(supplierId: string, query: string, b2bLogin: string
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     const baseUrl = "https://41.224.59.218:8081";
     let cookie = supplierCookies[supplierId] || "";
+
     if (!cookie) {
-      const loginRes = await fetch(`${baseUrl}/Account/Login`, {
+      // Step 1: GET login page for CSRF token
+      const r1 = await fetch(`${baseUrl}/Account/Login`, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
+      const html1 = await r1.text();
+      const csrf = html1.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/)?.[1] || "";
+      const initCookie = r1.headers.get("set-cookie") || "";
+
+      // Step 2: POST login — field is "Name" (not Username)
+      const r2 = await fetch(`${baseUrl}/Account/Login`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-        body: new URLSearchParams({ Username: b2bLogin, Password: b2bPassword }).toString(),
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": initCookie,
+          "User-Agent": "Mozilla/5.0"
+        },
+        body: new URLSearchParams({ Name: b2bLogin, Password: b2bPassword, __RequestVerificationToken: csrf }).toString(),
         redirect: "manual",
       });
-      const c = loginRes.headers.get("set-cookie") || "";
-      const m = c.match(/(?:session|auth|\.AspNetCore)[^;]+/i);
-      if (m) cookie = m[0];
-      if (cookie) supplierCookies[supplierId] = cookie;
-    }
-    const searchRes = await fetch(`${baseUrl}/api/articles/search?q=${encodeURIComponent(query)}`, {
-      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-      if (articles.length > 0) {
-        const parsedItems = articles.slice(0, 20).map((i: any) => ({
-          name: i.reference || i.ref || i.code || query,
-          brand: i.brand || i.marque || "",
-          price: parseFloat(i.price || i.prix || 0) || 0,
-          discount: parseFloat(i.discount || 0) || 0,
-          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-          rawStock: parseInt(i.stock || i.qty || 0),
-          available: parseInt(i.stock || i.qty || 0) > 0
-        }));
-        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+      const sessRaw = r2.headers.get("set-cookie") || "";
+      const sessMatch = sessRaw.match(/ASP\.NET_SessionId=[^;]+/);
+      if (sessMatch) {
+        cookie = sessMatch[0];
+        supplierCookies[supplierId] = cookie;
       }
     }
+
+    if (!cookie) {
+      return { price: 0, discount: 0, available: false, availability: "ITALCAR: Authentification échouée", items: [] };
+    }
+
+    // Step 3: Search using PROPARTS-style controllers (same ASP.NET MVC pattern)
+    const results: any[] = [];
+    const searchEndpoints = [
+      { url: `${baseUrl}/Recherche/FindItembyOrigine`, body: { code: query, origine: query } },
+      { url: `${baseUrl}/Recherche/FindItembyCodeArticle`, body: { code: query, codeArticle: query } },
+      { url: `${baseUrl}/Article/Search`, body: { q: query, ref: query } },
+    ];
+
+    for (const ep of searchEndpoints) {
+      try {
+        const r = await fetch(ep.url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": cookie,
+            "User-Agent": "Mozilla/5.0",
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: new URLSearchParams(ep.body as any).toString()
+        });
+        if (r.ok) {
+          const data = await r.json().catch(() => null);
+          if (Array.isArray(data) && data.length > 0) {
+            results.push(...data);
+          }
+        }
+      } catch {}
+    }
+
+    if (results.length > 0) {
+      const parsedItems = results.slice(0, 20).map((i: any) => {
+        const rawStock = parseInt(i.Stock || i.Dispo || i.Disponible || i.qty || 0) || 0;
+        const price = parseFloat(i.Prix || i.Price || i.prix || i.UnitPrice || 0) || 0;
+        return {
+          name: i.ItemNo || i.CodeArticle || i.Reference || i.ref || query,
+          brand: i.Marque || i.Brand || i.marque || "ITALCAR",
+          description: i.Description || i.Designation || "",
+          price, discount: parseFloat(i.Remise || i.Discount || 0) || 0,
+          availability: rawStock > 0 ? "Disponible en Stock" : "Sur Commande",
+          rawStock, available: rawStock > 0
+        };
+      });
+      const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+    }
+
     return { price: 0, discount: 0, available: false, availability: `ITALCAR B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur ITALCAR: ${err.message}`, items: [] };
@@ -694,8 +833,13 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
         body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
       });
       if (loginRes.ok) {
-        const d = await loginRes.json();
-        token = d?.token || d?.access_token || d?.data?.token || "";
+        const text = await loginRes.text();
+        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+          try {
+            const d = JSON.parse(text);
+            token = d?.token || d?.access_token || d?.data?.token || "";
+          } catch {}
+        }
       }
       if (!token) {
         // Try form login at /auth
@@ -750,42 +894,71 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
 async function scrapeAFRICA(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    let cookie = supplierCookies[supplierId] || "";
-    if (!cookie) {
-      const loginParams = new URLSearchParams({ Login: b2bLogin, Password: b2bPassword, code: b2bLogin, mdp: b2bPassword });
-      const loginRes = await fetch("https://aap.tn/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-        body: loginParams.toString(), redirect: "manual",
-      });
-      const c = loginRes.headers.get("set-cookie") || "";
-      const m = c.match(/(?:PHPSESSID|session|auth)[^;]+/i);
-      if (m) cookie = m[0];
-      if (cookie) supplierCookies[supplierId] = cookie;
-    }
-    const searchRes = await fetch(`https://aap.tn/recherche?ref=${encodeURIComponent(query)}`, {
-      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json().catch(() => null);
-      if (data) {
-        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-        if (articles.length > 0) {
-          const parsedItems = articles.slice(0, 20).map((i: any) => ({
-            name: i.reference || i.ref || query,
-            brand: i.brand || i.marque || "",
-            price: parseFloat(i.price || i.prix || 0) || 0,
-            discount: parseFloat(i.discount || 0) || 0,
-            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-            rawStock: parseInt(i.stock || i.qty || 0),
-            available: parseInt(i.stock || i.qty || 0) > 0
-          }));
-          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-        }
+    let token = supplierCookies[supplierId] || "";
+
+    if (!token) {
+      // AAP uses Angular + Java Tomcat backend - try JHipster / Spring Boot patterns
+      const loginAttempts = [
+        { url: "https://aap.tn/api/authenticate", body: { username: b2bLogin, password: b2bPassword, rememberMe: false } },
+        { url: "https://aap.tn/api/auth/token", body: { username: b2bLogin, password: b2bPassword } },
+        { url: "https://aap.tn/api/v1/auth/login", body: { username: b2bLogin, password: b2bPassword } },
+        { url: "https://aap.tn/api/auth", body: { login: b2bLogin, password: b2bPassword } },
+      ];
+      for (const attempt of loginAttempts) {
+        try {
+          const r = await fetch(attempt.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+            body: JSON.stringify(attempt.body),
+          });
+          if (r.ok) {
+            const d = await r.json().catch(() => null);
+            if (d) {
+              token = d?.id_token || d?.token || d?.access_token || d?.data?.token || "";
+              if (token) break;
+            }
+          }
+        } catch {}
       }
+      if (token) supplierCookies[supplierId] = token;
     }
-    return { price: 0, discount: 0, available: false, availability: `AFRICA (AAP) B2B actif (Code: ${b2bLogin}).`, items: [] };
+
+    const authHdr: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
+    const searchEndpoints = [
+      `https://aap.tn/api/articles?search=${encodeURIComponent(query)}`,
+      `https://aap.tn/api/pieces?reference=${encodeURIComponent(query)}`,
+      `https://aap.tn/api/catalogue?q=${encodeURIComponent(query)}`,
+    ];
+
+    for (const endpoint of searchEndpoints) {
+      try {
+        const r = await fetch(endpoint, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
+        });
+        if (r.ok) {
+          const text = await r.text();
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
+            if (articles.length > 0) {
+              const parsedItems = articles.slice(0, 20).map((i: any) => ({
+                name: i.reference || i.ref || i.code || query,
+                brand: i.brand || i.marque || i.manufacturer || "",
+                price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
+                discount: parseFloat(i.discount || i.remise || 0) || 0,
+                availability: parseInt(i.stock || i.qty || i.quantity || 0) > 0 ? "Disponible" : "Sur Commande",
+                rawStock: parseInt(i.stock || i.qty || i.quantity || 0),
+                available: parseInt(i.stock || i.qty || i.quantity || 0) > 0
+              }));
+              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+            }
+          }
+        }
+      } catch {}
+    }
+
+    return { price: 0, discount: 0, available: false, availability: `AFRICA AUTO PARTS B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur AFRICA: ${err.message}`, items: [] };
   }
@@ -845,51 +1018,98 @@ async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, 
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     let token = supplierCookies[supplierId] || "";
+
     if (!token) {
-      const loginRes = await fetch("https://sopiq.tn/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
-      });
-      if (loginRes.ok) {
-        const d = await loginRes.json();
-        token = d?.token || d?.access_token || "";
-      }
-      if (!token) {
-        const formRes = await fetch("https://sopiq.tn/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-          body: new URLSearchParams({ email: b2bLogin, password: b2bPassword }).toString(),
-          redirect: "manual",
-        });
-        const c = formRes.headers.get("set-cookie") || "";
-        const m = c.match(/(?:PHPSESSID|session|auth|token)[^;]+/i);
-        if (m) token = m[0];
+      // SOPIC is Vue.js + Java Tomcat Spring Security
+      // Spring Security default login endpoint accepts POST /login with username/password form
+      const r1 = await fetch("https://sopiq.tn/", { headers: { "User-Agent": "Mozilla/5.0" } });
+      const jsession = r1.headers.get("set-cookie")?.match(/JSESSIONID=[^;]+/)?.[0] || "";
+
+      const loginAttempts = [
+        // Java Spring Security form login
+        { url: "https://sopiq.tn/j_spring_security_check", type: "form", body: { j_username: b2bLogin, j_password: b2bPassword } },
+        { url: "https://sopiq.tn/login", type: "form", body: { username: b2bLogin, password: b2bPassword } },
+        // REST API attempts
+        { url: "https://sopiq.tn/api/token", type: "json", body: { username: b2bLogin, password: b2bPassword } },
+        { url: "https://sopiq.tn/api/authenticate", type: "json", body: { username: b2bLogin, password: b2bPassword } },
+        { url: "https://sopiq.tn/api/auth/login", type: "json", body: { email: b2bLogin, password: b2bPassword } },
+      ];
+
+      for (const attempt of loginAttempts) {
+        try {
+          const headers: Record<string, string> = {
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json, text/html",
+            ...(jsession ? { "Cookie": jsession } : {})
+          };
+          let body: string;
+          if (attempt.type === "form") {
+            headers["Content-Type"] = "application/x-www-form-urlencoded";
+            body = new URLSearchParams(attempt.body as any).toString();
+          } else {
+            headers["Content-Type"] = "application/json";
+            body = JSON.stringify(attempt.body);
+          }
+          const r = await fetch(attempt.url, { method: "POST", headers, body, redirect: "manual" });
+          const respCookie = r.headers.get("set-cookie") || "";
+          const loc = r.headers.get("location") || "";
+          if ((r.status === 302 || r.status === 301) && !loc.includes("error")) {
+            token = respCookie.match(/JSESSIONID=[^;]+/)?.[0] || jsession;
+            if (token) break;
+          }
+          if (r.ok) {
+            const text = await r.text().catch(() => "");
+            if (text.trim().startsWith('{')) {
+              const d = JSON.parse(text);
+              token = d?.token || d?.access_token || d?.data?.token || "";
+              if (token) break;
+            }
+          }
+        } catch {}
       }
       if (token) supplierCookies[supplierId] = token;
     }
-    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    const searchRes = await fetch(`https://sopiq.tn/api/products/search?q=${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-      if (articles.length > 0) {
-        const parsedItems = articles.slice(0, 20).map((i: any) => ({
-          name: i.reference || i.ref || query,
-          brand: i.brand || i.marque || "",
-          price: parseFloat(i.price || i.prix || 0) || 0,
-          discount: parseFloat(i.discount || 0) || 0,
-          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-          rawStock: parseInt(i.stock || i.qty || 0),
-          available: parseInt(i.stock || i.qty || 0) > 0
-        }));
-        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-      }
+
+    const authHdr: Record<string, string> = token && !token.includes("=")
+      ? { "Authorization": `Bearer ${token}` }
+      : (token ? { "Cookie": token } : {});
+
+    const searchEndpoints = [
+      `https://sopiq.tn/api/products/search?q=${encodeURIComponent(query)}`,
+      `https://sopiq.tn/api/articles?ref=${encodeURIComponent(query)}`,
+      `https://sopiq.tn/api/catalogue?search=${encodeURIComponent(query)}`,
+      `https://sopiq.tn/catalogue?ref=${encodeURIComponent(query)}`,
+    ];
+
+    for (const endpoint of searchEndpoints) {
+      try {
+        const r = await fetch(endpoint, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
+        });
+        if (r.ok) {
+          const text = await r.text();
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
+            if (articles.length > 0) {
+              const parsedItems = articles.slice(0, 20).map((i: any) => ({
+                name: i.reference || i.ref || query,
+                brand: i.brand || i.marque || "",
+                price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
+                discount: parseFloat(i.discount || i.remise || 0) || 0,
+                availability: parseInt(i.stock || i.qty || i.quantity || 0) > 0 ? "Disponible" : "Sur Commande",
+                rawStock: parseInt(i.stock || i.qty || i.quantity || 0),
+                available: parseInt(i.stock || i.qty || i.quantity || 0) > 0
+              }));
+              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+            }
+          }
+        }
+      } catch {}
     }
-    return { price: 0, discount: 0, available: false, availability: `SOPIC B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+
+    return { price: 0, discount: 0, available: false, availability: `SOPIC B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur SOPIC: ${err.message}`, items: [] };
   }
@@ -901,42 +1121,74 @@ async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, 
 async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const base = "https://eyeconnect.ennakl.com:4200";
     let token = supplierCookies[supplierId] || "";
+
     if (!token) {
-      const loginRes = await fetch("https://eyeconnect.ennakl.com:4200/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-        body: JSON.stringify({ username: b2bLogin, password: b2bPassword, login: b2bLogin }),
-      });
-      if (loginRes.ok) {
-        const d = await loginRes.json();
-        token = d?.token || d?.access_token || d?.data?.token || "";
+      // Ennakl/CARGROS Angular app — try multiple auth endpoints
+      const loginAttempts = [
+        { url: `${base}/api/auth/login`, body: { username: b2bLogin, password: b2bPassword } },
+        { url: `${base}/api/login`, body: { username: b2bLogin, password: b2bPassword } },
+        { url: `${base}/api/users/login`, body: { username: b2bLogin, password: b2bPassword, login: b2bLogin } },
+        { url: `${base}/api/v1/auth/login`, body: { username: b2bLogin, password: b2bPassword } },
+        { url: `${base}/api/account/login`, body: { username: b2bLogin, password: b2bPassword } },
+      ];
+      for (const attempt of loginAttempts) {
+        try {
+          const r = await fetch(attempt.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
+            body: JSON.stringify(attempt.body)
+          });
+          if (r.ok) {
+            const d = await r.json().catch(() => null);
+            if (d) {
+              token = d?.token || d?.access_token || d?.data?.token || d?.jwt || "";
+              if (token) break;
+            }
+          }
+        } catch {}
       }
       if (token) supplierCookies[supplierId] = token;
     }
-    if (token) {
-      const searchRes = await fetch(`https://eyeconnect.ennakl.com:4200/api/articles?search=${encodeURIComponent(query)}`, {
-        headers: { "Authorization": `Bearer ${token}`, "User-Agent": "Mozilla/5.0" }
-      });
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-        if (articles.length > 0) {
-          const parsedItems = articles.slice(0, 20).map((i: any) => ({
-            name: i.reference || i.ref || query,
-            brand: i.brand || i.marque || "",
-            price: parseFloat(i.price || i.prix || 0) || 0,
-            discount: parseFloat(i.discount || 0) || 0,
-            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-            rawStock: parseInt(i.stock || i.qty || 0),
-            available: parseInt(i.stock || i.qty || 0) > 0
-          }));
-          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+
+    const authHdr: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
+    const searchEndpoints = [
+      `${base}/api/articles?search=${encodeURIComponent(query)}`,
+      `${base}/api/pieces?ref=${encodeURIComponent(query)}`,
+      `${base}/api/catalogue?q=${encodeURIComponent(query)}`,
+      `${base}/api/products?search=${encodeURIComponent(query)}`,
+    ];
+
+    for (const endpoint of searchEndpoints) {
+      try {
+        const r = await fetch(endpoint, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
+        });
+        if (r.ok) {
+          const text = await r.text();
+          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
+            if (articles.length > 0) {
+              const parsedItems = articles.slice(0, 20).map((i: any) => ({
+                name: i.reference || i.ref || query,
+                brand: i.brand || i.marque || "",
+                price: parseFloat(i.price || i.prix || 0) || 0,
+                discount: parseFloat(i.discount || 0) || 0,
+                availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+                rawStock: parseInt(i.stock || i.qty || 0),
+                available: parseInt(i.stock || i.qty || 0) > 0
+              }));
+              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+            }
+          }
         }
-      }
+      } catch {}
     }
-    return { price: 0, discount: 0, available: false, availability: `CAR GROS/ENNAKL B2B actif (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+
+    return { price: 0, discount: 0, available: false, availability: `CAR GROS/ENNAKL B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur CAR GROS: ${err.message}`, items: [] };
   }
@@ -1010,6 +1262,42 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
   };
 }
 
+async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs = 7000): Promise<any> {
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        supplierId: supplier.id,
+        supplierName: supplier.name,
+        price: 0,
+        discount: 0,
+        available: false,
+        stock: 0,
+        availability: `Portail ${supplier.name} (Timeout ${timeoutMs / 1000}s) — Temps de réponse dépassé.`,
+        portalUrl: supplier.b2bUrl || undefined,
+        items: []
+      });
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([
+      searchSingleSupplier(supplier, searchQuery),
+      timeoutPromise
+    ]);
+  } catch (err: any) {
+    return {
+      supplierId: supplier.id,
+      supplierName: supplier.name,
+      price: 0,
+      discount: 0,
+      available: false,
+      stock: 0,
+      availability: `Erreur ${supplier.name}: ${err.message || String(err)}`,
+      items: []
+    };
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/b2b/search
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1030,19 +1318,17 @@ export async function POST(request: Request) {
       try {
         suppliers = await prisma.supplier.findMany({ where: { isActive: true } });
       } catch (dbErr) {
-        console.warn("[B2B Search] Prisma fallback to Neon HTTP:", dbErr);
-        const { neonSql } = await import('@/lib/neonClient');
-        suppliers = await neonSql`
-          SELECT id, name, "b2bUrl", "b2bLogin", "b2bPassword", "isActive"
-          FROM "Supplier" WHERE "isActive" = true
-        `;
+        console.warn("[B2B Search] Prisma error loading suppliers:", dbErr);
+        suppliers = [];
       }
 
       // Only search suppliers that have B2B credentials configured
       const b2bSuppliers = suppliers.filter(s => s.b2bLogin && s.b2bPassword);
-      console.log(`[B2B Search] Lancement de la recherche sur ${b2bSuppliers.length} fournisseurs B2B configurés...`);
+      console.log(`[B2B Search] Lancement de la recherche globale sur ${b2bSuppliers.length} fournisseurs B2B avec protection anti-blocage (7s max per supplier)...`);
 
-      const allResults = await Promise.all(b2bSuppliers.map(s => searchSingleSupplier(s, searchQuery)));
+      const allResults = await Promise.all(
+        b2bSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 7000))
+      );
 
       const combinedItems: any[] = [];
       allResults.forEach(r => { if (r.items && Array.isArray(r.items)) combinedItems.push(...r.items); });
@@ -1056,7 +1342,7 @@ export async function POST(request: Request) {
         discount: bestItem ? bestItem.discount : 0,
         available: bestItem ? bestItem.available : false,
         stock: bestItem ? bestItem.rawStock : 0,
-        availability: bestItem ? (bestItem.available ? 'Disponible' : 'Sur Commande') : 'Aucun résultat trouvé chez vos fournisseurs',
+        availability: bestItem ? (bestItem.available ? 'Disponible' : 'Sur Commande') : 'Aucun résultat trouvé chez vos fournisseurs B2B',
         items: combinedItems,
         suppliersBreakdown: allResults
       };
@@ -1066,15 +1352,10 @@ export async function POST(request: Request) {
       try {
         supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
       } catch (dbErr) {
-        const { neonSql } = await import('@/lib/neonClient');
-        const rows: any[] = await neonSql`
-          SELECT id, name, "b2bUrl", "b2bLogin", "b2bPassword", "isActive"
-          FROM "Supplier" WHERE id = ${supplierId} LIMIT 1
-        `;
-        supplier = rows[0] || null;
+        console.warn("[B2B Search] Supplier find error:", dbErr);
       }
       if (!supplier) return NextResponse.json({ success: false, error: "Fournisseur introuvable" }, { status: 404 });
-      searchResult = await searchSingleSupplier(supplier, searchQuery);
+      searchResult = await searchSingleSupplierWithTimeout(supplier, searchQuery, 10000);
     }
 
     if (searchResult?.error) {
