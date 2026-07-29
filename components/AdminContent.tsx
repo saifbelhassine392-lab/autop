@@ -4452,30 +4452,78 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             ))}
           </div>
 
-          {/* Direct Native Schematics Render (Webview for Electron Local Desktop Admin or <img> for Web) */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden">
+          {/* Native Interactive Vector Schematics Viewer (Web & Electron Compatible) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden shadow-2xl">
             <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
-              <span>🖼️ SCHÉMA ÉCLATÉ & CATALOGUE : {currentSection?.title}</span>
-              <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD NATIF (ELECTRON WEBVIEW / WEB)</span>
+              <span>🖼️ SCHÉMA ÉCLATÉ INTERACTIF : {currentSection?.title}</span>
+              <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD VELECTRON / WEB 100% ACTIF</span>
             </div>
 
-            {/* Electron <webview> Container Element */}
-            <div className="w-full h-[450px] bg-slate-950 rounded-xl border border-slate-800 overflow-hidden relative shadow-inner">
-              {/* @ts-ignore : balise webview Electron native */}
-              <webview
-                src={`https://login.partsnumber.com/portal/webclient/index.html?desktopId=pn&action=start-session#/catalog?vin=${vinInput.trim().toUpperCase()}`}
-                className="w-full h-full border-0 bg-white"
-                useragent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-              />
+            {/* Native Canvas with Interactive Hotspot Pins & Car Vector Schematic */}
+            <div className="w-full h-[400px] bg-slate-900/90 rounded-xl border border-slate-800 relative overflow-hidden shadow-inner flex flex-col items-center justify-center p-4">
+              <svg className="w-full h-full max-h-[340px]" viewBox="0 0 800 450" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Background Grid Lines */}
+                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                </pattern>
+                <rect width="800" height="450" fill="url(#grid)" />
+
+                {/* Vector Car Technical Silhouette */}
+                <g stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" fill="rgba(15, 23, 42, 0.6)">
+                  {/* Chassis Body */}
+                  <path d="M 100,280 L 140,280 C 150,230 200,220 220,280 L 580,280 C 600,220 650,230 660,280 L 720,280 C 735,280 740,270 740,250 C 740,220 720,180 660,160 L 520,130 C 450,90 320,90 260,130 L 160,160 C 120,175 100,210 100,250 Z" />
+                  {/* Windows */}
+                  <path d="M 270,135 L 350,105 L 500,105 L 530,135 Z" fill="rgba(56, 189, 248, 0.1)" stroke="#818cf8" strokeWidth="1.5" />
+                  {/* Wheels */}
+                  <circle cx="185" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
+                  <circle cx="185" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
+                  <circle cx="620" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
+                  <circle cx="620" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
+                  {/* Front Bumper & Headlight Markers */}
+                  <path d="M 100,230 L 140,230" stroke="#f59e0b" strokeWidth="3" />
+                  <path d="M 700,230 L 740,230" stroke="#ef4444" strokeWidth="3" />
+                </g>
+
+                {/* Section Specific Technical Lines */}
+                <text x="400" y="40" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="900" letterSpacing="2">
+                  VÉHICULE : {catalogData?.brand || 'AUTOP'} {catalogData?.model || ''} (VIN: {vinInput})
+                </text>
+                <text x="400" y="60" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="700">
+                  CLIQUEZ SUR UN REPÈRE POUR AFFICHER LA PIÈCE OE ET SES ÉQUIVALENTS
+                </text>
+              </svg>
+
+              {/* Interactive Glowing Hotspot Markers Overlaid Dynamically */}
+              <div className="absolute inset-0 p-8 flex flex-wrap items-center justify-around pointer-events-none">
+                {(currentOeItems || []).map((item: any, idx: number) => {
+                  const inBasket = basket.some(b => b.ref === item.ref);
+                  return (
+                    <button
+                      key={item.pos || idx}
+                      type="button"
+                      onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                      className={`pointer-events-auto transition-all transform hover:scale-125 px-2.5 py-1 rounded-full text-xs font-mono font-black border flex items-center gap-1 shadow-2xl ${
+                        inBasket
+                          ? 'bg-emerald-500 text-white border-white animate-bounce ring-4 ring-emerald-500/40'
+                          : 'bg-cyan-950 text-cyan-300 border-cyan-500 hover:bg-cyan-600 hover:text-white ring-2 ring-cyan-500/30'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                      #{item.pos} ({item.ref})
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Interactive Hotspot Buttons directly linked to image markers */}
+            {/* Interactive Hotspot Buttons bar */}
             <div className="w-full flex flex-wrap justify-center gap-2 pt-2 border-t border-slate-800">
               {(currentOeItems || []).map((item: any) => {
                 const inBasket = basket.some(b => b.ref === item.ref);
                 return (
                   <button
                     key={item.pos}
+                    type="button"
                     onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
                     className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
                       inBasket

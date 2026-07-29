@@ -160,3 +160,34 @@ export function crossReferenceOeItems(oeItems: any[]): any[] {
     };
   });
 }
+
+/**
+ * Recherche multi-critères globale dans le dictionnaire centralisé
+ * (par Référence OE, Référence équivalente, Désignation, Marque ou Modèle)
+ */
+export function searchDictionaryAndEquivalents(query: string): PartDictionaryEntry[] {
+  if (!query || query.trim().length === 0) return [];
+  const qClean = query.trim().toLowerCase();
+  const qNorm = normalizeRef(query);
+
+  const results: PartDictionaryEntry[] = [];
+
+  for (const [key, entry] of Object.entries(DICTIONARY_DB)) {
+    const matchOe = normalizeRef(entry.oeReference).includes(qNorm) || entry.oeReference.toLowerCase().includes(qClean);
+    const matchDesig = entry.designation.toLowerCase().includes(qClean);
+    const matchCat = entry.category.toLowerCase().includes(qClean);
+    const matchEq = entry.equivalents.some(eq =>
+      normalizeRef(eq.reference).includes(qNorm) ||
+      eq.reference.toLowerCase().includes(qClean) ||
+      eq.brand.toLowerCase().includes(qClean) ||
+      eq.designation.toLowerCase().includes(qClean)
+    );
+
+    if (matchOe || matchDesig || matchCat || matchEq) {
+      results.push(entry);
+    }
+  }
+
+  return results;
+}
+
