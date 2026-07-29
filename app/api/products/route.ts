@@ -38,14 +38,20 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const category = searchParams.get('category') || '';
+    const statusParam = searchParams.get('status');
+    const limitParam = searchParams.get('limit');
 
-    const where: any = { status: 'ACTIVE' };
+    const where: any = {};
+    if (statusParam !== 'ALL') {
+      where.status = 'ACTIVE';
+    }
 
     if (search) {
       where.OR = [
         { name: { contains: search } },
         { reference: { contains: search } },
         { description: { contains: search } },
+        { brand: { contains: search } },
       ];
     }
 
@@ -53,8 +59,11 @@ export async function GET(req: NextRequest) {
       where.category = { slug: category };
     }
 
+    const take = limitParam ? parseInt(limitParam) : undefined;
+
     const products = await prisma.product.findMany({
       where,
+      take,
       include: {
         category: { select: { name: true } },
       },

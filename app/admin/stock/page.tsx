@@ -63,7 +63,7 @@ export default function AdminStockPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/products?limit=200&status=ALL');
+      const res = await fetch('/api/products?limit=3000&status=ALL');
       const data = res.ok ? await res.json() : null;
       if (data?.success && Array.isArray(data.data)) {
         setProducts(data.data.map((p: any) => ({

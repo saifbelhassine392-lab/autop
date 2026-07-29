@@ -4344,18 +4344,63 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
     <div className="max-w-7xl mx-auto space-y-6 font-sans">
       <div>
         <h2 className="text-xl font-black uppercase tracking-widest text-white mb-1 flex items-center gap-2">
-          <ShoppingBag className="w-5 h-5 text-cyan-400" /> 🚗 CONNECTEUR CATALOGUE VIN — INTÉGRATION 100% NATIVE (0 IFRAME, 0 POPUP)
+          <ShoppingBag className="w-5 h-5 text-cyan-400" /> 🚗 CONNECTEUR CATALOGUE VIN & ACCÈS DIRECTS PLATEFORMES B2B / CATALOGUES
         </h2>
         <p className="text-slate-400 text-xs uppercase tracking-wider">
-          AUTHENTIFICATION SILENCIEUSE BACKEND, EXTRACTION DIRECTE DES SCHÉMAS ET AFFICHAGE DANS UNE BALISE IMAGE AU CŒUR DU DASHBOARD
+          AUTHENTIFICATION SILENCIEUSE BACKEND, ACCÈS DIRECTS AUX PORTAILS ET CROISEMENT MULTICRITÈRES ÉQUIVALENTS
         </p>
       </div>
 
-      {/* Rule 1 & 2: Single VIN Input Field & Automated Silent Connection */}
+      {/* PANNEAU D'ACCÈS DIRECTS AUX PLATEFORMES EXTERNES & COMPTES ENREGISTRÉS */}
+      <div className="bg-slate-900 border border-indigo-500/40 rounded-2xl p-5 shadow-2xl space-y-3">
+        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+          <span className="text-[11px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+            🔗 ACCÈS DIRECTS 1-CLIC VERS NOS PLATEFORMES EXTERNES & COMPTES B2B :
+          </span>
+          <span className="text-[9px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800 px-2.5 py-0.5 rounded-full">
+            16 PORTAILS CONFIGURÉS
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2">
+          {[
+            { name: 'PARTSNUMBER', code: 'autopacc1', url: 'https://login.partsnumber.com', color: 'border-blue-500/40 text-blue-400' },
+            { name: 'PARTSLINK24', code: 'fr-247756', url: 'https://www.partslink24.com', color: 'border-cyan-500/40 text-cyan-400' },
+            { name: 'PARTSOUQ', code: 'ACCÈS DIRECT', url: 'https://partsouq.com', color: 'border-amber-500/40 text-amber-400' },
+            { name: 'STEQ B2B', code: 'CL0016035', url: 'https://b2bsteq.com', color: 'border-emerald-500/40 text-emerald-400' },
+            { name: 'FAD PRO B2B', code: 'CL0016035', url: 'https://pb.fadpro.tn', color: 'border-red-500/40 text-red-400' },
+            { name: 'MOSAIQUE AUTO', code: 'CL0016035', url: 'https://uag.mosaique-auto.com', color: 'border-purple-500/40 text-purple-400' },
+            { name: 'CDG GROS', code: 'CL0016035', url: 'http://cdgros.com', color: 'border-indigo-500/40 text-indigo-400' },
+            { name: 'SAGAP B2B', code: 'contact@autop.tn', url: 'https://b2b.sagap.tn', color: 'border-cyan-500/40 text-cyan-300' },
+            { name: 'GPG B2B', code: 'contact@autop.tn', url: 'https://gpgb2b.tn', color: 'border-green-500/40 text-green-400' },
+            { name: 'ITALCAR', code: 'AUTOP', url: 'http://41.224.59.218:8081', color: 'border-rose-500/40 text-rose-400' },
+            { name: 'PROPARTS', code: 'AUTOP', url: 'http://41.226.37.212:8090', color: 'border-amber-500/40 text-amber-300' },
+            { name: 'SOCOFA GROS', code: 'contact@autop.tn', url: 'https://espacepro.socofagros.com', color: 'border-teal-500/40 text-teal-400' },
+            { name: 'AFRICA (AAP)', code: 'AUTOP', url: 'https://aap.tn', color: 'border-blue-500/40 text-blue-300' },
+            { name: 'ALPHA FORD', code: 'AUTOP', url: 'https://commandes.alphafordpro.tn', color: 'border-sky-500/40 text-sky-400' },
+            { name: 'SOPIC B2B', code: 'AUTOP', url: 'https://sopiq.tn', color: 'border-violet-500/40 text-violet-400' },
+            { name: 'CAR GROS', code: 'AUTOP', url: 'https://eyeconnect.ennakl.com:4200', color: 'border-fuchsia-500/40 text-fuchsia-400' }
+          ].map((item, idx) => (
+            <a
+              key={idx}
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Ouvrir ${item.name} (${item.code})`}
+              className={`p-2 bg-slate-950 rounded-xl border ${item.color} hover:bg-slate-800 transition flex flex-col justify-between shadow-md text-left group`}
+            >
+              <span className="text-[10px] font-black uppercase truncate group-hover:underline">{item.name}</span>
+              <span className="text-[8px] font-mono font-bold text-slate-400 truncate">🔑 {item.code}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+
+      {/* BARRE DE RECHERCHE MULTICRITÈRES UNIVERSELLE & SAISIE VIN */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
         <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex justify-between items-center">
-          <span>1. SAISIE UNIQUE DU CODE VIN / CHÂSSIS</span>
-          <span className="text-emerald-400 font-bold">⚡ AUTO-CONNECTÉ (COMPTES: autopacc1 & fr-247756)</span>
+          <span>1. SAISIE MULTICRITÈRES (CODE VIN, DÉSIGNATION, RÉFÉRENCE OE OU ÉQUIVALENT)</span>
+          <span className="text-emerald-400 font-bold">⚡ RECHERCHE CROISÉE INTELIGENTE (DICTIONNAIRE + 14 FOURNISSEURS B2B)</span>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
@@ -4363,21 +4408,25 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             type="text"
             value={vinInput}
             onChange={e => setVinInput(e.target.value.toUpperCase())}
-            placeholder="SAISIR LE NUMÉRO DE CHÂSSIS / VIN (ex: VF36D9HZC9L013574, WDD2040451A342772...)"
-            maxLength={17}
-            className="flex-1 bg-white text-black font-black text-base px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-400 placeholder:font-normal"
+            placeholder="RECHERCHER PAR VIN, RÉFÉRENCE OE, ÉQUIVALENT (PHIRA, LPR...), OU DÉSIGNATION (ex: Pare-chocs Peugeot 208, 7401AX, VF3...)"
+            className="flex-1 bg-white text-black font-black text-sm px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-400 placeholder:font-normal placeholder:normal-case"
           />
           <button
             type="button"
             disabled={loadingHeadless}
-            onClick={() => handleLoadHeadlessCatalog(vinInput)}
+            onClick={() => {
+              handleLoadHeadlessCatalog(vinInput);
+              if (onTransferToRobot && vinInput.trim()) {
+                onTransferToRobot(vinInput.trim());
+              }
+            }}
             className="px-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 py-3 shadow-lg shadow-cyan-500/20 disabled:opacity-50"
           >
             {loadingHeadless ? (
-              <span>EXTRACTION NATIVE DES SCHÉMAS...</span>
+              <span>RECHERCHE EN COURS...</span>
             ) : (
               <>
-                <Search className="w-4 h-4" /> ⚡ CHARGER LE SCHÉMA NATIVEMENT ↗
+                <Search className="w-4 h-4" /> ⚡ RECHERCHE MULTICRITÈRES & B2B ↗
               </>
             )}
           </button>
