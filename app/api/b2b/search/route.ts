@@ -1406,7 +1406,7 @@ export async function POST(request: Request) {
         });
 
         histories.forEach(h => {
-          combinedItems.unshift({
+          combinedItems.push({
             name: h.reference,
             brand: h.type === 'ORIGINE' || h.isConcessionnaire ? 'ORIGINE CONCESSIONNAIRE' : 'ADAPTABLE',
             price: h.sellingPrice || h.purchasePrice || 0,
@@ -1414,6 +1414,7 @@ export async function POST(request: Request) {
             availability: 'Offre Historique Enregistrée',
             rawStock: 1,
             available: true,
+            isDictFallback: true,
             supplierName: h.supplierName || 'Fournisseur'
           });
         });
@@ -1421,33 +1422,36 @@ export async function POST(request: Request) {
         console.warn("[B2B Search] Local DB Search fallback error:", errDb);
       }
 
-      // 2. Croiser avec le dictionnaire d'équivalence centralisé
+      // 2. Croiser avec le dictionnaire d'équivalence centralisé (en arrière-plan)
       const dictEntries = searchDictionaryAndEquivalents(searchQuery);
       dictEntries.forEach(entry => {
         entry.equivalents.forEach(eq => {
-          combinedItems.unshift({
+          combinedItems.push({
             name: eq.reference,
             brand: eq.brand,
             price: eq.estimatedPrice || 0,
             discount: 0,
             availability: 'Dictionnaire d\'Équivalents',
             rawStock: 1,
-            available: true,
+            available: false,
+            isDictFallback: true,
             supplierName: `DICTIONNAIRE (${entry.category})`
           });
         });
       });
 
-      let bestItem = combinedItems.find(i => i.available);
-      if (!bestItem && combinedItems.length > 0) bestItem = combinedItems[0];
+      // Sélection prioritaire du meilleur prix fournisseur réel en stock ou en arrivage
+      const liveItemsWithPrice = combinedItems.filter(i => !i.isDictFallback && i.price > 0);
+      const availableLiveItem = liveItemsWithPrice.find(i => i.available || i.availability?.includes('Stock') || i.availability?.includes('Arrivage'));
+      const bestItem = availableLiveItem || liveItemsWithPrice[0] || combinedItems.find(i => i.price > 0) || combinedItems[0];
 
       searchResult = {
         isMultiSupplier: true,
         price: bestItem ? bestItem.price : 0,
         discount: bestItem ? bestItem.discount : 0,
-        available: bestItem ? bestItem.available : false,
+        available: bestItem ? (bestItem.available || Boolean(bestItem.rawStock > 0)) : false,
         stock: bestItem ? bestItem.rawStock : 0,
-        availability: bestItem ? (bestItem.available ? 'Disponible' : 'Sur Commande') : 'Résultats extraits du catalogue et des fournisseurs',
+        availability: bestItem ? (bestItem.availability || (bestItem.available ? 'Disponible' : 'Sur Commande')) : 'Résultats extraits des fournisseurs',
         items: combinedItems,
         suppliersBreakdown: allResults
       };

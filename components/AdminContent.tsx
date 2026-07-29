@@ -4068,9 +4068,9 @@ function SectionRobotB2B() {
                   <div className="text-2xl font-black text-cyan-400">{result.data.discount || 0}%</div>
                 </div>
                 <div className="flex-1 text-center">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">DISPONIBILITÉ</div>
-                  <div className={`text-xl font-black ${result.data.available ? 'text-green-400' : 'text-amber-400'}`}>
-                    {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'NON TROUVÉ')}
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">DISPONIBILITÉ & SOURCE</div>
+                  <div className={`text-lg font-black ${result.data.available ? 'text-green-400' : 'text-amber-400'}`}>
+                    {result.data.available ? (result.data.stock ? `${result.data.stock} EN STOCK` : 'DISPONIBLE') : (result.data.availability || 'SUR COMMANDE')}
                   </div>
                 </div>
               </div>
@@ -4170,7 +4170,7 @@ function SectionRobotB2B() {
               {filteredItems.length > 0 ? (
                 <div>
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                    ARTICLES AFFICHÉS ({filteredItems.length} / {rawItems.length})
+                    TABLEAU COMPARATIF DES OFFRES FOURNISSEURS ({filteredItems.length} / {rawItems.length})
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {filteredItems.map((item: any, idx: number) => {
@@ -4191,7 +4191,7 @@ function SectionRobotB2B() {
                           <div>
                             <div className="flex justify-between items-center mb-2">
                               <span className="text-xs font-black text-cyan-400 uppercase bg-cyan-950/60 border border-cyan-800/40 px-2.5 py-1 rounded-md">
-                                🏢 {item.supplierName || 'FOURNISSEUR'}
+                                🏢 {item.supplierName || 'FOURNISSEUR B2B'}
                               </span>
                               <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
                                 {badgeText}
