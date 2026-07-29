@@ -1364,10 +1364,12 @@ export async function POST(request: Request) {
         preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 7000))
       );
 
-      const combinedItems: any[] = [];
-      allResults.forEach(r => { if (r.items && Array.isArray(r.items)) combinedItems.push(...r.items); });
+      const liveSupplierItems: any[] = [];
+      allResults.forEach(r => { if (r.items && Array.isArray(r.items)) liveSupplierItems.push(...r.items); });
 
-      // 1. Croiser avec la base de données interne Product et PartPriceHistory
+      const combinedItems: any[] = [...liveSupplierItems];
+
+      // 1. Croiser avec la base de données interne Product et PartPriceHistory (en secours)
       try {
         const qUpper = searchQuery.toUpperCase();
         const dbProducts = await prisma.product.findMany({
@@ -1383,7 +1385,7 @@ export async function POST(request: Request) {
         });
 
         dbProducts.forEach(p => {
-          combinedItems.unshift({
+          combinedItems.push({
             name: p.reference || p.sku,
             brand: p.brand || 'CATALOGUE AUTOP',
             price: p.price || 0,
@@ -1391,6 +1393,7 @@ export async function POST(request: Request) {
             availability: (p.stock || 0) > 0 ? `Disponible (Stock: ${p.stock})` : 'Sur Commande',
             rawStock: p.stock || 0,
             available: (p.stock || 0) > 0,
+            isFallback: true,
             supplierName: 'CATALOGUE GÉNÉRAL AUTOP'
           });
         });
@@ -1414,7 +1417,7 @@ export async function POST(request: Request) {
             availability: 'Offre Historique Enregistrée',
             rawStock: 1,
             available: true,
-            isDictFallback: true,
+            isFallback: true,
             supplierName: h.supplierName || 'Fournisseur'
           });
         });
@@ -1422,7 +1425,7 @@ export async function POST(request: Request) {
         console.warn("[B2B Search] Local DB Search fallback error:", errDb);
       }
 
-      // 2. Croiser avec le dictionnaire d'équivalence centralisé (en arrière-plan)
+      // 2. Croiser avec le dictionnaire d'équivalence centralisé (en secours)
       const dictEntries = searchDictionaryAndEquivalents(searchQuery);
       dictEntries.forEach(entry => {
         entry.equivalents.forEach(eq => {
@@ -1434,16 +1437,16 @@ export async function POST(request: Request) {
             availability: 'Dictionnaire d\'Équivalents',
             rawStock: 1,
             available: false,
-            isDictFallback: true,
+            isFallback: true,
             supplierName: `DICTIONNAIRE (${entry.category})`
           });
         });
       });
 
       // Sélection prioritaire du meilleur prix fournisseur réel en stock ou en arrivage
-      const liveItemsWithPrice = combinedItems.filter(i => !i.isDictFallback && i.price > 0);
-      const availableLiveItem = liveItemsWithPrice.find(i => i.available || i.availability?.includes('Stock') || i.availability?.includes('Arrivage'));
-      const bestItem = availableLiveItem || liveItemsWithPrice[0] || combinedItems.find(i => i.price > 0) || combinedItems[0];
+      const realLiveItems = combinedItems.filter(i => !i.isFallback && i.price > 0);
+      const availableLiveItem = realLiveItems.find(i => i.available || i.rawStock > 0 || i.availability?.includes('Stock') || i.availability?.includes('Arrivage'));
+      const bestItem = availableLiveItem || realLiveItems[0] || combinedItems.find(i => i.price > 0) || combinedItems[0];
 
       searchResult = {
         isMultiSupplier: true,
