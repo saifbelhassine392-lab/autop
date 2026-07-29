@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
+import catalogBackup from '@/prisma/catalog_backup.json';
 
 let isSeeding = false;
 
@@ -18,15 +17,7 @@ export async function ensureCatalogSeeded() {
     isSeeding = true;
     console.log(`[AutoSeed] Base de données incomplète (Produits: ${productCount}, Fournisseurs: ${supplierCount}). Injection du catalogue complet...`);
 
-    const jsonPath = path.join(process.cwd(), 'prisma', 'catalog_backup.json');
-    if (!fs.existsSync(jsonPath)) {
-      console.warn("[AutoSeed] Fichier catalog_backup.json introuvable.");
-      isSeeding = false;
-      return;
-    }
-
-    const fileData = fs.readFileSync(jsonPath, 'utf8');
-    const { products, suppliers, categories } = JSON.parse(fileData);
+    const { products, suppliers, categories } = catalogBackup as any;
 
     // 1. Injecter les catégories
     if (Array.isArray(categories)) {
