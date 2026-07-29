@@ -3,6 +3,7 @@
 import { useApp } from '@/lib/context';
 import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { searchDictionaryAndEquivalents, getEquivalentsForRef } from '@/lib/equivalentsDictionary';
 import ModalSyntheseOffres from './ModalSyntheseOffres';
 import {
   Search, Edit3, MessageSquare, FileText, Mail, Phone,
@@ -4254,6 +4255,8 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
     { vin: 'WDD2040451A342772', name: 'MERCEDES-BENZ CLASSE C (W204) C 220 CDI', date: 'Hier' }
   ]);
   const [oeRefInput, setOeRefInput] = useState('');
+  const [partFilterText, setPartFilterText] = useState('');
+  const [activeCatalogSource, setActiveCatalogSource] = useState<'SCHEMATIC' | 'PARTSNUMBER' | 'PARTSLINK24' | 'PARTSOUQ'>('SCHEMATIC');
   const [loadingHeadless, setLoadingHeadless] = useState(false);
   const [catalogData, setCatalogData] = useState<any>(null);
   const [selectedSectionIndex, setSelectedSectionIndex] = useState(0);
@@ -4339,6 +4342,56 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
   const currentSection = catalogData?.nativeSchematics?.[selectedSectionIndex] || catalogData?.nativeSchematics?.[0];
   const currentOeItems = currentSection?.oeItems || [];
+
+  // Filtrage intelligent dynamique par désignation / mot-clé ("pare choc av", "support parechoc avd", "7401AX", "optique", etc.)
+  const displayedOeItems = useMemo(() => {
+    if (!partFilterText.trim()) return currentOeItems;
+    const q = partFilterText.trim().toLowerCase();
+
+    // 1. Filtrer la section courante
+    const inSection = currentOeItems.filter((item: any) =>
+      (item.ref || '').toLowerCase().includes(q) ||
+      (item.designation || '').toLowerCase().includes(q) ||
+      (item.group || '').toLowerCase().includes(q) ||
+      (item.equivalents || []).some((eq: any) =>
+        (eq.brand || '').toLowerCase().includes(q) ||
+        (eq.reference || '').toLowerCase().includes(q) ||
+        (eq.designation || '').toLowerCase().includes(q)
+      )
+    );
+
+    if (inSection.length > 0) return inSection;
+
+    // 2. Chercher dans l'ensemble des schémas du véhicule
+    const inAllSections: any[] = [];
+    (catalogData?.nativeSchematics || []).forEach((sec: any) => {
+      (sec.oeItems || []).forEach((item: any) => {
+        const match = (item.ref || '').toLowerCase().includes(q) ||
+          (item.designation || '').toLowerCase().includes(q) ||
+          (item.group || '').toLowerCase().includes(q) ||
+          (item.equivalents || []).some((eq: any) =>
+            (eq.brand || '').toLowerCase().includes(q) ||
+            (eq.reference || '').toLowerCase().includes(q) ||
+            (eq.designation || '').toLowerCase().includes(q)
+          );
+        if (match && !inAllSections.some(i => i.ref === item.ref)) {
+          inAllSections.push(item);
+        }
+      });
+    });
+
+    if (inAllSections.length > 0) return inAllSections;
+
+    // 3. Repli sur le dictionnaire central d'équivalents
+    const dictMatches = searchDictionaryAndEquivalents(partFilterText);
+    return dictMatches.map((dm: any, idx: number) => ({
+      pos: idx + 1,
+      ref: dm.oeReference,
+      designation: dm.designation,
+      group: dm.category,
+      equivalents: dm.equivalents
+    }));
+  }, [currentOeItems, partFilterText, catalogData]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans">
@@ -4480,117 +4533,240 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
         )}
       </div>
 
+      {/* MODES D'AFFICHAGE DU CATALOGUE (NATIVE EXTRACTION OU NAVIGATEUR EN DIRECT) */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
+        <button
+          onClick={() => setActiveCatalogSource('SCHEMATIC')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition border flex items-center gap-2 ${
+            activeCatalogSource === 'SCHEMATIC'
+              ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg'
+              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <span>🖼️ SCHÉMA & EXTRACTION NATIF</span>
+        </button>
+
+        <button
+          onClick={() => setActiveCatalogSource('PARTSNUMBER')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition border flex items-center gap-2 ${
+            activeCatalogSource === 'PARTSNUMBER'
+              ? 'bg-blue-950 border-blue-500 text-blue-300 shadow-lg'
+              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <span>🚗 PARTSNUMBER LIVE (autopacc1)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveCatalogSource('PARTSLINK24')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition border flex items-center gap-2 ${
+            activeCatalogSource === 'PARTSLINK24'
+              ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg'
+              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <span>🔍 PARTSLINK24 LIVE (fr-247756)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveCatalogSource('PARTSOUQ')}
+          className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition border flex items-center gap-2 ${
+            activeCatalogSource === 'PARTSOUQ'
+              ? 'bg-amber-950 border-amber-500 text-amber-300 shadow-lg'
+              : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+          }`}
+        >
+          <span>🖼️ PARTSOUQ LIVE ({vinInput || 'VIN'})</span>
+        </button>
+      </div>
+
       {/* Rule 4 & 5: Native Schematics Image View (Balise <img>) & Part References Selection */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Native Native Image Viewer & Interactive Hotspots */}
+        {/* Left 2 Cols: Native Image Viewer or Live Web Catalog Frame */}
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-          {/* Section Selection Tabs */}
-          <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
-            {(catalogData?.nativeSchematics || []).map((sec: any, idx: number) => (
-              <button
-                key={sec.sectionId || idx}
-                onClick={() => setSelectedSectionIndex(idx)}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase transition flex items-center gap-2 border ${
-                  selectedSectionIndex === idx
-                    ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg font-extrabold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span>📁 {sec.title}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Native Interactive Vector Schematics Viewer (Web & Electron Compatible) */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden shadow-2xl">
-            <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
-              <span>🖼️ SCHÉMA ÉCLATÉ INTERACTIF : {currentSection?.title}</span>
-              <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD VELECTRON / WEB 100% ACTIF</span>
-            </div>
-
-            {/* Native Canvas with Interactive Hotspot Pins & Car Vector Schematic */}
-            <div className="w-full h-[400px] bg-slate-900/90 rounded-xl border border-slate-800 relative overflow-hidden shadow-inner flex flex-col items-center justify-center p-4">
-              <svg className="w-full h-full max-h-[340px]" viewBox="0 0 800 450" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Background Grid Lines */}
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                </pattern>
-                <rect width="800" height="450" fill="url(#grid)" />
-
-                {/* Vector Car Technical Silhouette */}
-                <g stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" fill="rgba(15, 23, 42, 0.6)">
-                  {/* Chassis Body */}
-                  <path d="M 100,280 L 140,280 C 150,230 200,220 220,280 L 580,280 C 600,220 650,230 660,280 L 720,280 C 735,280 740,270 740,250 C 740,220 720,180 660,160 L 520,130 C 450,90 320,90 260,130 L 160,160 C 120,175 100,210 100,250 Z" />
-                  {/* Windows */}
-                  <path d="M 270,135 L 350,105 L 500,105 L 530,135 Z" fill="rgba(56, 189, 248, 0.1)" stroke="#818cf8" strokeWidth="1.5" />
-                  {/* Wheels */}
-                  <circle cx="185" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
-                  <circle cx="185" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
-                  <circle cx="620" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
-                  <circle cx="620" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
-                  {/* Front Bumper & Headlight Markers */}
-                  <path d="M 100,230 L 140,230" stroke="#f59e0b" strokeWidth="3" />
-                  <path d="M 700,230 L 740,230" stroke="#ef4444" strokeWidth="3" />
-                </g>
-
-                {/* Section Specific Technical Lines */}
-                <text x="400" y="40" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="900" letterSpacing="2">
-                  VÉHICULE : {catalogData?.brand || 'AUTOP'} {catalogData?.model || ''} (VIN: {vinInput})
-                </text>
-                <text x="400" y="60" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="700">
-                  CLIQUEZ SUR UN REPÈRE POUR AFFICHER LA PIÈCE OE ET SES ÉQUIVALENTS
-                </text>
-              </svg>
-
-              {/* Interactive Glowing Hotspot Markers Overlaid Dynamically */}
-              <div className="absolute inset-0 p-8 flex flex-wrap items-center justify-around pointer-events-none">
-                {(currentOeItems || []).map((item: any, idx: number) => {
-                  const inBasket = basket.some(b => b.ref === item.ref);
-                  return (
-                    <button
-                      key={item.pos || idx}
-                      type="button"
-                      onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
-                      className={`pointer-events-auto transition-all transform hover:scale-125 px-2.5 py-1 rounded-full text-xs font-mono font-black border flex items-center gap-1 shadow-2xl ${
-                        inBasket
-                          ? 'bg-emerald-500 text-white border-white animate-bounce ring-4 ring-emerald-500/40'
-                          : 'bg-cyan-950 text-cyan-300 border-cyan-500 hover:bg-cyan-600 hover:text-white ring-2 ring-cyan-500/30'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                      #{item.pos} ({item.ref})
-                    </button>
-                  );
-                })}
+          
+          {activeCatalogSource === 'PARTSNUMBER' && (
+            <div className="space-y-3">
+              <div className="p-3 bg-blue-950/60 border border-blue-500/40 rounded-xl flex justify-between items-center text-xs">
+                <span className="font-bold text-blue-300">🚗 PORTAIL EN DIRECT PARTSNUMBER — COMPTE: <span className="font-mono text-white">autopacc1 / autopacc2</span></span>
+                <a href="https://login.partsnumber.com" target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-lg transition text-[10px]">
+                  OUVRIR EN PLEIN ÉCRAN ↗
+                </a>
               </div>
+              <iframe src="https://login.partsnumber.com" className="w-full h-[520px] rounded-xl border border-slate-800 bg-white" title="PartsNumber Catalogue Live" />
             </div>
+          )}
 
-            {/* Interactive Hotspot Buttons bar */}
-            <div className="w-full flex flex-wrap justify-center gap-2 pt-2 border-t border-slate-800">
-              {(currentOeItems || []).map((item: any) => {
-                const inBasket = basket.some(b => b.ref === item.ref);
-                return (
+          {activeCatalogSource === 'PARTSLINK24' && (
+            <div className="space-y-3">
+              <div className="p-3 bg-cyan-950/60 border border-cyan-500/40 rounded-xl flex justify-between items-center text-xs">
+                <span className="font-bold text-cyan-300">🔍 PORTAIL EN DIRECT PARTSLINK24 — COMPTE: <span className="font-mono text-white">fr-247756</span></span>
+                <a href="https://www.partslink24.com" target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-black rounded-lg transition text-[10px]">
+                  OUVRIR EN PLEIN ÉCRAN ↗
+                </a>
+              </div>
+              <iframe src="https://www.partslink24.com" className="w-full h-[520px] rounded-xl border border-slate-800 bg-white" title="PartsLink24 Catalogue Live" />
+            </div>
+          )}
+
+          {activeCatalogSource === 'PARTSOUQ' && (
+            <div className="space-y-3">
+              <div className="p-3 bg-amber-950/60 border border-amber-500/40 rounded-xl flex justify-between items-center text-xs">
+                <span className="font-bold text-amber-300">🖼️ RECHERCHE EN DIRECT PARTSOUQ VIN : <span className="font-mono text-white">{vinInput}</span></span>
+                <a href={`https://partsouq.com/en/search/all?q=${encodeURIComponent(vinInput)}`} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white font-black rounded-lg transition text-[10px]">
+                  OUVRIR EN PLEIN ÉCRAN ↗
+                </a>
+              </div>
+              <iframe src={`https://partsouq.com/en/search/all?q=${encodeURIComponent(vinInput)}`} className="w-full h-[520px] rounded-xl border border-slate-800 bg-white" title="PartSouq Live Search" />
+            </div>
+          )}
+
+          {activeCatalogSource === 'SCHEMATIC' && (
+            <>
+              {/* Section Selection Tabs */}
+              <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+                {(catalogData?.nativeSchematics || []).map((sec: any, idx: number) => (
                   <button
-                    key={item.pos}
-                    type="button"
-                    onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
-                      inBasket
-                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
-                        : 'bg-slate-900 text-cyan-300 border-cyan-800 hover:border-cyan-400'
+                    key={sec.sectionId || idx}
+                    onClick={() => setSelectedSectionIndex(idx)}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase transition flex items-center gap-2 border ${
+                      selectedSectionIndex === idx
+                        ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg font-extrabold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <span>Repère #{item.pos}</span>
-                    <span className="text-[9px] font-sans font-bold">({item.ref})</span>
+                    <span>📁 {sec.title}</span>
                   </button>
-                );
-              })}
+                ))}
+              </div>
+
+              {/* Native Interactive Vector Schematics Viewer (Web & Electron Compatible) */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden shadow-2xl">
+                <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
+                  <span>🖼️ SCHÉMA ÉCLATÉ INTERACTIF : {currentSection?.title}</span>
+                  <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD VELECTRON / WEB 100% ACTIF</span>
+                </div>
+
+                {/* Native Canvas with Interactive Hotspot Pins & Car Vector Schematic */}
+                <div className="w-full h-[400px] bg-slate-900/90 rounded-xl border border-slate-800 relative overflow-hidden shadow-inner flex flex-col items-center justify-center p-4">
+                  <svg className="w-full h-full max-h-[340px]" viewBox="0 0 800 450" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Background Grid Lines */}
+                    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                    </pattern>
+                    <rect width="800" height="450" fill="url(#grid)" />
+
+                    {/* Vector Car Technical Silhouette */}
+                    <g stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.85" fill="rgba(15, 23, 42, 0.6)">
+                      {/* Chassis Body */}
+                      <path d="M 100,280 L 140,280 C 150,230 200,220 220,280 L 580,280 C 600,220 650,230 660,280 L 720,280 C 735,280 740,270 740,250 C 740,220 720,180 660,160 L 520,130 C 450,90 320,90 260,130 L 160,160 C 120,175 100,210 100,250 Z" />
+                      {/* Windows */}
+                      <path d="M 270,135 L 350,105 L 500,105 L 530,135 Z" fill="rgba(56, 189, 248, 0.1)" stroke="#818cf8" strokeWidth="1.5" />
+                      {/* Wheels */}
+                      <circle cx="185" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
+                      <circle cx="185" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
+                      <circle cx="620" cy="280" r="45" fill="#0f172a" stroke="#38bdf8" strokeWidth="4" />
+                      <circle cx="620" cy="280" r="20" fill="none" stroke="#818cf8" strokeWidth="2" />
+                      {/* Front Bumper & Headlight Markers */}
+                      <path d="M 100,230 L 140,230" stroke="#f59e0b" strokeWidth="3" />
+                      <path d="M 700,230 L 740,230" stroke="#ef4444" strokeWidth="3" />
+                    </g>
+
+                    {/* Section Specific Technical Lines */}
+                    <text x="400" y="40" textAnchor="middle" fill="#94a3b8" fontSize="12" fontWeight="900" letterSpacing="2">
+                      VÉHICULE : {catalogData?.brand || 'AUTOP'} {catalogData?.model || ''} (VIN: {vinInput})
+                    </text>
+                    <text x="400" y="60" textAnchor="middle" fill="#38bdf8" fontSize="10" fontWeight="700">
+                      CLIQUEZ SUR UN REPÈRE POUR AFFICHER LA PIÈCE OE ET SES ÉQUIVALENTS
+                    </text>
+                  </svg>
+
+                  {/* Interactive Glowing Hotspot Markers Overlaid Dynamically */}
+                  <div className="absolute inset-0 p-8 flex flex-wrap items-center justify-around pointer-events-none">
+                    {(displayedOeItems || []).map((item: any, idx: number) => {
+                      const inBasket = basket.some(b => b.ref === item.ref);
+                      return (
+                        <button
+                          key={item.pos || idx}
+                          type="button"
+                          onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                          className={`pointer-events-auto transition-all transform hover:scale-125 px-2.5 py-1 rounded-full text-xs font-mono font-black border flex items-center gap-1 shadow-2xl ${
+                            inBasket
+                              ? 'bg-emerald-500 text-white border-white animate-bounce ring-4 ring-emerald-500/40'
+                              : 'bg-cyan-950 text-cyan-300 border-cyan-500 hover:bg-cyan-600 hover:text-white ring-2 ring-cyan-500/30'
+                          }`}
+                        >
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                          #{item.pos} ({item.ref})
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Interactive Hotspot Buttons bar */}
+                <div className="w-full flex flex-wrap justify-center gap-2 pt-2 border-t border-slate-800">
+                  {(displayedOeItems || []).map((item: any) => {
+                    const inBasket = basket.some(b => b.ref === item.ref);
+                    return (
+                      <button
+                        key={item.pos}
+                        type="button"
+                        onClick={() => inBasket ? handleRemoveFromBasket(item.ref) : handleAddToBasket({ ref: item.ref, designation: item.designation, category: item.group })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-mono font-black border transition flex items-center gap-1.5 ${
+                          inBasket
+                            ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                            : 'bg-slate-900 text-cyan-300 border-cyan-800 hover:border-cyan-400'
+                        }`}
+                      >
+                        <span>Repère #{item.pos}</span>
+                        <span className="text-[9px] font-sans font-bold">({item.ref})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+
+        </div>
+
+        {/* Right Col: Parts Table & Filter Input */}
+        <div className="space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl space-y-3">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-xs font-black text-cyan-400 uppercase tracking-wider flex items-center gap-2">
+                <Search className="w-4 h-4" /> 2. RECHERCHER UNE PIÈCE DANS CE VÉHICULE
+              </span>
+              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                {displayedOeItems.length} RÉSULTAT(S)
+              </span>
+            </div>
+
+            {/* Input de recherche texte par désignation ou référence (pare choc av, support parechoc avd, etc.) */}
+            <div className="relative">
+              <input
+                type="text"
+                value={partFilterText}
+                onChange={e => setPartFilterText(e.target.value)}
+                placeholder="RECHERCHER PAR DÉSIGNATION OU OE (ex: pare choc av, support parechoc avd, optique, 7401AX...)"
+                className="w-full bg-slate-950 text-white font-bold text-xs p-3 rounded-xl border border-cyan-500/50 focus:outline-none focus:border-cyan-400 placeholder:text-slate-500 uppercase placeholder:normal-case"
+              />
+              {partFilterText && (
+                <button
+                  type="button"
+                  onClick={() => setPartFilterText('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white font-bold text-xs bg-slate-800 px-2 py-0.5 rounded-full"
+                >
+                  ✕ Effacer
+                </button>
+              )}
             </div>
           </div>
 
           {/* Native Parts References Table */}
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-            {currentOeItems.map((item: any) => {
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+            {displayedOeItems.map((item: any) => {
               const inBasket = basket.some(b => b.ref === item.ref);
               const equivalents = item.equivalents || [];
 
