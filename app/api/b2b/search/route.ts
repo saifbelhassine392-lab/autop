@@ -1232,13 +1232,13 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
     raw = await scrapePROPARTS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("SOCOFA") || b2bUrl.includes("socofa")) {
     raw = await scrapeSOCOFA(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
-  } else if (supName.includes("AFRICA") || b2bUrl.includes("aap.tn")) {
+  } else if (supName.includes("AFRICA") || supName.includes("AAP") || b2bUrl.includes("aap.tn")) {
     raw = await scrapeAFRICA(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("ALPHA FORD") || b2bUrl.includes("alphaford")) {
     raw = await scrapeALPHAFORD(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("SOPIC") || b2bUrl.includes("sopiq")) {
     raw = await scrapeSOPIC(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
-  } else if (supName.includes("CAR GROS") || b2bUrl.includes("ennakl")) {
+  } else if (supName.includes("CAR GROS") || supName.includes("CARGROS") || b2bUrl.includes("ennakl")) {
     raw = await scrapeCARGROS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else {
     // Fournisseur avec identifiants mais sans robot spécifique — on signale
@@ -1337,9 +1337,11 @@ export async function POST(request: Request) {
         'PROPARTS': { login: 'AUTOP', pass: 'password123' },
         'SOCOFA': { login: 'contact@autop.tn', pass: 'password123' },
         'AFRICA': { login: 'AUTOP', pass: 'password123' },
+        'AAP': { login: 'AUTOP', pass: 'password123' },
         'ALPHA FORD': { login: 'AUTOP', pass: 'password123' },
         'SOPIC': { login: 'AUTOP', pass: 'password123' },
-        'CAR GROS': { login: 'AUTOP', pass: 'password123' }
+        'CAR GROS': { login: 'AUTOP', pass: 'password123' },
+        'CARGROS': { login: 'AUTOP', pass: 'password123' }
       };
 
       const preparedSuppliers = suppliers.map(s => {
