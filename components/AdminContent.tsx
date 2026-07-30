@@ -3883,6 +3883,7 @@ function SectionRobotB2B() {
     const s = supplierStatuses[id];
     if (s === 'loading') return <span className="w-3.5 h-3.5 rounded-full border-2 border-cyan-400/30 border-t-cyan-400 animate-spin inline-block" />;
     if (s === 'found') return <span>✅</span>;
+    if (s === 'info') return <span>ℹ️</span>;
     if (s === 'empty') return <span>⚠️</span>;
     if (s === 'error') return <span>❌</span>;
     return null;
@@ -3918,12 +3919,17 @@ function SectionRobotB2B() {
         });
         const data = await res.json();
         if (data.success && data.data) {
-          const hasItems = (data.data.items || []).length > 0;
-          statuses[s.id] = hasItems ? 'found' : 'empty';
+          const items = data.data.items || [];
+          const hasItems = items.length > 0;
+          const code = data.data.statusCode;
+          if (hasItems) statuses[s.id] = 'found';
+          else if (code === 'ERROR' || code === 'TIMEOUT') statuses[s.id] = 'error';
+          else if (data.data.availability) statuses[s.id] = 'info';
+          else statuses[s.id] = 'empty';
           setSupplierStatuses({ ...statuses });
           allBreakdown.push({ ...data.data, supplierName: s.name, supplierId: s.id });
           if (hasItems) {
-            const taggedItems = (data.data.items || []).map((it: any) => ({ ...it, supplierName: s.name }));
+            const taggedItems = items.map((it: any) => ({ ...it, supplierName: s.name }));
             allItems.push(...taggedItems);
           }
         } else {
@@ -4086,9 +4092,9 @@ function SectionRobotB2B() {
                       const hasItems = (bd.items || []).length > 0;
                       const bestItem = (bd.items || []).find((i: any) => i.available) || (bd.items || [])[0];
                       return (
-                        <div key={idx} className={`flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-bold ${hasItems ? 'bg-green-950/20 border-green-700/40 text-green-300' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
+                        <div key={idx} className={`flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-bold ${hasItems ? 'bg-green-950/20 border-green-700/40 text-green-300' : bd.statusCode === 'NOT_FOUND' || bd.statusCode === 'NO_STOCK' ? 'bg-amber-950/20 border-amber-800/40 text-amber-200' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
                           <div className="flex items-center gap-3">
-                            <span className="text-base">{hasItems ? '✅' : '—'}</span>
+                            <span className="text-base">{hasItems ? '✅' : bd.statusCode === 'NOT_FOUND' || bd.statusCode === 'NO_STOCK' ? 'ℹ️' : '—'}</span>
                             <span className="font-black uppercase text-white">{bd.supplierName}</span>
                           </div>
                           <div className="text-right">

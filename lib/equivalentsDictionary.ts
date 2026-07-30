@@ -25,6 +25,20 @@ export interface PartDictionaryEntry {
 
 // Dictionnaire étendu de correspondances courantes (Peugeot, Citroën, Renault, VW, Audi, BMW, Mercedes, Ford)
 export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
+  // Peugeot / Citroën — Kit embrayage (réf. courante robot B2B)
+  '1611273080': {
+    oeReference: '1611273080',
+    designation: "KIT D'EMBRAYAGE COMPLET PEUGEOT 308 / 3008 / C4",
+    category: 'Embrayage',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROËN', reference: '1611273080', type: 'OE', designation: 'Kit embrayage Origine PSA' },
+      { brand: 'VALEO', reference: '826576', type: 'ADAPTABLE', designation: 'Kit embrayage Valeo', estimatedPrice: 241.0 },
+      { brand: 'LUK', reference: '624335809', type: 'ADAPTABLE', designation: 'Kit embrayage LuK', estimatedPrice: 255.0 },
+      { brand: 'SACHS', reference: '3000950636', type: 'ADAPTABLE', designation: 'Kit embrayage Sachs', estimatedPrice: 248.0 },
+      { brand: 'EXEDY', reference: 'KPS035', type: 'ADAPTABLE', designation: 'Kit embrayage Exedy', estimatedPrice: 220.0 },
+    ]
+  },
+
   // Peugeot / Citroën 407 & Gamme PSA - Carrosserie & Éclairage
   '7401AX': {
     oeReference: '7401AX',
