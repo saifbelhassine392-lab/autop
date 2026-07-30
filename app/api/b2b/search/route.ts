@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from "https";
 
+// Force TLS reject unauthorized to 0 globally for Tunisian HTTPS portals with custom SSL certs
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 // HTTPS agent that ignores SSL certificate errors (needed for some TN portals)
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
@@ -1244,9 +1247,30 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
     // Fournisseur avec identifiants mais sans robot spécifique — on signale
     raw = {
       price: 0, discount: 0, available: false,
+      statusCode: 'NOT_CONFIGURED',
+      statusReason: `ℹ️ B2B configuré pour ${supplier.name} — robot en cours d'intégration`,
       availability: `B2B configuré pour ${supplier.name} — robot en cours d'intégration.`,
       items: []
     };
+  }
+
+  const items = (raw.items || []).map((it: any) => ({ ...it, supplierName: supplier.name, supplierId: supplier.id }));
+  const hasItems = items.length > 0;
+  const isAvailable = raw.available || items.some((i: any) => i.available || i.rawStock > 0);
+
+  let statusCode = raw.statusCode;
+  let statusReason = raw.statusReason;
+  if (!statusCode) {
+    if (hasItems && isAvailable) {
+      statusCode = 'SUCCESS';
+      statusReason = '✓ Article disponible chez le fournisseur';
+    } else if (hasItems) {
+      statusCode = 'NO_STOCK';
+      statusReason = 'ℹ️ Sur commande / Hors stock';
+    } else {
+      statusCode = 'NOT_FOUND';
+      statusReason = 'ℹ️ Référence non trouvée dans le catalogue direct';
+    }
   }
 
   return {
@@ -1254,48 +1278,65 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
     supplierName: supplier.name,
     price: raw.price || 0,
     discount: raw.discount || 0,
-    available: raw.available || false,
+    available: isAvailable,
     stock: raw.rawStock || 0,
-    availability: raw.availability || "Résultat indisponible",
+    statusCode,
+    statusReason,
+    availability: raw.availability || statusReason,
     portalUrl: supplier.b2bUrl || undefined,
-    items: (raw.items || []).map((it: any) => ({ ...it, supplierName: supplier.name, supplierId: supplier.id }))
+    items
   };
 }
 
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs = 7000): Promise<any> {
-  const timeoutPromise = new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
+  const executeSearch = async () => {
+    const timeoutPromise = new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          supplierId: supplier.id,
+          supplierName: supplier.name,
+          price: 0,
+          discount: 0,
+          available: false,
+          stock: 0,
+          statusCode: 'TIMEOUT',
+          statusReason: `⚠️ Temps de réponse dépassé (${timeoutMs / 1000}s)`,
+          availability: `Portail ${supplier.name} (Timeout ${timeoutMs / 1000}s) — Temps de réponse dépassé.`,
+          portalUrl: supplier.b2bUrl || undefined,
+          items: []
+        });
+      }, timeoutMs);
+    });
+
+    try {
+      return await Promise.race([
+        searchSingleSupplier(supplier, searchQuery),
+        timeoutPromise
+      ]);
+    } catch (err: any) {
+      return {
         supplierId: supplier.id,
         supplierName: supplier.name,
         price: 0,
         discount: 0,
         available: false,
         stock: 0,
-        availability: `Portail ${supplier.name} (Timeout ${timeoutMs / 1000}s) — Temps de réponse dépassé.`,
+        statusCode: 'ERROR',
+        statusReason: `⚠️ Erreur ${supplier.name}: ${err.message || 'Problème de connexion'}`,
+        availability: `Erreur ${supplier.name}: ${err.message || String(err)}`,
         portalUrl: supplier.b2bUrl || undefined,
         items: []
-      });
-    }, timeoutMs);
-  });
+      };
+    }
+  };
 
-  try {
-    return await Promise.race([
-      searchSingleSupplier(supplier, searchQuery),
-      timeoutPromise
-    ]);
-  } catch (err: any) {
-    return {
-      supplierId: supplier.id,
-      supplierName: supplier.name,
-      price: 0,
-      discount: 0,
-      available: false,
-      stock: 0,
-      availability: `Erreur ${supplier.name}: ${err.message || String(err)}`,
-      items: []
-    };
+  let res: any = await executeSearch();
+  // Auto-retry once if timeout or connection error
+  if ((!res.items || res.items.length === 0) && (res.statusCode === 'TIMEOUT' || res.statusCode === 'ERROR')) {
+    await new Promise(r => setTimeout(r, 800));
+    res = await executeSearch();
   }
+  return res;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1303,11 +1344,14 @@ async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: strin
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: Request) {
   try {
-    const { supplierId, query, reference } = await request.json();
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const body = await request.json().catch(() => ({}));
+    const { supplierId: rawSupplierId, query, reference } = body;
+    const supplierId = rawSupplierId || 'ALL';
     const searchQuery = (query || reference || '').trim();
 
-    if (!supplierId || !searchQuery) {
-      return NextResponse.json({ success: false, error: "Fournisseur et référence de recherche requis" }, { status: 400 });
+    if (!searchQuery) {
+      return NextResponse.json({ success: false, error: "Référence de recherche requise" }, { status: 400 });
     }
 
     const { prisma } = await import('@/lib/prisma');
@@ -1323,41 +1367,31 @@ export async function POST(request: Request) {
         suppliers = [];
       }
 
-      // Si certains fournisseurs ont des identifiants vides dans la DB, injecter les identifiants configurés par défaut
-      const defaultCredsMap: Record<string, { login: string; pass: string }> = {
-        'STEQ': { login: 'CL0016035', pass: 'password123' },
-        'FAD': { login: 'CL0016035', pass: 'password123' },
-        'MOSAIQUE': { login: 'CL0016035', pass: 'password123' },
-        'UNIVERS AUTO': { login: 'CL0016035', pass: 'password123' },
-        'ROUTE X': { login: 'CL0016035', pass: 'password123' },
-        'SAGAP': { login: 'contact@autop.tn', pass: 'password123' },
-        'CDG': { login: 'CL0016035', pass: 'password123' },
-        'GPG': { login: 'contact@autop.tn', pass: 'password123' },
-        'ITALCAR': { login: 'AUTOP', pass: 'password123' },
-        'PROPARTS': { login: 'AUTOP', pass: 'password123' },
-        'SOCOFA': { login: 'contact@autop.tn', pass: 'password123' },
-        'AFRICA': { login: 'AUTOP', pass: 'password123' },
-        'AAP': { login: 'AUTOP', pass: 'password123' },
-        'ALPHA FORD': { login: 'AUTOP', pass: 'password123' },
-        'SOPIC': { login: 'AUTOP', pass: 'password123' },
-        'CAR GROS': { login: 'AUTOP', pass: 'password123' },
-        'CARGROS': { login: 'AUTOP', pass: 'password123' }
-      };
-
+      // Prioritize DB saved logins/passwords first; fall back to defaults only if DB string is empty
       const preparedSuppliers = suppliers.map(s => {
-        let l = s.b2bLogin;
-        let p = s.b2bPassword;
-        if (!l || !p) {
+        let l = s.b2bLogin?.trim();
+        let p = s.b2bPassword?.trim();
+        if (!l) {
           const supUpper = (s.name || '').toUpperCase();
-          for (const [key, creds] of Object.entries(defaultCredsMap)) {
-            if (supUpper.includes(key)) {
-              l = creds.login;
-              p = creds.pass;
-              break;
-            }
-          }
+          if (supUpper.includes('FAD')) l = '3905';
+          else if (supUpper.includes('STEQ')) l = 'CL0016035';
+          else if (supUpper.includes('CDG')) l = '4112329';
+          else if (supUpper.includes('SAGAP')) l = 'ibrahim.ayadi@autop.tn';
+          else if (supUpper.includes('AAP')) l = '410138';
+          else if (supUpper.includes('PROPARTS')) l = 'C0667';
+          else if (supUpper.includes('ITALCAR')) l = 'SSE01';
+          else if (supUpper.includes('CARGROS')) l = 'DPE00114';
+          else if (supUpper.includes('ALPHA FORD')) l = 'AUTOP/STE DE SERVICE AUTOMOBILE';
+          else if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) l = 'services-automobile@gmail.com';
+          else if (supUpper.includes('SOPIC')) l = 'amine@autop.tn';
+          else if (supUpper.includes('SOCOFA')) l = 'Amine.benomrane@autop.tn';
+          else l = 'AUTOP';
         }
-        return { ...s, b2bLogin: l || 'AUTOP', b2bPassword: p || 'password123' };
+        if (!p) {
+          if (l === '3905') p = '7S@5512g';
+          else p = 'password123';
+        }
+        return { ...s, b2bLogin: l, b2bPassword: p };
       });
 
       console.log(`[B2B Search] Lancement de la recherche globale sur ${preparedSuppliers.length} fournisseurs B2B...`);
