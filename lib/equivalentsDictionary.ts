@@ -135,6 +135,31 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
       { brand: 'DEGA', reference: 'DG-VW-G7', type: 'ADAPTABLE', designation: 'Pare-chocs Dega Auto Parts Golf 7', estimatedPrice: 170.00 },
       { brand: 'VAN WEZEL', reference: '5857574', type: 'ADAPTABLE', designation: 'Pare-chocs Avant Van Wezel Golf 7', estimatedPrice: 195.00 }
     ]
+  },
+  
+  // Renault Symbol / Clio - Freinage & Moteur
+  '7701207795': {
+    oeReference: '7701207795',
+    designation: 'JEU DE PLAQUETTES DE FREIN AVANT RENAULT SYMBOL / CLIO 2',
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'RENAULT ORIGINE', reference: '7701207795', type: 'OE', designation: 'Plaquettes Avant Origine Renault' },
+      { brand: 'LPR', reference: '05P702', type: 'ADAPTABLE', designation: 'Plaquettes LPR Italie', estimatedPrice: 35.00 },
+      { brand: 'VALEO', reference: '598464', type: 'ADAPTABLE', designation: 'Plaquettes Valeo First', estimatedPrice: 38.00 },
+      { brand: 'REMSA', reference: '0263.05', type: 'ADAPTABLE', designation: 'Plaquettes Remsa Espagne', estimatedPrice: 36.00 },
+      { brand: 'BOSCH', reference: '0986424538', type: 'ADAPTABLE', designation: 'Plaquettes Bosch', estimatedPrice: 42.00 }
+    ]
+  },
+  '8200768913': {
+    oeReference: '8200768913',
+    designation: 'FILTRE À HUILE RENAULT SYMBOL / MEGANE / CLIO 1.5 DCI',
+    category: 'Filtration',
+    equivalents: [
+      { brand: 'RENAULT ORIGINE', reference: '8200768913', type: 'OE', designation: 'Filtre à Huile Origine Renault' },
+      { brand: 'PURFLUX', reference: 'LS933', type: 'ADAPTABLE', designation: 'Filtre à Huile Purflux', estimatedPrice: 15.50 },
+      { brand: 'MANN-FILTER', reference: 'W 7032', type: 'ADAPTABLE', designation: 'Filtre à Huile Mann', estimatedPrice: 17.00 },
+      { brand: 'MECAFILTER', reference: 'ELH4357', type: 'ADAPTABLE', designation: 'Filtre Mecafilter', estimatedPrice: 14.00 }
+    ]
   }
 };
 

@@ -70,7 +70,7 @@ function buildSupplierSearchRefs(query: string): string[] {
       }
     }
   }
-  return [...seen].slice(0, 12);
+  return Array.from(seen).slice(0, 12);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -82,7 +82,7 @@ function dedupeB2BItems(items: any[]): any[] {
       map.set(key, it);
     }
   }
-  return [...map.values()];
+  return Array.from(map.values());
 }
 
 function pickBestB2BItem(items: any[]) {
@@ -579,7 +579,7 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
 
   const trParts = html.split(/<tr[\s>]/i).slice(1);
   for (const tr of trParts) {
-    const tds = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((m) =>
+    const tds = Array.from(tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((m) =>
       m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     );
     if (tds.length < 2) continue;
@@ -1549,20 +1549,63 @@ async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: strin
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/b2b/search
 // ─────────────────────────────────────────────────────────────────────────────
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ success: false, error: 'Non authentifié. Connexion requise pour la recherche B2B.' }, { status: 401 });
+    }
+
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     const body = await request.json().catch(() => ({}));
-    const { supplierId: rawSupplierId, query, reference } = body;
+    const { 
+      supplierId: rawSupplierId, 
+      query, 
+      reference, 
+      vin, 
+      designation, 
+      brand: searchBrand, 
+      make, 
+      model, 
+      engine 
+    } = body;
+    
     const supplierId = rawSupplierId || 'ALL';
-    const searchQuery = (query || reference || '').trim();
+    let searchQuery = (query || reference || designation || '').trim();
+    
+    // VIN Integration
+    let vinInfo: any = null;
+    if (vin && vin.length >= 5) {
+      try {
+        // Simple VIN resolution logic inline to avoid extra hop
+        const cleanVin = vin.trim().toUpperCase();
+        if (cleanVin.startsWith('VF3')) vinInfo = { brand: 'PEUGEOT', model: '407' };
+        else if (cleanVin.startsWith('VF7')) vinInfo = { brand: 'CITROËN', model: 'C4' };
+        else if (cleanVin.startsWith('WDD')) vinInfo = { brand: 'MERCEDES-BENZ', model: 'CLASSE C' };
+        else if (cleanVin.startsWith('WVW')) vinInfo = { brand: 'VOLKSWAGEN', model: 'GOLF' };
+        else if (cleanVin.startsWith('VF1')) vinInfo = { brand: 'RENAULT', model: 'MEGANE' };
+        
+        if (vinInfo && !searchQuery) {
+          searchQuery = `${vinInfo.brand} ${vinInfo.model}`;
+        }
+      } catch (vinErr) {
+        console.warn("[B2B Search] VIN Resolution error:", vinErr);
+      }
+    }
+
+    if (!searchQuery && (make || model)) {
+      searchQuery = `${make || ''} ${model || ''}`.trim();
+    }
 
     if (!searchQuery) {
-      return NextResponse.json({ success: false, error: "Référence de recherche requise" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Critère de recherche requis (Référence, Désignation ou Véhicule)" }, { status: 400 });
     }
 
     const { prisma } = await import('@/lib/prisma');
-    const { searchDictionaryAndEquivalents } = await import('@/lib/equivalentsDictionary');
+    const { searchDictionaryAndEquivalents, getEquivalentsForRef } = await import('@/lib/equivalentsDictionary');
     let searchResult: any = null;
 
     if (supplierId === 'ALL' || supplierId === 'TOUS') {
@@ -1601,30 +1644,64 @@ export async function POST(request: Request) {
         return { ...s, b2bLogin: l, b2bPassword: p };
       });
 
-      console.log(`[B2B Search] Lancement de la recherche globale sur ${preparedSuppliers.length} fournisseurs B2B...`);
+      console.log(`[B2B Search] Recherche pour "${searchQuery}" sur ${preparedSuppliers.length} fournisseurs B2B...`);
 
-      const allResults = await Promise.all(
+      // 1. Recherche Directe
+      let allResults = await Promise.all(
         preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 7000))
       );
 
-      const liveSupplierItems: any[] = [];
+      let liveSupplierItems: any[] = [];
       allResults.forEach(r => { if (r.items && Array.isArray(r.items)) liveSupplierItems.push(...r.items); });
+
+      // 2. FALLBACK AUTOMATIQUE AUX ÉQUIVALENCES
+      // Si aucun article DISPONIBLE n'est trouvé, on tente les équivalences
+      const hasAvailable = liveSupplierItems.some(i => i.available || i.rawStock > 0);
+      
+      if (!hasAvailable && searchQuery.length >= 4) {
+        console.log(`[B2B Search] Aucun stock direct pour ${searchQuery}. Tentative par Équivalences...`);
+        const equivalents = getEquivalentsForRef(searchQuery);
+        const eqRefs = equivalents
+          .filter(e => e.reference !== searchQuery)
+          .map(e => e.reference)
+          .slice(0, 5); // Limiter pour ne pas saturer
+
+        if (eqRefs.length > 0) {
+          const eqResults = await Promise.all(
+            preparedSuppliers.flatMap(s => 
+              eqRefs.map(ref => searchSingleSupplierWithTimeout(s, ref, 5000))
+            )
+          );
+          
+          eqResults.forEach(r => { 
+            if (r.items && Array.isArray(r.items)) {
+              r.items.forEach((it: any) => {
+                liveSupplierItems.push({ ...it, matchType: 'EQUIVALENCE' });
+              });
+            }
+          });
+        }
+      }
 
       const combinedItems: any[] = [...liveSupplierItems];
 
-      // 1. Croiser avec la base de données interne Product et PartPriceHistory (en secours)
+      // 1. Croiser avec la base de données interne Product et PartPriceHistory
       try {
         const qUpper = searchQuery.toUpperCase();
+        
+        // Recherche multi-critères en DB
         const dbProducts = await prisma.product.findMany({
           where: {
             OR: [
               { reference: { contains: qUpper } },
               { sku: { contains: qUpper } },
               { name: { contains: qUpper } },
-              { brand: { contains: qUpper } }
-            ]
+              { brand: { contains: searchBrand?.toUpperCase() || qUpper } },
+              { vehicleCompat: { contains: model?.toUpperCase() || make?.toUpperCase() || qUpper } }
+            ],
+            status: 'ACTIVE'
           },
-          take: 15
+          take: 20
         });
 
         dbProducts.forEach(p => {
@@ -1719,29 +1796,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: searchResult.error }, { status: 400 });
     }
 
-    // Auto-register discovered products into database
+    // Auto-register discovered products into database without data loss
     if (searchResult?.items?.length > 0) {
       try {
-        const { prisma: p } = await import('@/lib/prisma');
-        let category = await p.category.findFirst();
-        if (!category) category = await p.category.create({ data: { name: 'Général', slug: 'general' } });
-        for (const item of searchResult.items) {
-          if (!item.name) continue;
-          const ref = item.name.toUpperCase();
-          const existing = await p.product.findFirst({ where: { OR: [{ reference: ref }, { sku: ref }] } });
-          if (!existing) {
-            await p.product.create({
-              data: {
-                sku: ref, reference: ref, name: `ARTICLE ${ref}`,
-                slug: `article-${ref.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
-                price: item.price || 0, costPrice: (item.price || 0) * 0.8,
-                stock: 0, brand: item.brand || null, categoryId: category.id, status: 'ACTIVE'
-              }
-            });
-          }
-        }
-      } catch (e) { console.error("Auto-register error:", e); }
+        const { saveDiscoveredParts } = await import('@/lib/catalogStorage');
+        await saveDiscoveredParts(searchResult.items);
+      } catch (e) {
+        console.error("Auto-register error:", e);
+      }
     }
+
 
     return NextResponse.json({ success: true, data: searchResult });
 

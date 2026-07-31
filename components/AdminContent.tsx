@@ -4262,6 +4262,8 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
   ]);
   const [oeRefInput, setOeRefInput] = useState('');
   const [partFilterText, setPartFilterText] = useState('');
+  const [searchMode, setSearchMode] = useState<'TEXT' | 'REF'>('TEXT');
+  const [selectedCategory, setSelectedCategory] = useState<string>('TOUS');
   const [activeCatalogSource, setActiveCatalogSource] = useState<'SCHEMATIC' | 'PARTSNUMBER' | 'PARTSLINK24' | 'PARTSOUQ'>('SCHEMATIC');
   const [loadingHeadless, setLoadingHeadless] = useState(false);
   const [catalogData, setCatalogData] = useState<any>(null);
@@ -4290,7 +4292,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
     });
   };
 
-  // Rule 1, 2, 3, 4 & 5: Backend Headless Extraction -> Native <img> render inside AUTOP dashboard
+  // Backend Extraction & Catalog Resolution
   const handleLoadHeadlessCatalog = async (targetVin: string) => {
     setLoadingHeadless(true);
     const cleanVin = targetVin.trim().toUpperCase();
@@ -4305,7 +4307,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
       if (data.success) {
         setCatalogData(data);
-        saveVinToHistory(cleanVin, data.model);
+        saveVinToHistory(cleanVin, `${data.brand} ${data.model}`);
       }
     } catch (err: any) {
       console.error("Erreur de chargement du catalogue natif:", err);
@@ -4349,37 +4351,46 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
   const currentSection = catalogData?.nativeSchematics?.[selectedSectionIndex] || catalogData?.nativeSchematics?.[0];
   const currentOeItems = currentSection?.oeItems || [];
 
-  // Filtrage intelligent dynamique par désignation / mot-clé ("pare choc av", "support parechoc avd", "7401AX", "optique", etc.)
+  // Dual Search (Designation vs Reference Number) + Hierarchical Tree Filtering
   const displayedOeItems = useMemo(() => {
-    if (!partFilterText.trim()) return currentOeItems;
+    let baseItems = currentOeItems;
+    if (selectedCategory !== 'TOUS') {
+      const categoryMatches = (catalogData?.nativeSchematics || [])
+        .filter((sec: any) => sec.category === selectedCategory || sec.group === selectedCategory)
+        .flatMap((sec: any) => sec.oeItems || []);
+      if (categoryMatches.length > 0) baseItems = categoryMatches;
+    }
+
+    if (!partFilterText.trim()) return baseItems;
     const q = partFilterText.trim().toLowerCase();
 
-    // 1. Filtrer la section courante
-    const inSection = currentOeItems.filter((item: any) =>
-      (item.ref || '').toLowerCase().includes(q) ||
-      (item.designation || '').toLowerCase().includes(q) ||
-      (item.group || '').toLowerCase().includes(q) ||
-      (item.equivalents || []).some((eq: any) =>
-        (eq.brand || '').toLowerCase().includes(q) ||
-        (eq.reference || '').toLowerCase().includes(q) ||
-        (eq.designation || '').toLowerCase().includes(q)
-      )
-    );
+    if (searchMode === 'REF') {
+      // 1. Direct Reference Number Search Mode
+      const refMatches = baseItems.filter((item: any) =>
+        (item.ref || '').toLowerCase().includes(q) ||
+        (item.equivalents || []).some((eq: any) => (eq.reference || '').toLowerCase().includes(q))
+      );
+      if (refMatches.length > 0) return refMatches;
+    } else {
+      // 2. Text / Designation Search Mode
+      const textMatches = baseItems.filter((item: any) =>
+        (item.designation || '').toLowerCase().includes(q) ||
+        (item.group || '').toLowerCase().includes(q) ||
+        (item.equivalents || []).some((eq: any) =>
+          (eq.designation || '').toLowerCase().includes(q) ||
+          (eq.brand || '').toLowerCase().includes(q)
+        )
+      );
+      if (textMatches.length > 0) return textMatches;
+    }
 
-    if (inSection.length > 0) return inSection;
-
-    // 2. Chercher dans l'ensemble des schémas du véhicule
+    // Search across entire vehicle catalog hierarchy
     const inAllSections: any[] = [];
     (catalogData?.nativeSchematics || []).forEach((sec: any) => {
       (sec.oeItems || []).forEach((item: any) => {
-        const match = (item.ref || '').toLowerCase().includes(q) ||
-          (item.designation || '').toLowerCase().includes(q) ||
-          (item.group || '').toLowerCase().includes(q) ||
-          (item.equivalents || []).some((eq: any) =>
-            (eq.brand || '').toLowerCase().includes(q) ||
-            (eq.reference || '').toLowerCase().includes(q) ||
-            (eq.designation || '').toLowerCase().includes(q)
-          );
+        const match = searchMode === 'REF'
+          ? (item.ref || '').toLowerCase().includes(q) || (item.equivalents || []).some((e: any) => (e.reference || '').toLowerCase().includes(q))
+          : (item.designation || '').toLowerCase().includes(q) || (item.group || '').toLowerCase().includes(q);
         if (match && !inAllSections.some(i => i.ref === item.ref)) {
           inAllSections.push(item);
         }
@@ -4388,7 +4399,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
     if (inAllSections.length > 0) return inAllSections;
 
-    // 3. Repli sur le dictionnaire central d'équivalents
+    // Fallback to central equivalents dictionary
     const dictMatches = searchDictionaryAndEquivalents(partFilterText);
     return dictMatches.map((dm: any, idx: number) => ({
       pos: idx + 1,
@@ -4397,7 +4408,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
       group: dm.category,
       equivalents: dm.equivalents
     }));
-  }, [currentOeItems, partFilterText, catalogData]);
+  }, [currentOeItems, partFilterText, searchMode, selectedCategory, catalogData]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 font-sans">
@@ -4749,13 +4760,70 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
               </span>
             </div>
 
-            {/* Input de recherche texte par désignation ou référence (pare choc av, support parechoc avd, etc.) */}
+            {/* Dual Search Option Selector (Designation vs Reference Number) */}
+            <div className="flex gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => setSearchMode('TEXT')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-black uppercase transition ${
+                  searchMode === 'TEXT'
+                    ? 'bg-cyan-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                📝 PAR DÉSIGNATION / TEXTE
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('REF')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-[10px] font-black uppercase transition ${
+                  searchMode === 'REF'
+                    ? 'bg-amber-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                🔢 PAR N° DE RÉFÉRENCE (OE)
+              </button>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[
+                'TOUS',
+                'Carrosserie & Éclairage',
+                'Moteur & Distribution',
+                'Transmission & Embrayage',
+                'Freinage & ABS',
+                'Châssis & Suspension',
+                'Refroidissement & Clim',
+                'Électricité & Calculateurs'
+              ].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-2 py-0.5 rounded text-[9px] font-bold transition border ${
+                    selectedCategory === cat
+                      ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
+                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Dual Mode Filter Input */}
             <div className="relative">
               <input
                 type="text"
                 value={partFilterText}
                 onChange={e => setPartFilterText(e.target.value)}
-                placeholder="RECHERCHER PAR DÉSIGNATION OU OE (ex: pare choc av, support parechoc avd, optique, 7401AX...)"
+                placeholder={
+                  searchMode === 'TEXT'
+                    ? "RECHERCHE PAR DÉSIGNATION (ex: Embrayage 308, Pare-chocs, Phare, Filtre...)"
+                    : "RECHERCHE PAR RÉFÉRENCE (ex: 7401AX, A2048800124, 424917...)"
+                }
                 className="w-full bg-slate-950 text-white font-bold text-xs p-3 rounded-xl border border-cyan-500/50 focus:outline-none focus:border-cyan-400 placeholder:text-slate-500 uppercase placeholder:normal-case"
               />
               {partFilterText && (

@@ -427,3 +427,35 @@ model PartPriceHistory {
 
   @@index([reference])
 }
+
+model VehicleVinCatalog {
+  id            String   @id @default(cuid())
+  vin           String   @unique
+  brand         String
+  model         String
+  year          Int?
+  engine        String?
+  sourceCatalog String?  @default("PARTSLINK24")
+  treeJson      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([vin])
+  @@index([brand, model])
+}
+
+model DiscoveredEquivalence {
+  id           String   @id @default(cuid())
+  oeReference  String
+  brand        String?
+  eqReference  String
+  eqBrand      String?
+  category     String?
+  source       String?  @default("SCRAPER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([oeReference, eqReference])
+  @@index([oeReference])
+  @@index([eqReference])
+}
