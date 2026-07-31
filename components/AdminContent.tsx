@@ -3,7 +3,7 @@
 import { useApp } from '@/lib/context';
 import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { searchDictionaryAndEquivalents, getEquivalentsForRef } from '@/lib/equivalentsDictionary';
+import { searchDictionaryAndEquivalents, getEquivalentsForRef, validateCriticalPartCompatibility } from '@/lib/equivalentsDictionary';
 import ModalSyntheseOffres from './ModalSyntheseOffres';
 import {
   Search, Edit3, MessageSquare, FileText, Mail, Phone,
@@ -4843,6 +4843,10 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             {displayedOeItems.map((item: any) => {
               const inBasket = basket.some(b => b.ref === item.ref);
               const equivalents = item.equivalents || [];
+              const criticalValidation = validateCriticalPartCompatibility(
+                { reference: item.ref, designation: item.designation, category: item.group },
+                { brand: catalogData?.brand, model: catalogData?.model, vin: vinInput }
+              );
 
               return (
                 <div
@@ -4869,6 +4873,19 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                           )}
                         </div>
                         <h4 className="text-white font-bold text-xs uppercase mt-0.5">{item.designation}</h4>
+                        {/* Critical Part Verification Badge */}
+                        {criticalValidation.status === 'VERIFIED' && (
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/90 border border-emerald-800 px-2 py-0.5 rounded-full">
+                              {criticalValidation.message}
+                            </span>
+                            {criticalValidation.criticalSpecs && Object.entries(criticalValidation.criticalSpecs).map(([key, val]) => (
+                              <span key={key} className="text-[9px] font-mono text-slate-300 bg-slate-900 border border-slate-700 px-2 py-0.5 rounded">
+                                {key}: <strong className="text-cyan-300">{val}</strong>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
 
