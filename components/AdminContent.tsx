@@ -2703,6 +2703,7 @@ function SectionGestionArticles() {
                 <table className="w-full text-xs text-left">
                   <thead>
                     <tr className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors">
+                      <th className="px-4 py-3 w-16 text-center">PHOTO</th>
                       <th className="px-4 py-3">RÉFÉRENCE</th>
                       <th className="px-4 py-3">DÉSIGNATION</th>
                       <th className="px-4 py-3">MARQUE</th>
@@ -2716,7 +2717,39 @@ function SectionGestionArticles() {
                   <tbody>
                     {filtered.map(p => (
                       <tr key={p.id} className="border-b border-slate-850 hover:bg-white/20 transition">
-                        <td className="px-4 py-2.5 font-mono font-bold text-slate-300">{p.reference}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center justify-center">
+                            {(() => {
+                              try {
+                                const imgs = p.images ? JSON.parse(p.images) : [];
+                                if (imgs && imgs.length > 0) {
+                                  return (
+                                    <div className="relative w-12 h-12">
+                                      <img 
+                                        src={imgs[0]} 
+                                        alt={p.reference} 
+                                        className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm"
+                                        onError={(e) => { 
+                                          (e.currentTarget as HTMLImageElement).style.display = 'none'; 
+                                          ((e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement).style.display = 'flex'; 
+                                        }}
+                                      />
+                                      <div className="hidden absolute inset-0 rounded-lg bg-zinc-100 border border-zinc-200 items-center justify-center text-zinc-400 shadow-inner">
+                                        <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              } catch (e) {}
+                              return (
+                                <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 shadow-inner">
+                                  <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 font-mono font-bold text-zinc-900 text-sm">{p.reference}</td>
                         <td className="px-4 py-2.5 font-bold text-zinc-950 uppercase">{p.name}</td>
                         <td className="px-4 py-2.5 font-bold text-zinc-500 uppercase">{p.brand || '-'}</td>
                         <td className="px-4 py-2.5 text-zinc-500 uppercase">{p.vehicleCompat || '-'}</td>
