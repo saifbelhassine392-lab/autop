@@ -66,30 +66,34 @@ function extractJsonArticles(data: unknown): any[] {
   return [];
 }
 
-/** Références à tester : saisie, normalisée, OE / équivalences du dictionnaire (pas de refs fictives PH-/LPR-). */
+/** Références à tester : saisie, normalisée, OE et toutes équivalences Aftermarket du dictionnaire (CANSU, METALCAUCHO, VALEO, GATES, etc.). */
 function buildSupplierSearchRefs(query: string): string[] {
   const seen = new Set<string>();
   const add = (raw: string) => {
+    if (!raw) return;
     const t = raw.trim();
     if (!t) return;
     seen.add(t);
     const n = normalizeRef(t);
     if (n.length >= 3) seen.add(n);
   };
+
   add(query);
+
+  // 1. Équivalences directes depuis getEquivalentsForRef
   for (const eq of getEquivalentsForRef(query)) {
-    if (eq.type === "OE" || eq.type === "CONCESSIONNAIRE") add(eq.reference);
+    if (eq && eq.reference) add(eq.reference);
   }
+
+  // 2. Recherche étendue dans le dictionnaire
   for (const entry of searchDictionaryAndEquivalents(query)) {
-    add(entry.oeReference);
-    for (const eq of entry.equivalents) {
-      if (eq.type === "OE" || eq.type === "CONCESSIONNAIRE") add(eq.reference);
-      else if (eq.reference.length <= 16 && !eq.reference.startsWith("PH-") && !eq.reference.startsWith("LPR-")) {
-        add(eq.reference);
-      }
+    if (entry.oeReference) add(entry.oeReference);
+    for (const eq of (entry.equivalents || [])) {
+      if (eq && eq.reference) add(eq.reference);
     }
   }
-  return Array.from(seen).slice(0, 4);
+
+  return Array.from(seen);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -152,7 +156,7 @@ function parseSTEQHtml(html: string) {
 
 async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 3);
+    const refsToTest = buildSupplierSearchRefs(query);
     const runSearch = async (cookie: string, qKey: string, searchType: string) => {
       const searchParams = new URLSearchParams();
       searchParams.append("MySearchType", searchType);
@@ -309,7 +313,7 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     const authToken = await fadEnsureAuth(supplierId, b2bLogin, b2bPassword);
     const headers = fadAuthHeaders(authToken);
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
+    const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
     await Promise.all(refsToTest.map(async (q) => {
@@ -683,7 +687,7 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
 
     if (!cookie) await ensureSession();
 
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 3);
+    const refsToTest = buildSupplierSearchRefs(query);
     const allItems: any[] = [];
 
     await Promise.all(refsToTest.map(async (q) => {
@@ -951,7 +955,7 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
       if (cookie) supplierCookies[supplierId] = cookie;
     }
 
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
+    const refsToTest = buildSupplierSearchRefs(query);
     let rawItems: any[] = [];
 
     for (const qRef of refsToTest) {
@@ -1089,7 +1093,7 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
       if (token) supplierCookies[supplierId] = token;
     }
     const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
+    const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
     await Promise.all(refsToTest.map(async (q) => {
