@@ -475,7 +475,7 @@ export default function MesDevisPage() {
                     className={`
                       flex items-center gap-3 px-4 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider transition w-full text-left
                       ${activeTab === tab.id 
-                        ? "bg-red-600 text-white shadow-lg shadow-red-600/30" 
+                        ? "bg-slate-800/80 border-l-4 border-slate-400 text-white shadow-sm" 
                         : "bg-slate-950/60 text-slate-400 hover:bg-slate-800/80 hover:text-slate-200 border border-slate-900 hover:border-slate-850"
                       }
                     `}
@@ -508,7 +508,7 @@ export default function MesDevisPage() {
           <div className="lg:col-span-3 space-y-6">
             
             {/* Search Bar */}
-            <div className="bg-slate-900/60 backdrop-blur-sm/40 border border-slate-800/60 rounded-3xl p-5 backdrop-blur-md shadow-xl flex gap-2 items-center">
+            <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-5 shadow-sm flex gap-2 items-center">
               <Search className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
               <input 
                 type="text" 
@@ -557,7 +557,7 @@ export default function MesDevisPage() {
                     const seqIndex = devisListSorted.findIndex(item => item.id === d.id);
                     const seqNumber = seqIndex !== -1 ? String(seqIndex + 1).padStart(6, '0') : d.id.slice(-6).toUpperCase();
                     return (
-                      <div key={d.id} className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-md hover:border-slate-700/60 transition duration-300 shadow-xl">
+                      <div key={d.id} className="bg-slate-900/20 border border-slate-800/40 rounded-3xl p-8 backdrop-blur-md hover:border-slate-700/60 transition duration-300 shadow-xl">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-4 border-b border-slate-800/40">
                           <div>
                             <h3 className="font-black text-red-500 font-mono text-sm tracking-wider">DEVIS #DEV-{seqNumber}</h3>
@@ -615,21 +615,21 @@ export default function MesDevisPage() {
                             )}
                             <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               d.isTreated 
-                                ? "bg-green-500/10 text-green-400 border border-green-500/20" 
+                                ? "bg-green-500/15 text-green-400 border border-green-500/10" 
                                 : d.status === "Rejeté" 
-                                ? "bg-red-500/10 text-red-400 border border-red-500/20"
-                                : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                ? "bg-red-500/15 text-red-400 border border-red-500/10"
+                                : "bg-amber-500/15 text-amber-400 border border-amber-500/10"
                             }`}>
                               {d.status}
                             </span>
                           </div>
                         </div>
 
-                        <div className="space-y-2.5 bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60">
+                        <div className="space-y-2.5 bg-slate-900/30 p-5 rounded-2xl border border-slate-800/40">
                           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Pièces demandées :</span>
                           {d.items?.map((p: any) => (
                             <div key={p.id} className="flex justify-between items-center text-sm border-b border-slate-800/40 pb-2 last:border-0 last:pb-0">
-                              <span className="text-slate-350 uppercase text-xs">{p.name}</span>
+                              <span className="text-slate-300 uppercase text-xs">{p.name}</span>
                               <span className="font-bold text-slate-400 text-xs font-mono">x{p.quantity}</span>
                             </div>
                           ))}
@@ -679,7 +679,7 @@ export default function MesDevisPage() {
                   )}
 
                   {filteredOrders.map((o) => (
-                    <div key={o.id} className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-md hover:border-slate-700/60 transition duration-300 shadow-xl">
+                    <div key={o.id} className="bg-slate-900/20 border border-slate-800/40 rounded-3xl p-8 backdrop-blur-md hover:border-slate-700/60 transition duration-300 shadow-xl">
                       <div className="flex justify-between items-start mb-4 pb-4 border-b border-slate-800/40">
                         <div>
                           <h3 className="font-black text-green-400 font-mono text-sm tracking-wider">COMMANDE #{o.orderNumber}</h3>
@@ -702,12 +702,12 @@ export default function MesDevisPage() {
                       </div>
 
                       {/* Statut Livraison / Notes de l'admin */}
-                      <div className="mb-4 text-xs text-slate-355 bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60">
+                      <div className="mb-4 text-xs text-slate-355 bg-slate-900/30 p-5 rounded-2xl border border-slate-800/40">
                         <span className="font-black text-slate-500 block mb-1 uppercase tracking-widest text-[9px]">Suivi de livraison (Admin) :</span>
                         <p className="uppercase">{o.customerNote || "En attente de prise en charge par l'administrateur."}</p>
                       </div>
 
-                      <div className="space-y-2.5 bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60">
+                      <div className="space-y-2.5 bg-slate-900/30 p-5 rounded-2xl border border-slate-800/40">
                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Articles commandés :</span>
                         {o.items?.map((item: any) => (
                           <div key={item.id} className="flex justify-between items-center text-sm border-b border-slate-800/40 pb-2 last:border-0 last:pb-0">
@@ -746,7 +746,7 @@ export default function MesDevisPage() {
                   )}
 
                   {filteredFactures.map((o) => (
-                  <div key={o.id} className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-slate-700/60 transition duration-305 shadow-xl">
+                  <div key={o.id} className="bg-slate-900/20 border border-slate-800/40 rounded-3xl p-8 backdrop-blur-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-slate-700/60 transition duration-305 shadow-xl">
                     <div>
                       <h3 className="font-black text-white font-mono text-sm tracking-wider">FACTURE #{o.orderNumber.replace('CMD', 'FAC')}</h3>
                       <p className="text-xs text-slate-400 mt-1 uppercase">
