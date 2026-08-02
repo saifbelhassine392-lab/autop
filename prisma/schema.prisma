@@ -322,6 +322,11 @@ model Quote {
   remarks     String?
   photo       String?
   photoName   String?
+  chassisPhoto     String?
+  chassisPhotoName String?
+  fileBase64       String?
+  fileName         String?
+  fileFormat       String?
   status      String        @default("PENDING")
   createdAt   DateTime      @default(now())
   managedById String?

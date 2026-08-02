@@ -201,6 +201,33 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               >
                 <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
               </button>
+              {q.photo && (
+                 <a 
+                   href={q.photo} 
+                   download={q.photoName || `photo-${q.id}.jpg`}
+                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                 >
+                   <Paperclip className="w-3.5 h-3.5" /> PIÈCE (IMAGE)
+                 </a>
+              )}
+              {q.chassisPhoto && (
+                 <a 
+                   href={q.chassisPhoto} 
+                   download={q.chassisPhotoName || `chassis-${q.id}.jpg`}
+                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                 >
+                   <Paperclip className="w-3.5 h-3.5" /> CARTE GRISE
+                 </a>
+              )}
+              {q.fileBase64 && (
+                 <a 
+                   href={`data:${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'text/csv' : 'application/pdf'};base64,${q.fileBase64}`} 
+                   download={q.fileName || `demande-${q.id}.${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'csv' : 'pdf'}`}
+                   className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-indigo-500/30"
+                 >
+                   <Download className="w-3.5 h-3.5" /> DEVIS CLIENT
+                 </a>
+              )}
             </div>
           </div>
         ))
@@ -991,6 +1018,16 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                             newOffres[oIdx].sellingPrice = 0;
                                           }
                                         }
+                                        if (newOffres[oIdx].type === 'CONCESSIONNAIRE') {
+                                          const origineIdx = newOffres.findIndex(o => o.type === 'ORIGINE');
+                                          if (origineIdx !== -1) {
+                                            newOffres[origineIdx].sellingPrice = newOffres[oIdx].sellingPrice;
+                                            const origineDisc = parseFloat(newOffres[origineIdx].discount) || 0;
+                                            if (newOffres[oIdx].sellingPrice > 0) {
+                                              newOffres[origineIdx].purchasePrice = parseFloat((newOffres[oIdx].sellingPrice * (1 - origineDisc / 100)).toFixed(3));
+                                            }
+                                          }
+                                        }
                                         updateLine(i, 'offres', newOffres);
                                       }} />
                                   </div>
@@ -1024,6 +1061,16 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                           const disc = parseFloat(newOffres[oIdx].discount) || 0;
                                           if (sVal > 0) {
                                             newOffres[oIdx].purchasePrice = parseFloat((sVal * (1 - disc / 100)).toFixed(3));
+                                          }
+                                        }
+                                        if (newOffres[oIdx].type === 'CONCESSIONNAIRE') {
+                                          const origineIdx = newOffres.findIndex(o => o.type === 'ORIGINE');
+                                          if (origineIdx !== -1) {
+                                            newOffres[origineIdx].sellingPrice = sVal;
+                                            const origineDisc = parseFloat(newOffres[origineIdx].discount) || 0;
+                                            if (sVal > 0) {
+                                              newOffres[origineIdx].purchasePrice = parseFloat((sVal * (1 - origineDisc / 100)).toFixed(3));
+                                            }
                                           }
                                         }
                                         updateLine(i, 'offres', newOffres);

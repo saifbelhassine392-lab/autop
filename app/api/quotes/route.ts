@@ -57,6 +57,12 @@ export async function POST(req: NextRequest) {
         mileage: parseFloat(mileage) || 0,
         remarks,
         photo,
+        photoName,
+        chassisPhoto: body.chassisPhoto,
+        chassisPhotoName: body.chassisPhotoName,
+        fileBase64,
+        fileName,
+        fileFormat,
         status: 'PENDING',
         items: {
           create: (items || []).map((item: any) => ({
