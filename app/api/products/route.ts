@@ -3,14 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { ensureCatalogSeeded } from '@/lib/autoSeed';
 
-async function fetchAndSaveProductImage(productId: string, reference: string, brand?: string) {
-  try {
-    const query = `${brand || ''} ${reference} piece auto`;
-    const res = await fetch(`https://www.bing.com/images/search?q=${encodeURIComponent(query)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36"
-      }
-    });
+);
     const html = await res.text();
     const regex = /murl&quot;:&quot;(https?:[^&]+)&quot;/g;
     let match;
@@ -71,15 +64,6 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { reference: 'asc' },
     });
-
-    // Start background image searches for products lacking images (limit to 5 per request to prevent rate limiting)
-    let count = 0;
-    for (const product of products) {
-      if ((!product.images || product.images === '[]' || product.images.length === 0) && count < 5) {
-        fetchAndSaveProductImage(product.id, product.reference || '', product.brand || '').catch(console.error);
-        count++;
-      }
-    }
 
     return NextResponse.json(products);
   } catch (error: any) {
