@@ -4059,7 +4059,8 @@ function SectionRobotB2B() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim() || selectedSupplierIds.length === 0) return;
+    const cleanQuery = query.trim();
+    if (!cleanQuery || selectedSupplierIds.length === 0) return;
     setLoading(true);
     setResult(null);
 
@@ -4071,12 +4072,29 @@ function SectionRobotB2B() {
     const allBreakdown: any[] = [];
     const allItems: any[] = [];
 
+    const syncState = () => {
+      const best = allItems.find((i: any) => i.available) || allItems[0] || null;
+      setResult({
+        success: true,
+        isMulti: true,
+        data: {
+          items: [...allItems],
+          suppliersBreakdown: [...allBreakdown],
+          price: best?.price || 0,
+          discount: best?.discount || 0,
+          available: best?.available || false,
+          stock: best?.rawStock || 0,
+          availability: best ? (best.available ? 'Disponible' : 'Sur Commande') : 'Non trouvé'
+        }
+      });
+    };
+
     await Promise.all(targetSuppliers.map(async (s: any) => {
       try {
         const res = await fetch('/api/b2b/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supplierId: s.id, query: query.trim() })
+          body: JSON.stringify({ supplierId: s.id, query: cleanQuery })
         });
         const data = await res.json();
         if (data.success && data.data) {

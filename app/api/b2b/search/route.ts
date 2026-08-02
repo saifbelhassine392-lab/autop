@@ -13,6 +13,25 @@ const supplierCookies: Record<string, string> = {};
 
 const FAD_SECRET_KEY = "sictFvxSr4yr1DM8itxjYSrL0CvsDjeA";
 
+async function fetchWithTimeout(url: string, options: any = {}, timeoutMs: number = 3500): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    return res;
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message || 'Timeout' }), {
+      status: 504,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
 function mergeSetCookies(existing: string, setCookie: string | null): string {
   const jar: Record<string, string> = {};
   for (const chunk of (existing || "").split(";")) {
@@ -133,16 +152,17 @@ function parseSTEQHtml(html: string) {
 
 async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
-    const runSearch = async (cookie: string, searchType: string) => {
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 3);
+    const runSearch = async (cookie: string, qKey: string, searchType: string) => {
       const searchParams = new URLSearchParams();
       searchParams.append("MySearchType", searchType);
-      searchParams.append("MySearchKey", query);
+      searchParams.append("MySearchKey", qKey);
       searchParams.append("MySearchSubmit", "");
-      const searchRes = await fetch("https://b2bsteq.com/form-recherche.html", {
+      const searchRes = await fetchWithTimeout("https://b2bsteq.com/form-recherche.html", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded", "Cookie": cookie, "User-Agent": "Mozilla/5.0" },
         body: searchParams.toString(),
-      });
+      }, 3000);
       const html = await searchRes.text();
       if (html.includes("VOTRE MOT DE PASSE") || html.includes("Se connecter")) {
         return { cookie, items: [] as any[], authFailed: true };
@@ -152,23 +172,27 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
     };
 
     let cookie = supplierCookies[supplierId] || "";
+    const allItems: any[] = [];
+
     if (cookie) {
-      const merged: any[] = [];
-      let authFailed = false;
-      for (const searchType of ["1", "3"]) {
-        const r = await runSearch(cookie, searchType);
-        cookie = r.cookie;
-        authFailed = r.authFailed;
-        merged.push(...r.items);
+      for (const qKey of refsToTest) {
+        let authFailed = false;
+        for (const searchType of ["1", "3"]) {
+          const r = await runSearch(cookie, searchType, qKey);
+          cookie = r.cookie;
+          authFailed = r.authFailed;
+          allItems.push(...r.items);
+        }
+        if (authFailed) { cookie = ""; break; }
+        if (allItems.some(i => i.available || i.price > 0)) break;
       }
-      if (!authFailed && merged.length > 0) {
-        const packed = packScrapeResult(merged);
+      if (allItems.length > 0) {
+        const packed = packScrapeResult(allItems);
         if (packed) return packed;
       }
-      if (authFailed) cookie = "";
     }
 
-    const initialRes = await fetch("https://b2bsteq.com/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0" } });
+    const initialRes = await fetchWithTimeout("https://b2bsteq.com/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0" } }, 3000);
     cookie = "";
     const initCookies = initialRes.headers.get("set-cookie") || "";
     const matchInit = initCookies.match(/PHPSESSID=[^;]+/);
@@ -177,19 +201,21 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
     loginParams.append("UserCode", b2bLogin);
     loginParams.append("UserPassword", b2bPassword);
     loginParams.append("UserSubmit", "» E N T R E R «");
-    const loginRes = await fetch("https://b2bsteq.com/", {
+    const loginRes = await fetchWithTimeout("https://b2bsteq.com/", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0", "Cookie": cookie },
       body: loginParams.toString(), redirect: "manual",
-    });
+    }, 3000);
     const loginCookies = loginRes.headers.get("set-cookie") || "";
     const matchLogin = loginCookies.match(/PHPSESSID=[^;]+/);
     if (matchLogin) cookie = matchLogin[0];
 
-    const allItems: any[] = [];
-    for (const searchType of ["1", "3"]) {
-      const r = await runSearch(cookie, searchType);
-      allItems.push(...r.items);
+    for (const qKey of refsToTest) {
+      for (const searchType of ["1", "3"]) {
+        const r = await runSearch(cookie, searchType, qKey);
+        allItems.push(...r.items);
+      }
+      if (allItems.some(i => i.available || i.price > 0)) break;
     }
 
     if (allItems.length === 0) {
@@ -237,11 +263,11 @@ function mapFadArticle(i: any, searchedRef: string, matchedQuery: string) {
 async function fadEnsureAuth(supplierId: string, b2bLogin: string, b2bPassword: string): Promise<string> {
   let authToken = supplierCookies[supplierId] || "";
   if (authToken) return authToken;
-  const authRes = await fetch("https://pb.fadpro.tn/api/collections/users/auth-with-password", {
+  const authRes = await fetchWithTimeout("https://pb.fadpro.tn/api/collections/users/auth-with-password", {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
     body: JSON.stringify({ identity: b2bLogin, password: b2bPassword }),
-  });
+  }, 2500);
   if (!authRes.ok) return "";
   const authData = await authRes.json().catch(() => null);
   authToken = authData?.token || "";
@@ -263,11 +289,11 @@ function fadAuthHeaders(authToken: string): Record<string, string> {
 
 async function fadFetchArticles(ep: string, headers: Record<string, string>, body?: string): Promise<any[]> {
   try {
-    const searchRes = await fetch(ep, {
+    const searchRes = await fetchWithTimeout(ep, {
       method: body ? "POST" : "GET",
       headers: body ? { ...headers, "Content-Type": "application/json" } : headers,
       body,
-    });
+    }, 2500);
     if (!searchRes.ok) return [];
     const text = await searchRes.text();
     if (!text.trim().startsWith("{") && !text.trim().startsWith("[")) return [];
