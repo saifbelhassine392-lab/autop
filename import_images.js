@@ -1,7 +1,5 @@
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
 const { PrismaClient } = require('@prisma/client');
+const https = require('https');
 
 const prisma = new PrismaClient();
 
@@ -21,7 +19,9 @@ function scrapeBingImage(reference, brand) {
                 const regex = /murl&quot;:&quot;(https?:[^&]+)&quot;/g;
                 let match = regex.exec(html);
                 if (match && match[1]) {
-                    resolve(match[1]);
+                    // Force HTTPS to avoid mixed content in browser if needed, but modern browsers might block mixed content.
+                    let imgUrl = match[1].replace('http://', 'https://');
+                    resolve(imgUrl);
                 } else {
                     resolve(null);
                 }
@@ -41,46 +41,45 @@ function getImageUrl(product) {
 }
 
 async function main() {
-    console.log("Jari el baht 3al références fel base de données...");
+    console.log("Démarrage du peuplement complet de la base de données (Images)...");
     try {
         const products = await prisma.product.findMany({
             select: { id: true, reference: true, images: true, brand: true, compatible: true }
         });
 
-        console.log(`${products.length} articles l9inahom.`);
+        console.log(`${products.length} articles trouvés.`);
 
-        // 1. Build a cross-reference map to share images
-        let updatedCount = 0;
+        // 1. Cross-pollinisation d'abord
+        let crossCount = 0;
         for (const p of products) {
             let pImage = getImageUrl(p);
-            
-            // Si on a une image, on l'applique aux équivalences
             if (pImage) {
                 try {
                     const compatibles = p.compatible ? JSON.parse(p.compatible) : [];
                     for (const compRef of compatibles) {
                         const targetProduct = products.find(prod => prod.reference === compRef && !getImageUrl(prod));
                         if (targetProduct) {
-                            console.log(`[Cross-Ref] Attribution de l'image de ${p.reference} à l'équivalent ${targetProduct.reference}`);
                             await prisma.product.update({
                                 where: { id: targetProduct.id },
                                 data: { images: JSON.stringify([pImage]) }
                             });
                             targetProduct.images = JSON.stringify([pImage]);
-                            updatedCount++;
+                            crossCount++;
                         }
                     }
                 } catch(e) {}
             }
         }
+        console.log(`[Cross-Ref] ${crossCount} équivalences mises à jour.`);
 
-        // 2. Scrape for missing images
+        // 2. Scraping pour les manquants
+        let scrapeCount = 0;
+        let failCount = 0;
         for (const p of products) {
             if (!p.reference) continue;
             let imageUrl = getImageUrl(p);
 
             if (!imageUrl) {
-                // Try to find if any compatible product has an image
                 try {
                     const compatibles = p.compatible ? JSON.parse(p.compatible) : [];
                     for (const compRef of compatibles) {
@@ -93,9 +92,9 @@ async function main() {
                 } catch(e) {}
 
                 if (!imageUrl) {
-                    console.log(`[?] Pas d'URL d'image en base pour ${p.reference}. Scraping Bing...`);
+                    console.log(`[Scraping] Recherche pour ${p.reference}...`);
                     imageUrl = await scrapeBingImage(p.reference, p.brand);
-                    await delay(500); 
+                    await delay(300); // polite scraping
                 }
                 
                 if (imageUrl) {
@@ -104,16 +103,18 @@ async function main() {
                         data: { images: JSON.stringify([imageUrl]) }
                     });
                     p.images = JSON.stringify([imageUrl]);
-                    console.log(`[+] Image trouvée et liée pour ${p.reference}`);
+                    scrapeCount++;
+                    console.log(`[+] OK : ${p.reference}`);
                 } else {
-                    console.log(`[-] Echec total pour l'image de la référence ${p.reference}.`);
+                    failCount++;
+                    console.log(`[-] Echec : ${p.reference}`);
                 }
             }
         }
         
-        console.log("Terminé !");
+        console.log(`Terminé ! Scraping: ${scrapeCount} OK, ${failCount} Echecs.`);
     } catch (error) {
-        console.error("Erreur lors de la récupération des références:", error);
+        console.error("Erreur lors de l'exécution:", error);
     } finally {
         await prisma.$disconnect();
     }
