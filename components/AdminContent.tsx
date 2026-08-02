@@ -263,7 +263,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
   const [showSynthese, setShowSynthese] = useState(false);
 
   useEffect(() => {
-    fetch('/api/products').then(r => r.json()).then(d => {
+    fetch('/api/products', { cache: 'no-store' }).then(r => r.json()).then(d => {
       setCatalogue(Array.isArray(d) ? d : d.data || []);
     }).catch(() => {});
     fetch('/api/suppliers').then(r => r.json()).then(d => {
