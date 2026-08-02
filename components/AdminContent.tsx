@@ -4372,17 +4372,21 @@ function SectionRobotB2B() {
                       }
 
                       const isEquiv = item.matchType === 'EQUIVALENCE';
-                      const netPrice = item.price > 0 ? item.price * (1 - (item.discount || 0) / 100) : 0;
+                      const priceHT = parseFloat(item.price || item.prixHT || 0) || 0;
+                      const discountPct = parseFloat(item.discount || 0) || 0;
+                      const netPriceHT = priceHT > 0 ? priceHT * (1 - discountPct / 100) : 0;
+                      const itemRef = item.reference || item.name || '—';
+                      const itemDesig = item.designation || item.description || `Article ${itemRef}`;
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${cat === 'DISPONIBLE' ? 'bg-green-950/20 border-green-500/30 shadow-sm' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white border-zinc-200'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${cat === 'DISPONIBLE' ? 'bg-white border-green-500/40 shadow-sm' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white border-zinc-200'}`}>
                           <div>
                             <div className="flex flex-wrap justify-between items-center gap-1.5 mb-2">
-                              <span className="text-xs font-black text-cyan-400 uppercase bg-cyan-950/60 border border-cyan-800/40 px-2.5 py-1 rounded-md">
-                                🏢 {item.supplierName || 'FOURNISSEUR B2B'}
+                              <span className="text-xs font-black text-cyan-700 uppercase bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-md">
+                                🏢 {item.supplierName || item.fournisseur || 'FOURNISSEUR B2B'}
                               </span>
                               <div className="flex items-center gap-1">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${isEquiv ? 'bg-purple-950/80 text-purple-300 border-purple-700/50' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'}`}>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${isEquiv ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'}`}>
                                   {isEquiv ? '🔄 ÉQUIVALENCE' : '🎯 DIRECTE'}
                                 </span>
                                 <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
