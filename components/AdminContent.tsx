@@ -149,7 +149,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               </div>
             </div>
 
-            <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
               <div className="text-xs font-black text-white uppercase mb-1">{q.brand} {q.model} {q.vin && `· VIN: ${q.vin}`}</div>
               <div className="text-xs text-zinc-300 uppercase">
                 {q.items?.map((it: any) => `${it.designation} (x${it.quantity})`).join(' · ')}
@@ -157,7 +157,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               {q.remarks && <div className="text-xs text-zinc-400 mt-1 uppercase">NOTE: {q.remarks}</div>}
             </div>
 
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
               {q.status !== 'TREATED' && (
                 <button 
                   onClick={() => onTreatQuote && onTreatQuote(q)}
@@ -205,7 +205,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={q.photo} 
                    download={q.photoName || `photo-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
                  >
                    <Paperclip className="w-3.5 h-3.5" /> PIÈCE (IMAGE)
                  </a>
@@ -214,7 +214,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={q.chassisPhoto} 
                    download={q.chassisPhotoName || `chassis-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 px-4 py-2 bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-blue-600/20 hover:bg-blue-600 hover:text-white text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
                  >
                    <Paperclip className="w-3.5 h-3.5" /> CARTE GRISE
                  </a>
@@ -223,7 +223,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={`data:${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'text/csv' : 'application/pdf'};base64,${q.fileBase64}`} 
                    download={q.fileName || `demande-${q.id}.${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'csv' : 'pdf'}`}
-                   className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-indigo-500/30"
+                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-indigo-500/30"
                  >
                    <Download className="w-3.5 h-3.5" /> DEVIS CLIENT
                  </a>
@@ -1270,7 +1270,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           </div>
         )}
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-3 mt-4">
           <button 
             onClick={handlePrintPDF}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[11px] font-black uppercase border border-slate-700 transition"
@@ -1904,7 +1904,7 @@ function SectionConsultationFournisseur() {
                 </select>
               </div>
               {supplier && (
-                <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+                <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
                   <p className="font-black text-white uppercase">{supplier.name}</p>
                   {supplier.phone && <p className="text-zinc-300 uppercase font-sans">TÉL: {supplier.phone}</p>}
                   {supplier.email && <p className="text-zinc-300 font-sans">{supplier.email}</p>}
@@ -2055,7 +2055,7 @@ function SectionConsultationFournisseur() {
               className="w-full bg-slate-900 text-white font-semibold border border-slate-800 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-slate-500 uppercase transition-colors placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal" placeholder="Délai de livraison, conditions paiement..." />
           </div>
 
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-3 mt-4">
             <button onClick={handleDownloadPO_PDF} disabled={!selectedSupplier}
               className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase transition disabled:opacity-50 font-sans"
             >
@@ -2097,7 +2097,7 @@ function SectionConsultationFournisseur() {
                 </button>
               </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-3 mt-4">
               {suppliers.filter(s => s.b2bLogin && s.b2bPassword).length > 0 ? (
                 suppliers.filter(s => s.b2bLogin && s.b2bPassword).map(s => (
                   <label key={s.id} className="flex items-center gap-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800 cursor-pointer text-xs font-black uppercase text-white hover:border-cyan-500/50 select-none">
@@ -2609,7 +2609,7 @@ function SectionGestionArticles() {
                 </div>
 
                 {csvFile && (
-                  <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+                  <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
                     <span className="font-bold text-slate-300 font-mono">{csvFile.name} ({csvPreview.length} articles reconnus)</span>
                     <button onClick={() => { setCsvFile(null); setCsvPreview([]); }} className="text-red-500 hover:text-red-400 text-[10px] font-black uppercase">ANNULER</button>
                   </div>
@@ -3123,7 +3123,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
               </div>
 
               {/* Items */}
-              <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
                 <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block mb-2">ARTICLES DU DEVIS :</span>
                 {d.items?.map((item: any, idx: number) => (
                   <div key={item.id || idx} className="flex justify-between items-center border-b border-slate-800/20 pb-1.5 last:border-0 last:pb-0 mb-1.5 last:mb-0">
@@ -3133,25 +3133,25 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
                 ))}
               </div>
 
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-3 mt-4">
                 {onEditDevis && (
                   <button 
                     onClick={() => onEditDevis(d)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase rounded-xl transition shadow shadow-amber-600/20"
+                    className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-amber-600 hover:bg-amber-500 text-white text-xs font-black uppercase rounded-xl transition shadow shadow-amber-600/20"
                   >
                     <Edit3 className="w-3.5 h-3.5" /> MODIFIER LE DEVIS
                   </button>
                 )}
-                <button onClick={() => handleDownloadPDF(d)} className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition">
+                <button onClick={() => handleDownloadPDF(d)} className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase rounded-xl transition">
                   <Download className="w-3.5 h-3.5" /> PDF CLIENT
                 </button>
-                <button onClick={() => handleDownloadExcel(d)} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition">
+                <button onClick={() => handleDownloadExcel(d)} className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition">
                   <Download className="w-3.5 h-3.5" /> EXCEL CLIENT
                 </button>
-                <button onClick={() => handleDownloadSupplierPDF(d)} className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase rounded-xl transition border border-indigo-400/30 shadow-lg shadow-indigo-600/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (PDF)">
+                <button onClick={() => handleDownloadSupplierPDF(d)} className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black uppercase rounded-xl transition border border-indigo-400/30 shadow-lg shadow-indigo-600/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (PDF)">
                   <FileText className="w-3.5 h-3.5" /> PDF FOURNISSEUR
                 </button>
-                <button onClick={() => handleDownloadSupplierExcel(d)} className="flex items-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase rounded-xl transition border border-emerald-400/30 shadow-lg shadow-emerald-700/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (Excel/CSV)">
+                <button onClick={() => handleDownloadSupplierExcel(d)} className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black uppercase rounded-xl transition border border-emerald-400/30 shadow-lg shadow-emerald-700/20" title="Télécharger l'offre / demande de prix au nom d'un fournisseur spécifique (Excel/CSV)">
                   <FileText className="w-3.5 h-3.5" /> EXCEL FOURNISSEUR
                 </button>
                 <button 
@@ -3342,7 +3342,7 @@ function SectionBonsEtLivraisons() {
             </div>
 
             {/* Articles list */}
-            <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
               <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest block mb-2">ARTICLES DU BON DE COMMANDE :</span>
               {o.items?.map((item: any) => (
                 <div key={item.id} className="flex justify-between items-center border-b border-slate-800/20 pb-1.5 last:border-0 last:pb-0 mb-1.5 last:mb-0">
@@ -3353,7 +3353,7 @@ function SectionBonsEtLivraisons() {
             </div>
 
             {/* Formulaire statut préparé par admin */}
-            <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+            <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
               <div>
                 <label className={labelCls}>STATUT DE LIVRAISON</label>
                 <select 
@@ -3662,7 +3662,7 @@ function SectionSuiviPO() {
                   onClick={() => {
                     handleUpdateStatus(selectedOrder.id, 'RECEIVED');
                   }}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition"
+                  className="h-10 px-4 flex justify-center items-center bg-green-600 hover:bg-green-700 text-white text-xs font-black uppercase rounded-xl transition"
                 >
                   ✓ Marquer comme Livré
                 </button>
@@ -4072,7 +4072,7 @@ function SectionRobotB2B() {
           )}
         </div>
 
-        <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+        <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
           🌐 Recherche simultanée sur <span className="text-cyan-400 font-black">{selectedSupplierIds.length} fournisseur(s) sélectionné(s)</span> : {
             b2bSuppliers.filter(s => selectedSupplierIds.includes(s.id)).map(s => s.name.toUpperCase()).join(', ') || 'Aucun'
           }
@@ -4576,7 +4576,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
         {/* Identified Vehicle Badge */}
         {catalogData && (
-          <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
             <div className="flex items-center gap-3">
               <span className="text-3xl">🚘</span>
               <div>
@@ -4705,7 +4705,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
               </div>
 
               {/* Native Interactive Vector Schematics Viewer (Web & Electron Compatible) */}
-              <div className="bg-slate-900 text-white font-bold text-xs px-3 h-10 rounded-xl border border-slate-800 focus:outline-none focus:border-slate-500 cursor-pointer transition-colors">
+              <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800 mb-4 w-full">
                 <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
                   <span>🖼️ SCHÉMA ÉCLATÉ INTERACTIF : {currentSection?.title}</span>
                   <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD VELECTRON / WEB 100% ACTIF</span>
