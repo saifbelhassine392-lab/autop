@@ -1,6 +1,6 @@
 "use client";
 
-import { Upload, useApp } from '@/lib/context';
+import { useApp } from '@/lib/context';
 import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { searchDictionaryAndEquivalents, getEquivalentsForRef, validateCriticalPartCompatibility } from '@/lib/equivalentsDictionary';
@@ -2336,6 +2336,40 @@ function SectionGestionArticles() {
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
 
+  // Bulk Image Upload Modal state
+  const [showBulkImageModal, setShowBulkImageModal] = useState(false);
+  const [bulkImageFiles, setBulkImageFiles] = useState<File[]>([]);
+  const [bulkImageProgress, setBulkImageProgress] = useState(0);
+  const [bulkImageStatus, setBulkImageStatus] = useState<string>('');
+
+  const handleBulkImageUpload = async () => {
+    if (bulkImageFiles.length === 0) return;
+    setBulkImageStatus('uploading');
+    setBulkImageProgress(10);
+    try {
+      const formData = new FormData();
+      bulkImageFiles.forEach(file => formData.append('files', file));
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData
+      });
+      setBulkImageProgress(100);
+      if (res.ok) {
+        alert(`${bulkImageFiles.length} photo(s) importees !`);
+        setBulkImageStatus('done');
+        setShowBulkImageModal(false);
+        setBulkImageFiles([]);
+        fetchProducts();
+      } else {
+        alert("Erreur lors de l'importation.");
+        setBulkImageStatus('');
+      }
+    } catch {
+      alert("Erreur reseau.");
+      setBulkImageStatus('');
+    }
+  };
+
   const fetchProducts = () => {
     setLoading(true);
     fetch('/api/products').then(r => r.json()).then(d => {
@@ -3970,7 +4004,7 @@ function SectionRobotB2B() {
 
   useEffect(() => {
     fetch('/api/suppliers').then(r => r.json()).then(d => {
-      const sups = (d.data || []).filter((s: any) => s.b2bLogin && s.b2bPassword);
+      const sups = d.data || [];
       setSuppliers(sups);
       // Select all by default
       setSelectedSupplierIds(sups.map((s: any) => s.id));
@@ -3988,7 +4022,7 @@ function SectionRobotB2B() {
     return () => window.removeEventListener('robotB2B_searchRef' as any, handleRef);
   }, []);
 
-  const b2bSuppliers = suppliers.filter(s => s.b2bLogin && s.b2bPassword);
+  const b2bSuppliers = suppliers;
 
   const toggleSupplier = (id: string) => {
     if (selectedSupplierIds.includes(id)) {
@@ -4319,16 +4353,24 @@ function SectionRobotB2B() {
                         badgeText = 'EN ARRIVAGE';
                       }
 
+                      const isEquiv = item.matchType === 'EQUIVALENCE';
+                      const netPrice = item.price > 0 ? item.price * (1 - (item.discount || 0) / 100) : 0;
+
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between ${cat === 'DISPONIBLE' ? 'bg-green-950/20 border-green-500/30' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white border-zinc-200'}`}>
+                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${cat === 'DISPONIBLE' ? 'bg-green-950/20 border-green-500/30 shadow-sm' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white border-zinc-200'}`}>
                           <div>
-                            <div className="flex justify-between items-center mb-2">
+                            <div className="flex flex-wrap justify-between items-center gap-1.5 mb-2">
                               <span className="text-xs font-black text-cyan-400 uppercase bg-cyan-950/60 border border-cyan-800/40 px-2.5 py-1 rounded-md">
                                 🏢 {item.supplierName || 'FOURNISSEUR B2B'}
                               </span>
-                              <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
-                                {badgeText}
-                              </span>
+                              <div className="flex items-center gap-1">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${isEquiv ? 'bg-purple-950/80 text-purple-300 border-purple-700/50' : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/50'}`}>
+                                  {isEquiv ? '🔄 ÉQUIVALENCE' : '🎯 DIRECTE'}
+                                </span>
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
+                                  {badgeText}
+                                </span>
+                              </div>
                             </div>
                             <div className="font-black text-zinc-950 text-base mb-1">
                               {item.brand ? `MARQUE : ${item.brand.toUpperCase()}` : 'MARQUE NON SPÉCIFIÉE'}

@@ -38,6 +38,21 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
       { brand: 'EXEDY', reference: 'KPS035', type: 'ADAPTABLE', designation: 'Kit embrayage Exedy', estimatedPrice: 220.0 },
     ]
   },
+  '1306J5': {
+    oeReference: '1306J5',
+    designation: "BOUCHON DE VASE D'EXPANSION / RADIATEUR PEUGEOT CITROEN (1.4 BAR)",
+    category: 'Refroidissement',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROËN', reference: '1306J5', type: 'OE', designation: 'Bouchon vase d\'expansion Origine PSA' },
+      { brand: 'CANSU', reference: 'CAN1306J5', type: 'ADAPTABLE', designation: 'Bouchon radiateur Cansu', estimatedPrice: 8.74 },
+      { brand: 'METALCAUCHO', reference: '03025', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Metalcaucho', estimatedPrice: 9.50 },
+      { brand: 'VALEO', reference: '720300', type: 'ADAPTABLE', designation: 'Bouchon radiateur Valeo', estimatedPrice: 12.00 },
+      { brand: 'GATES', reference: 'RC234', type: 'ADAPTABLE', designation: 'Bouchon circuit de refroidissement Gates', estimatedPrice: 14.50 },
+      { brand: 'VERNET', reference: 'RC0018', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Calorstat BY Vernet', estimatedPrice: 10.00 },
+      { brand: 'FEBI BILSTEIN', reference: '22084', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Febi Bilstein', estimatedPrice: 11.50 },
+      { brand: 'SASIC', reference: '3060001', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Sasic', estimatedPrice: 9.80 },
+    ]
+  },
 
   // Peugeot / Citroën 407 & Gamme PSA - Carrosserie & Éclairage
   '7401AX': {

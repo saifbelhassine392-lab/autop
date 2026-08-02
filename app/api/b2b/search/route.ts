@@ -70,7 +70,7 @@ function buildSupplierSearchRefs(query: string): string[] {
       }
     }
   }
-  return Array.from(seen).slice(0, 12);
+  return Array.from(seen).slice(0, 4);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -293,43 +293,38 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
     }
 
     const headers = fadAuthHeaders(authToken);
-    const refsToTest = buildSupplierSearchRefs(query);
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 4);
     const items: any[] = [];
 
-    for (const q of refsToTest) {
+    await Promise.all(refsToTest.map(async (q) => {
       const safeRef = normalizeRef(q).replace(/[^A-Z0-9]/g, "");
       const getUrls = [
         `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(q)}`,
         `https://fadpro.tn:8095/fad/api/b2b/search?refOem=${encodeURIComponent(q)}`,
-        `https://fadpro.tn:8095/fad/api/b2b/search?reference=${encodeURIComponent(q)}`,
-        `https://fadpro.tn:8095/fad/api/b2b/search?designation=${encodeURIComponent(q)}`,
-        `https://pb.fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}&page=1&perPage=30`,
-        `https://fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}&page=1&perPage=30`,
+        `https://pb.fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}&page=1&perPage=20`,
       ];
       if (safeRef.length >= 3) {
-        getUrls.push(
-          `https://pb.fadpro.tn/api/collections/articles/records?filter=(refFour~'${safeRef}')&perPage=20`
-        );
+        getUrls.push(`https://pb.fadpro.tn/api/collections/articles/records?filter=(refFour~'${safeRef}')&perPage=20`);
       }
-      for (const ep of getUrls) {
+      
+      await Promise.all(getUrls.map(async (ep) => {
         const articlesList = await fadFetchArticles(ep, headers);
         for (const i of articlesList) {
           items.push(mapFadArticle(i, query, q));
         }
-      }
+      }));
 
       const postBody = JSON.stringify({ refFour: q, reference: q, refOem: q, search: q });
-      for (const postEp of [
+      await Promise.all([
         "https://fadpro.tn:8095/fad/api/b2b/search",
-        "https://fadpro.tn:8095/fad/api/b2b/equivalence",
-        "https://fadpro.tn:8095/fad/api/b2b/cross",
-      ]) {
+        "https://fadpro.tn:8095/fad/api/b2b/equivalence"
+      ].map(async (postEp) => {
         const articlesList = await fadFetchArticles(postEp, headers, postBody);
         for (const i of articlesList) {
           items.push(mapFadArticle(i, query, q));
         }
-      }
-    }
+      }));
+    }));
 
     const packed = packScrapeResult(items);
     if (packed) return packed;
@@ -672,19 +667,16 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
 
     if (!cookie) await ensureSession();
 
-    const refsToTest = buildSupplierSearchRefs(query);
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 3);
     const allItems: any[] = [];
 
-    for (const q of refsToTest) {
+    await Promise.all(refsToTest.map(async (q) => {
       const searchUrls = [
         `${baseUrl}/Site_CDG25/recherche.php?ref=${encodeURIComponent(q)}`,
-        `${baseUrl}/Site_CDG25/recherche.php?recherche=${encodeURIComponent(q)}`,
-        `${baseUrl}/Site_CDG25/recherche.php?Reference=${encodeURIComponent(q)}`,
         `${baseUrl}/Site_CDG25/ajax_recherche.php?ref=${encodeURIComponent(q)}`,
-        `${baseUrl}/Site_CDG25/ajax_recherche.php?recherche=${encodeURIComponent(q)}`,
       ];
 
-      for (const searchUrl of searchUrls) {
+      await Promise.all(searchUrls.map(async (searchUrl) => {
         const r = await fetch(searchUrl, {
           headers: {
             Cookie: cookie,
@@ -693,7 +685,7 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
             Referer: `${baseUrl}/Site_CDG25/`,
           },
         }).catch(() => null);
-        if (!r || !r.ok) continue;
+        if (!r || !r.ok) return;
         const text = await r.text();
 
         if (text.trim().startsWith("[") || text.trim().startsWith("{")) {
@@ -706,8 +698,8 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
         }
 
         allItems.push(...parseCDGSearchHtml(text, q));
-      }
-    }
+      }));
+    }));
 
     const packed = packScrapeResult(allItems);
     if (packed) return packed;
@@ -1490,9 +1482,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
 }
 
 function supplierSearchTimeoutMs(name: string): number {
-  const u = (name || "").toUpperCase();
-  if (u.includes("FAD") || u.includes("CDG") || u.includes("SAGAP") || u.includes("SOPIC")) return 15000;
-  return 7000;
+  return 6000;
 }
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs?: number): Promise<any> {
   const effectiveTimeout = timeoutMs ?? supplierSearchTimeoutMs(supplier.name);
@@ -1538,12 +1528,7 @@ async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: strin
     }
   };
 
-  let res: any = await executeSearch();
-  if ((!res.items || res.items.length === 0) && (res.statusCode === 'TIMEOUT' || res.statusCode === 'ERROR')) {
-    await new Promise(r => setTimeout(r, 800));
-    res = await executeSearch();
-  }
-  return res;
+  return await executeSearch();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

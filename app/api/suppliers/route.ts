@@ -42,6 +42,23 @@ async function ensureDefaultSuppliersSeeded() {
   }
 }
 
+function getDefaultB2BCredentials(name: string) {
+  const supUpper = (name || '').toUpperCase();
+  if (supUpper.includes('FAD')) return { l: '3905', p: '7S@5512g' };
+  if (supUpper.includes('STEQ')) return { l: 'CL0016035', p: 'STEQ484630925' };
+  if (supUpper.includes('CDG')) return { l: '4112329', p: '98774525' };
+  if (supUpper.includes('SAGAP')) return { l: 'ibrahim.ayadi@autop.tn', p: 'SAGAPb2b123.a' };
+  if (supUpper.includes('AAP')) return { l: '410138', p: 'AUTOP2026' };
+  if (supUpper.includes('PROPARTS')) return { l: 'C0667', p: 'OTO*122' };
+  if (supUpper.includes('ITALCAR')) return { l: 'SSE01', p: '123456' };
+  if (supUpper.includes('CARGROS')) return { l: 'DPE00114', p: '2062022' };
+  if (supUpper.includes('ALPHA FORD')) return { l: 'AUTOP/STE DE SERVICE AUTOMOBILE', p: '1234' };
+  if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) return { l: 'services-automobile@gmail.com', p: 'Ssautomobile98774525*TB' };
+  if (supUpper.includes('SOPIC')) return { l: 'amine@autop.tn', p: 'Amine2025' };
+  if (supUpper.includes('SOCOFA')) return { l: 'Amine.benomrane@autop.tn', p: '98774525' };
+  return { l: 'AUTOP', p: 'password123' };
+}
+
 export async function GET(req: NextRequest) {
   try {
     await ensureDefaultSuppliersSeeded();
@@ -50,7 +67,18 @@ export async function GET(req: NextRequest) {
       include: { _count: { select: { purchaseOrders: true } } }
     });
 
-    return NextResponse.json({ success: true, data: suppliers });
+    const enriched = suppliers.map(s => {
+      let b2bLogin = s.b2bLogin?.trim();
+      let b2bPassword = s.b2bPassword?.trim();
+      if (!b2bLogin) {
+        const defaults = getDefaultB2BCredentials(s.name);
+        b2bLogin = defaults.l;
+        if (!b2bPassword) b2bPassword = defaults.p;
+      }
+      return { ...s, b2bLogin, b2bPassword };
+    });
+
+    return NextResponse.json({ success: true, data: enriched });
   } catch (err) {
     console.error('Suppliers GET error:', err);
     return NextResponse.json({ success: false, error: 'Erreur récupération fournisseurs' }, { status: 500 });
