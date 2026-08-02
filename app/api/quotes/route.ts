@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, ADMIN_NOTIFICATION_EMAIL } from '@/lib/email';
 import { fetchProductionQuotes } from '@/lib/neonClient';
 
 export async function GET(req: NextRequest) {
@@ -103,8 +103,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const hasAttachments = attachments.length > 0;
+
       await sendEmail({
-        to: [clientEmail, 'comptoir.distribution@autop.tn'],
+        to: [clientEmail, ADMIN_NOTIFICATION_EMAIL],
         subject: `Confirmation de votre demande de devis AUTOP - #${newQuote.id.slice(-6).toUpperCase()}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
@@ -120,13 +122,13 @@ export async function POST(req: NextRequest) {
             <ul>
               ${itemsListText}
             </ul>
-            <p>Le document récapitulatif a été joint à cet e-mail au format <strong>${(fileFormat || 'pdf').toUpperCase()}</strong>.</p>
+            ${hasAttachments ? `<p style="color: #0369a1; font-weight: bold;">📎 Le document ou fichier téléchargé a été joint à cet e-mail (${attachments.length} fichier(s)).</p>` : `<p style="color: #64748b; font-style: italic;">(Aucun fichier joint par le client pour cette demande)</p>`}
             <p>Notre équipe commerciale étudie actuellement votre demande et reviendra vers vous très rapidement avec nos meilleures propositions de tarifs.</p>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;" />
             <p style="font-size: 11px; color: #94a3b8; text-align: center;">AUTOP Tunisie - Pièces de rechange neuves de qualité.</p>
           </div>
         `,
-        attachments
+        attachments: hasAttachments ? attachments : undefined
       });
     } catch (mailError) {
       console.error('Email confirmation send failed:', mailError);

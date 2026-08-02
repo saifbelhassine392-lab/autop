@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
-import { sendEmail } from '@/lib/email';
+import { sendEmail, ADMIN_NOTIFICATION_EMAIL } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   try {
@@ -123,13 +123,14 @@ export async function POST(req: NextRequest) {
     try {
       const orderWithItems = order as any;
       const itemsList = orderWithItems.items ? orderWithItems.items.map((it: any) => `<li>${it.productName} x ${it.quantity} - Price: ${it.price.toFixed(2)} TND</li>`).join('') : '';
-      const attachments = fileBase64 && fileName ? [{
+      const hasAttachment = Boolean(fileBase64 && fileName);
+      const attachments = hasAttachment ? [{
         filename: fileName,
         content: fileBase64
-      }] : [];
+      }] : undefined;
 
       await sendEmail({
-        to: [user.email, 'comptoir.distribution@autop.tn'],
+        to: [user.email, ADMIN_NOTIFICATION_EMAIL],
         subject: `Nouveau Bon de Commande AUTOP - #${order.orderNumber}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
@@ -144,7 +145,7 @@ export async function POST(req: NextRequest) {
               ${itemsList}
             </ul>
             <p><strong>Montant Total TTC :</strong> ${order.total.toFixed(2)} TND (dont TVA 19%)</p>
-            <p>Le Bon de Commande au format <strong>${selectedFormat.toUpperCase()}</strong> est joint à cet e-mail.</p>
+            ${hasAttachment ? `<p style="color: #059669; font-weight: bold;">📎 Le Bon de Commande au format ${(selectedFormat || 'pdf').toUpperCase()} est joint à cet e-mail.</p>` : `<p style="color: #64748b; font-style: italic;">(Aucun document généré ou attaché)</p>`}
             <hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;" />
             <p style="font-size: 11px; color: #94a3b8; text-align: center;">AUTOP Tunisie - Comptoir de distribution.</p>
           </div>

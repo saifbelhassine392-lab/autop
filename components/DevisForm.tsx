@@ -206,7 +206,7 @@ Photos jointes: ${formData.photos.length} fichier(s)
 
       const subject = encodeURIComponent("Demande de Devis - AUTOP");
       const body = encodeURIComponent(emailBody);
-      window.open(`mailto:comptoir.distribution@autop.tn?subject=${subject}&body=${body}`, "_blank");
+      window.open(`mailto:saifbelhassine392@gmail.com?subject=${subject}&body=${body}`, "_blank");
       
       alert("✅ Votre client email s'est ouvert. Veuillez envoyer le message.");
     } catch {

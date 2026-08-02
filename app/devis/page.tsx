@@ -488,7 +488,7 @@ export default function DevisPage() {
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
           <h2 className="text-2xl font-black text-white mb-2">Demande Confirmée !</h2>
           <p className="text-sm text-slate-400 mb-6">
-            Votre demande a été enregistrée. L'e-mail a été envoyé avec le fichier **{selectedFormat.toUpperCase()}** joint au client et à notre comptoir (**comptoir.distribution@autop.tn**).
+            Votre demande a été enregistrée. L'e-mail de confirmation a été transmis à l'adresse administrateur (**saifbelhassine392@gmail.com**).
           </p>
 
           <div className="space-y-3 mb-8">
