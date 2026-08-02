@@ -57,9 +57,9 @@ const sections: SidebarSection[] = [
     color: "text-red-400",
     items: [
       { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-500/80' },
-      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-blue-500/80' },
-      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-green-500/80' },
-      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-purple-500/80' },
+      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-blue-100 text-blue-700/80' },
+      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-green-100 text-green-700/80' },
+      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-purple-100 text-purple-700/80' },
       { id: 'chat-interne', label: 'CHAT INTERNE / PRIX', icon: MessageSquare },
     ]
   },
@@ -198,26 +198,26 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={`carbon-pattern border-r border-slate-800 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={` border-r border-zinc-300 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
       {/* Logo Header */}
-      <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-slate-800/85 bg-slate-950 backdrop-blur-md">
+      <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-zinc-300 bg-zinc-200 backdrop-blur-md">
         <div className="w-32 h-16 relative mb-2">
           <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
         </div>
-        <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[2px]">CONSOLE ADMIN</div>
+        <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-[2px]">CONSOLE ADMIN</div>
       </div>
 
       {/* User Info */}
-      <div className="flex flex-col gap-1 px-4 py-3 bg-slate-950 border-b border-slate-800/85 backdrop-blur-md">
+      <div className="flex flex-col gap-1 px-4 py-3 bg-zinc-200 border-b border-zinc-300 backdrop-blur-md">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-650 to-orange-550 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-650 to-orange-550 flex items-center justify-center text-zinc-900 font-bold text-xs flex-shrink-0">
             {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-white font-black text-xs truncate uppercase tracking-wider">
+            <p className="text-zinc-900 font-black text-xs truncate uppercase tracking-wider">
               {activeProfile || user?.name || 'ADMIN'}
             </p>
-            <p className="text-zinc-400 text-[9px] truncate">{user?.email}</p>
+            <p className="text-zinc-600 text-[9px] truncate">{user?.email}</p>
           </div>
         </div>
         <button
@@ -227,7 +227,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
           }}
           className="text-left text-red-500 hover:text-red-400 text-[8px] font-black uppercase mt-1 tracking-wider transition-colors"
         >
-          ⚡ Changer de Profil
+          Changer de profil
         </button>
       </div>
 
@@ -248,18 +248,18 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                   onClick={() => setAdminSection(item.id)}
                   className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider mb-1.5 transition-all duration-150 border group ${
                     isActive
-                      ? 'bg-slate-900/60 text-white border-l-4 border-l-red-600 font-black font-black'
-                      : 'bg-slate-900/90 text-slate-100 border-slate-800 hover:bg-slate-800 hover:text-white hover:border-slate-600'
+                      ? 'bg-zinc-300 text-zinc-950 border-l-[3px] border-l-red-600 font-black border-y-transparent border-r-transparent shadow-none'
+                      : 'bg-transparent text-zinc-700 border-transparent hover:bg-zinc-300 hover:text-zinc-900 shadow-none'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-red-400 group-hover:text-red-300'}`} />
-                  <span className={`flex-1 text-left font-black tracking-wide ${isActive ? 'text-white' : 'text-slate-100'}`}>{item.label}</span>
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-zinc-900' : 'text-red-400 group-hover:text-red-300'}`} />
+                  <span className={`flex-1 text-left font-black tracking-wide ${isActive ? 'text-zinc-900' : 'text-zinc-700'}`}>{item.label}</span>
                   {badgeVal !== undefined && badgeVal > 0 && (
-                    <span className={`${item.badgeColor || 'bg-red-600'} text-white text-[9px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow`}>
+                    <span className={`${item.badgeColor || 'bg-red-600'} text-[9px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow-none`}>
                       {badgeVal}
                     </span>
                   )}
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0 text-white" />}
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0 text-zinc-900" />}
                 </button>
               );
             })}
@@ -268,7 +268,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       </nav>
 
       {/* Logout */}
-      <div className="p-3 border-t border-slate-800">
+      <div className="p-3 border-t border-zinc-300">
         <button
           onClick={() => signOut({ callbackUrl: '/connexion' })}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide text-slate-400 hover:bg-red-600/10 hover:text-red-400 transition-all"
