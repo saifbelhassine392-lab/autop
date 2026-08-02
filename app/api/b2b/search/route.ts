@@ -13,7 +13,7 @@ const supplierCookies: Record<string, string> = {};
 
 const FAD_SECRET_KEY = "sictFvxSr4yr1DM8itxjYSrL0CvsDjeA";
 
-async function fetchWithTimeout(url: string, options: any = {}, timeoutMs: number = 3500): Promise<Response> {
+async function fetchWithTimeout(url: string, options: any = {}, timeoutMs: number = 2000): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -93,7 +93,7 @@ function buildSupplierSearchRefs(query: string): string[] {
     }
   }
 
-  return Array.from(seen);
+  return Array.from(seen).slice(0, 3);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -1592,7 +1592,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
 }
 
 function supplierSearchTimeoutMs(name: string): number {
-  return 6000;
+  return 2500;
 }
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs?: number): Promise<any> {
   const effectiveTimeout = timeoutMs ?? supplierSearchTimeoutMs(supplier.name);
