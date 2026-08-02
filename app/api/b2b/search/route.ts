@@ -308,18 +308,8 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     const authToken = await fadEnsureAuth(supplierId, b2bLogin, b2bPassword);
-    if (!authToken) {
-      return {
-        price: 0,
-        discount: 0,
-        available: false,
-        availability: "Erreur FAD: authentification B2B échouée (vérifiez code client / mot de passe).",
-        items: [],
-      };
-    }
-
     const headers = fadAuthHeaders(authToken);
-    const refsToTest = buildSupplierSearchRefs(query).slice(0, 4);
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
     const items: any[] = [];
 
     await Promise.all(refsToTest.map(async (q) => {
@@ -359,7 +349,7 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
       price: 0,
       discount: 0,
       available: false,
-      availability: `FAD B2B connecté (Code: ${b2bLogin}). Référence ${query} — non disponible / non trouvée (réf. directe et équivalences testées).`,
+      availability: `FAD B2B connecté (Code: ${b2bLogin}). Référence ${query} — non disponible dans le catalogue FAD.`,
       items: [],
     };
   } catch (err: any) {
@@ -961,50 +951,63 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
       if (cookie) supplierCookies[supplierId] = cookie;
     }
 
-    // Step 3: SaveMot
-    await fetch(`${baseUrl}/Recherche/SaveMot`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookie,
-        "User-Agent": "Mozilla/5.0",
-        "X-Requested-With": "XMLHttpRequest"
-      },
-      body: new URLSearchParams({ mot: query }).toString()
-    });
-
-    // Step 4: Search by Origine & CodeArticle
-    const [resOrigine, resCode] = await Promise.all([
-      fetch(`${baseUrl}/Recherche/FindItembyOrigine`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookie,
-          "User-Agent": "Mozilla/5.0",
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: new URLSearchParams({ code: query, origine: query, ref: query }).toString()
-      }),
-      fetch(`${baseUrl}/Recherche/FindItembyCodeArticle`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookie,
-          "User-Agent": "Mozilla/5.0",
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: new URLSearchParams({ code: query, codeArticle: query, ref: query }).toString()
-      })
-    ]);
-
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
     let rawItems: any[] = [];
-    if (resOrigine.ok) {
-      const data1 = await resOrigine.json().catch(() => null);
-      if (Array.isArray(data1)) rawItems.push(...data1);
-    }
-    if (resCode.ok) {
-      const data2 = await resCode.json().catch(() => null);
-      if (Array.isArray(data2)) rawItems.push(...data2);
+
+    for (const qRef of refsToTest) {
+      await fetchWithTimeout(`${baseUrl}/Recherche/SaveMot`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0",
+          "X-Requested-With": "XMLHttpRequest"
+        },
+        body: new URLSearchParams({ mot: qRef }).toString()
+      }, 2000).catch(() => null);
+
+      const [resOrigine, resCode] = await Promise.all([
+        fetchWithTimeout(`${baseUrl}/Recherche/FindItembyOrigine`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": cookie,
+            "User-Agent": "Mozilla/5.0",
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: new URLSearchParams({ code: qRef, origine: qRef, ref: qRef }).toString()
+        }, 2500).catch(() => null),
+        fetchWithTimeout(`${baseUrl}/Recherche/FindItembyCodeArticle`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": cookie,
+            "User-Agent": "Mozilla/5.0",
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: new URLSearchParams({ code: qRef, codeArticle: qRef, ref: qRef }).toString()
+        }, 2500).catch(() => null)
+      ]);
+
+      if (resOrigine && resOrigine.ok) {
+        const text1 = await resOrigine.text().catch(() => "");
+        if (text1.trim().startsWith("[")) {
+          try {
+            const data1 = JSON.parse(text1);
+            if (Array.isArray(data1)) rawItems.push(...data1);
+          } catch {}
+        }
+      }
+      if (resCode && resCode.ok) {
+        const text2 = await resCode.text().catch(() => "");
+        if (text2.trim().startsWith("[")) {
+          try {
+            const data2 = JSON.parse(text2);
+            if (Array.isArray(data2)) rawItems.push(...data2);
+          } catch {}
+        }
+      }
+      if (rawItems.length > 0) break;
     }
 
     if (rawItems.length > 0) {
@@ -1012,15 +1015,17 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
         const rawStock = parseInt(i.Stock || i.Dispo || i.Disponible || i.Vente || 0) || 0;
         const price = parseFloat(i.Prix || i.PrixVente || i.UnitPrice || i.Price || 0) || 0;
         const discount = parseFloat(i.Remise || i.Discount || 0) || 0;
+        const itemRef = i.ItemNo || i.CodeArticle || i.Reference || query;
         return {
-          name: i.ItemNo || i.CodeArticle || i.Reference || query,
+          name: itemRef,
           brand: i.Marque || i.Brand || i.VendorNo || "PROPARTS",
           description: i.Description || "",
           price: price,
           discount: discount,
           availability: rawStock > 0 ? "Disponible en Stock" : "Sur Commande",
           rawStock: rawStock,
-          available: rawStock > 0
+          available: rawStock > 0,
+          matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
         };
       });
 
@@ -1084,26 +1089,40 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
       if (token) supplierCookies[supplierId] = token;
     }
     const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    const searchRes = await fetch(`https://espacepro.socofagros.com/api/products?search=${encodeURIComponent(query)}`, {
-      headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json();
-      const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-      if (articles.length > 0) {
-        const parsedItems = articles.slice(0, 20).map((i: any) => ({
-          name: i.reference || i.ref || i.code || query,
-          brand: i.brand || i.marque || "",
-          price: parseFloat(i.price || i.prix || 0) || 0,
-          discount: parseFloat(i.discount || 0) || 0,
-          availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-          rawStock: parseInt(i.stock || i.qty || 0),
-          available: parseInt(i.stock || i.qty || 0) > 0
-        }));
-        const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-        return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-      }
-    }
+    const refsToTest = buildSupplierSearchRefs(query).slice(0, 6);
+    const items: any[] = [];
+
+    await Promise.all(refsToTest.map(async (q) => {
+      try {
+        const searchRes = await fetchWithTimeout(`https://espacepro.socofagros.com/api/products?search=${encodeURIComponent(q)}`, {
+          headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
+        }, 2500).catch(() => null);
+        if (searchRes && searchRes.ok) {
+          const text = await searchRes.text().catch(() => "");
+          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+            const data = JSON.parse(text);
+            const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+            articles.forEach((i: any) => {
+              const stock = parseInt(i.stock || i.qty || 0) || 0;
+              const price = parseFloat(i.price || i.prix || 0) || 0;
+              items.push({
+                name: i.reference || i.ref || i.code || q,
+                brand: i.brand || i.marque || "SOCOFA",
+                price,
+                discount: parseFloat(i.discount || 0) || 0,
+                availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
+                rawStock: stock,
+                available: stock > 0,
+                matchType: normalizeRef(i.reference || q) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
+              });
+            });
+          }
+        }
+      } catch {}
+    }));
+
+    const packed = packScrapeResult(items);
+    if (packed) return packed;
     return { price: 0, discount: 0, available: false, availability: `SOCOFA B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur SOCOFA: ${err.message}`, items: [] };
