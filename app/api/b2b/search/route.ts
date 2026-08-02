@@ -129,29 +129,64 @@ function packScrapeResult(items: any[]) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. STEQ  (b2bsteq.com)  — PHP session scraper
 // ─────────────────────────────────────────────────────────────────────────────
-function parseSTEQHtml(html: string) {
-  const jsonMatch = html.match(/var ApiJsonItemAll = (\[.*?\]);/);
-  if (!jsonMatch) return { price: 0, discount: 0, availability: "Non Disponible", items: [] };
-  try {
-    const items = JSON.parse(jsonMatch[1]);
-    if (!Array.isArray(items) || items.length === 0)
-      return { price: 0, discount: 0, availability: "Non Disponible", items: [] };
-    const parsedItems = items.map((i: any) => ({
-      name: i.ItemNumberEquiv || i.ItemNo || '',
-      brand: (i.ItemBrandEquiv || i.ItemBrand || i.VendorNo || '').trim() || '—',
-      price: parseFloat(i.UnitPrice) || 0,
-      discount: parseFloat(i.MaxDiscount) || 0,
-      availability: parseInt(i.Available) > 0 ? "Disponible" : "Sur Commande",
-      rawStock: parseInt(i.Available) || 0,
-      available: parseInt(i.Available) > 0,
-      matchType: i.ItemNumberEquiv && i.ItemNo && normalizeRef(i.ItemNumberEquiv) !== normalizeRef(i.ItemNo) ? 'EQUIVALENCE' : 'DIRECT',
-    }));
-    let bestItem = parsedItems.find((i: any) => i.available);
-    if (!bestItem) bestItem = parsedItems[0];
-    return { price: bestItem.price, discount: bestItem.discount, availability: bestItem.availability, rawStock: bestItem.rawStock, available: bestItem.available, items: parsedItems };
-  } catch (e) {
-    return { price: 0, discount: 0, availability: "Erreur de lecture du catalogue", items: [] };
+function parseSTEQHtml(html: string, searchedRef?: string) {
+  const items: any[] = [];
+  const jsonMatch = html.match(/var\s+ApiJsonItemAll\s*=\s*(\[\s*\{[\s\S]*?\}\s*\]);/);
+  if (jsonMatch) {
+    try {
+      const rawItems = JSON.parse(jsonMatch[1]);
+      if (Array.isArray(rawItems)) {
+        for (const i of rawItems) {
+          const itemRef = i.ItemNumberEquiv || i.ItemNo || i.Reference || i.Code || searchedRef || '';
+          const stock = parseInt(i.Available || i.Stock || i.Qty || 0) || 0;
+          const price = parseFloat(i.UnitPrice || i.Prix || i.Price || 0) || 0;
+          items.push({
+            name: itemRef,
+            brand: (i.ItemBrandEquiv || i.ItemBrand || i.VendorNo || i.Brand || '').trim() || 'STEQ',
+            price,
+            discount: parseFloat(i.MaxDiscount || i.Discount || 0) || 0,
+            availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande",
+            rawStock: stock,
+            available: stock > 0,
+            matchType: searchedRef && normalizeRef(itemRef) === normalizeRef(searchedRef) ? 'DIRECT' : 'EQUIVALENCE'
+          });
+        }
+      }
+    } catch {}
   }
+
+  // HTML Table fallback parser for STEQ
+  if (items.length === 0) {
+    const trParts = html.split(/<tr[\s>]/i).slice(1);
+    for (const tr of trParts) {
+      const tds = Array.from(tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((m) =>
+        m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      );
+      if (tds.length < 2) continue;
+      const refCell = tds.find(t => normalizeRef(t).length >= 3);
+      const priceMatch = tds.join(" ").match(/(\d+[.,]\d{2,3})/);
+      const price = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
+      const stockMatch = tds.join(" ").match(/(\d+)/);
+      const stock = stockMatch ? parseInt(stockMatch[1], 10) : 0;
+
+      if (refCell && price > 0) {
+        items.push({
+          name: refCell,
+          brand: tds[1] && tds[1] !== refCell ? tds[1] : "STEQ",
+          price,
+          discount: 0,
+          availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande",
+          rawStock: stock,
+          available: stock > 0,
+          matchType: searchedRef && normalizeRef(refCell) === normalizeRef(searchedRef) ? 'DIRECT' : 'EQUIVALENCE'
+        });
+      }
+    }
+  }
+
+  let bestItem = items.find((i: any) => i.available);
+  if (!bestItem) bestItem = items[0] || { price: 0, discount: 0, availability: "Non disponible", rawStock: 0, available: false };
+  return { price: bestItem.price, discount: bestItem.discount, availability: bestItem.availability, rawStock: bestItem.rawStock, available: bestItem.available, items };
 }
 
 async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
@@ -168,11 +203,11 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
         body: searchParams.toString(),
       }, 3000);
       const html = await searchRes.text();
-      if (html.includes("VOTRE MOT DE PASSE") || html.includes("Se connecter")) {
+      if (html.includes("VOTRE MOT DE PASSE") && !html.includes("ApiJsonItemAll")) {
         return { cookie, items: [] as any[], authFailed: true };
       }
-      if (!html.includes("ApiJsonItemAll")) return { cookie, items: [] as any[], authFailed: false };
-      return { cookie, items: parseSTEQHtml(html).items || [], authFailed: false };
+      const parsed = parseSTEQHtml(html, query);
+      return { cookie, items: parsed.items || [], authFailed: false };
     };
 
     let cookie = supplierCookies[supplierId] || "";
@@ -187,7 +222,7 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
           authFailed = r.authFailed;
           allItems.push(...r.items);
         }
-        if (authFailed) { cookie = ""; break; }
+        if (authFailed) break;
         if (allItems.some(i => i.available || i.price > 0)) break;
       }
       if (allItems.length > 0) {
@@ -197,14 +232,13 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
     }
 
     const initialRes = await fetchWithTimeout("https://b2bsteq.com/", { method: "GET", headers: { "User-Agent": "Mozilla/5.0" } }, 3000);
-    cookie = "";
     const initCookies = initialRes.headers.get("set-cookie") || "";
     const matchInit = initCookies.match(/PHPSESSID=[^;]+/);
     if (matchInit) cookie = matchInit[0];
     const loginParams = new URLSearchParams();
     loginParams.append("UserCode", b2bLogin);
     loginParams.append("UserPassword", b2bPassword);
-    loginParams.append("UserSubmit", "» E N T R E R «");
+    loginParams.append("UserSubmit", "“ E N T R E R ”");
     const loginRes = await fetchWithTimeout("https://b2bsteq.com/", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0", "Cookie": cookie },
@@ -601,8 +635,6 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
     const rowNorm = normalizeRef(tds.join(" "));
     const refCell = tds.find((t) => normalizeRef(t).length >= 4);
     if (!refCell) continue;
-    if (qNorm.length >= 4 && !rowNorm.includes(qNorm) && !tds.some((t) => normalizeRef(t) === qNorm)) continue;
-
     const priceMatch = tds.join(" ").match(/(\d+[.,]\d{2,3})/);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
     const stockMatch = tds.join(" ").match(/(?:stock|dispo|qt[eé])\s*[:\s]*(\d+)/i);
@@ -612,12 +644,13 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
 
     items.push({
       name: refCell,
-      brand: tds[1] && tds[1] !== refCell ? tds[1] : tds[0] || "—",
+      brand: tds[1] && tds[1] !== refCell ? tds[1] : tds[0] || "CDG",
       price,
       discount: 0,
       availability: available ? (stock > 0 ? `Disponible (${stock} en stock)` : "Disponible en Stock") : "Sur Commande",
       rawStock: stock,
       available,
+      matchType: normalizeRef(refCell) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE",
     });
   }
   return items;
