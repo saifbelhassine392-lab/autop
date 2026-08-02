@@ -1530,11 +1530,11 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
   }
 
   // 1. Normalisation stricte de la sortie JSON pour le front-end
-  let items: any[] = (raw.items || []).map((it: any) => {
+  const items: any[] = (raw.items || []).map((it: any) => {
     const itemRef = String(it.reference || it.name || it.code || searchQuery).trim();
     const itemPrice = parseFloat(it.prixHT || it.price || it.prix || it.unitPrice || 0) || 0;
     const itemStock = parseInt(it.stock || it.rawStock || it.qty || 0) || 0;
-    const isAvail = it.available === true || itemStock > 0 || (itemPrice > 0 && it.available !== false);
+    const isAvail = (it.available === true || itemStock > 0) && (itemPrice > 0 || itemStock > 0);
     const isDirect = normalizeRef(itemRef) === normalizeRef(searchQuery);
 
     return {
@@ -1549,7 +1549,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
       stock: itemStock,
       rawStock: itemStock,
       available: isAvail,
-      availability: it.availability || (isAvail ? (itemStock > 0 ? `Disponible (${itemStock} en stock)` : "Disponible en Stock") : "Sur Commande"),
+      availability: it.availability || (isAvail ? (itemStock > 0 ? `Disponible (${itemStock} en stock)` : "Disponible en Stock") : "Sur Commande / Hors Stock"),
       matchType: it.matchType || (isDirect ? "DIRECT" : "EQUIVALENCE"),
       fournisseur: supplier.name,
       supplierName: supplier.name,
@@ -1557,38 +1557,9 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
     };
   });
 
-  // 2. Fallback universel d'équivalences (si le scraper direct n'a pu joindre ou extraire d'articles)
-  if (items.length === 0) {
-    const dictEqs = getEquivalentsForRef(searchQuery);
-    if (dictEqs.length > 0) {
-      items = dictEqs.map(eq => {
-        const estPrice = eq.estimatedPrice || (eq.reference === 'CAN1306J5' ? 8.74 : 12.50);
-        const isDirect = normalizeRef(eq.reference) === normalizeRef(searchQuery);
-        return {
-          reference: eq.reference,
-          name: eq.reference,
-          designation: eq.designation || `${eq.brand} - ${eq.reference}`,
-          description: eq.designation || `${eq.brand} - ${eq.reference}`,
-          brand: String(eq.brand || supplier.name).toUpperCase(),
-          prixHT: estPrice,
-          price: estPrice,
-          discount: 0,
-          stock: 15,
-          rawStock: 15,
-          available: true,
-          availability: `Disponible (${eq.brand} - ${eq.reference})`,
-          matchType: isDirect ? "DIRECT" : "EQUIVALENCE",
-          fournisseur: supplier.name,
-          supplierName: supplier.name,
-          supplierId: supplier.id
-        };
-      });
-    }
-  }
-
   const hasItems = items.length > 0;
-  const bestItem = items.find(i => i.available) || items[0];
-  const isAvailable = raw.available || items.some(i => i.available);
+  const bestItem = items.find(i => i.available) || items[0] || null;
+  const isAvailable = hasItems && (raw.available || items.some(i => i.available));
 
   let statusCode = raw.statusCode;
   let statusReason = raw.statusReason;
@@ -1601,17 +1572,17 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
       statusReason = 'ℹ️ Sur commande / Hors stock';
     } else {
       statusCode = 'NOT_FOUND';
-      statusReason = 'ℹ️ Référence non trouvée dans le catalogue direct';
+      statusReason = 'ℹ️ Référence non trouvée dans le catalogue du fournisseur';
     }
   }
 
   return {
     supplierId: supplier.id,
     supplierName: supplier.name,
-    price: bestItem?.price || raw.price || 0,
-    discount: bestItem?.discount || raw.discount || 0,
+    price: bestItem?.price || 0,
+    discount: bestItem?.discount || 0,
     available: isAvailable,
-    stock: bestItem?.rawStock || raw.rawStock || 0,
+    stock: bestItem?.rawStock || 0,
     statusCode,
     statusReason,
     availability: bestItem?.availability || raw.availability || statusReason,
