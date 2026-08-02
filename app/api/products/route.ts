@@ -20,11 +20,12 @@ async function fetchAndSaveProductImage(productId: string, reference: string, br
     }
     
     if (imgUrls.length > 0) {
+      const httpsUrls = imgUrls.map(u => u.replace('http://', 'https://'));
       await prisma.product.update({
         where: { id: productId },
-        data: { images: JSON.stringify(imgUrls) }
+        data: { images: JSON.stringify(httpsUrls) }
       });
-      console.log(`[Image Fetcher] Saved ${imgUrls.length} images for product ${reference}`);
+      console.log(`[Image Fetcher] Saved ${httpsUrls.length} images for product ${reference}`);
     }
   } catch (e) {
     console.error("[Image Fetcher] Error fetching image for", reference, e);
@@ -74,7 +75,7 @@ export async function GET(req: NextRequest) {
     // Start background image searches for products lacking images (limit to 5 per request to prevent rate limiting)
     let count = 0;
     for (const product of products) {
-      if ((!product.images || product.images.length === 0) && count < 5) {
+      if ((!product.images || product.images === '[]' || product.images.length === 0) && count < 5) {
         fetchAndSaveProductImage(product.id, product.reference || '', product.brand || '').catch(console.error);
         count++;
       }
