@@ -143,7 +143,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500" />
-          <span className="text-slate-400 font-black uppercase text-sm tracking-widest">CHARGEMENT...</span>
+          <span className="text-white font-black uppercase text-sm tracking-widest">CHARGEMENT...</span>
         </div>
       </div>
     );
@@ -211,7 +211,7 @@ export default function AdminDashboard() {
                       <span className="block font-black text-white text-sm tracking-wider group-hover:text-red-400 transition-colors">
                         {prof.name}
                       </span>
-                      <span className="block text-[8px] text-slate-500 font-extrabold uppercase tracking-[2px]">
+                      <span className="block text-[8px] text-zinc-400 font-extrabold uppercase tracking-[2px]">
                         ADMINISTRATEUR
                       </span>
                     </div>
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
               </div>
               <div className="hidden sm:block">
                 <p className="text-white font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name}</p>
-                <p className="text-slate-500 text-[9px] uppercase">{role}</p>
+                <p className="text-zinc-400 text-[9px] uppercase">{role}</p>
               </div>
             </div>
           </div>

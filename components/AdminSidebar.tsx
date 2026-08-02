@@ -200,15 +200,15 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       
       <aside className={`carbon-pattern border-r border-slate-800 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
       {/* Logo Header */}
-      <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-slate-800/85 bg-slate-950/70 backdrop-blur-md">
+      <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-slate-800/85 bg-slate-950 backdrop-blur-md">
         <div className="w-32 h-16 relative mb-2">
           <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
         </div>
-        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-[2px]">CONSOLE ADMIN</div>
+        <div className="text-[9px] font-bold text-zinc-400 uppercase tracking-[2px]">CONSOLE ADMIN</div>
       </div>
 
       {/* User Info */}
-      <div className="flex flex-col gap-1 px-4 py-3 bg-slate-950/50 border-b border-slate-800/85 backdrop-blur-md">
+      <div className="flex flex-col gap-1 px-4 py-3 bg-slate-950 border-b border-slate-800/85 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-650 to-orange-550 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
             {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
@@ -217,7 +217,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
             <p className="text-white font-black text-xs truncate uppercase tracking-wider">
               {activeProfile || user?.name || 'ADMIN'}
             </p>
-            <p className="text-slate-500 text-[9px] truncate">{user?.email}</p>
+            <p className="text-zinc-400 text-[9px] truncate">{user?.email}</p>
           </div>
         </div>
         <button
@@ -248,7 +248,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                   onClick={() => setAdminSection(item.id)}
                   className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider mb-1.5 transition-all duration-150 border group ${
                     isActive
-                      ? 'bg-slate-800 text-white border-slate-700 border-l-4 border-l-slate-400 shadow-sm font-black'
+                      ? 'bg-slate-900/60 text-white border-l-4 border-l-red-600 font-black font-black'
                       : 'bg-slate-900/90 text-slate-100 border-slate-800 hover:bg-slate-800 hover:text-white hover:border-slate-600'
                   }`}
                 >
