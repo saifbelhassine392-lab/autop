@@ -54,7 +54,38 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
     ]
   },
 
-  // Peugeot / Citroën 407 & Gamme PSA - Carrosserie & Éclairage
+  // Peugeot / Citroën / DS / Opel — Train Roulant & Suspension
+  '508768': {
+    oeReference: '508768',
+    designation: "BIELLETTE DE BARRE STABILISATRICE AVANT PEUGEOT 307 / 308 / 3008 / CITROËN C4 / BERLINGO",
+    category: 'Train Roulant & Suspension',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROËN / DS', reference: '508768', type: 'OE', designation: "Bielle de barre stabilisatrice Origine PSA", estimatedPrice: 42.00 },
+      { brand: 'PEUGEOT / CITROËN', reference: '1607326880', type: 'OE', designation: "Biellette de suspension Origine PSA", estimatedPrice: 40.00 },
+      { brand: 'PEUGEOT / CITROËN', reference: '508755', type: 'OE', designation: "Biellette de barre stabilisatrice Avant PSA", estimatedPrice: 38.00 },
+      { brand: 'OPEL / VAUXHALL', reference: '3640462', type: 'OE', designation: "Biellette de suspension Origine Opel", estimatedPrice: 45.00 },
+      { brand: 'FEBI BILSTEIN', reference: '19808', type: 'ADAPTABLE', designation: "Biellette de barre stabilisatrice Febi Bilstein", estimatedPrice: 28.50 },
+      { brand: 'MOOG', reference: 'PE-LS-2054', type: 'ADAPTABLE', designation: "Biellette de suspension Moog Federal Mogul", estimatedPrice: 29.00 },
+      { brand: 'TRW', reference: 'JTS408', type: 'ADAPTABLE', designation: "Biellette de barre stabilisatrice TRW Automotive", estimatedPrice: 31.00 },
+      { brand: 'DELPHI', reference: 'TC1366', type: 'ADAPTABLE', designation: "Biellette de barre stabilisatrice Delphi Technologies", estimatedPrice: 27.00 },
+      { brand: 'LEMFÖRDER', reference: '26639 01', type: 'ADAPTABLE', designation: "Biellette de suspension Lemförder Germany", estimatedPrice: 34.00 },
+      { brand: 'SASIC', reference: '2300003', type: 'ADAPTABLE', designation: "Biellette de barre stabilisatrice Sasic France", estimatedPrice: 25.00 },
+      { brand: 'METALCAUCHO', reference: '04374', type: 'ADAPTABLE', designation: "Biellette de suspension Metalcaucho Espagne", estimatedPrice: 22.00 },
+      { brand: 'SIDEM', reference: '53064', type: 'ADAPTABLE', designation: "Biellette de barre stabilisatrice Sidem Belgique", estimatedPrice: 26.50 },
+    ]
+  },
+  '508755': {
+    oeReference: '508755',
+    designation: "BIELLETTE DE BARRE STABILISATRICE AVANT PEUGEOT / CITROËN",
+    category: 'Train Roulant & Suspension',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROËN', reference: '508755', type: 'OE', designation: "Biellette stabilisatrice Origine PSA", estimatedPrice: 38.00 },
+      { brand: 'PEUGEOT / CITROËN', reference: '508768', type: 'OE', designation: "Biellette de barre stabilisatrice Avant PSA (Réf 508768)", estimatedPrice: 42.00 },
+      { brand: 'FEBI BILSTEIN', reference: '19808', type: 'ADAPTABLE', designation: "Biellette stabilisatrice Febi Bilstein", estimatedPrice: 28.50 },
+      { brand: 'MOOG', reference: 'PE-LS-2054', type: 'ADAPTABLE', designation: "Biellette de suspension Moog", estimatedPrice: 29.00 },
+      { brand: 'TRW', reference: 'JTS408', type: 'ADAPTABLE', designation: "Biellette stabilisatrice TRW", estimatedPrice: 31.00 },
+    ]
+  },
   '7401AX': {
     oeReference: '7401AX',
     designation: 'PARE-CHOCS AVANT PEUGEOT 407 (À PEINDRE)',
@@ -240,14 +271,12 @@ export function getEquivalentsForRef(rawRef: string): EquivalentPart[] {
     }
   }
 
-  // 2. Si non présent, générer des références équivalentes Aftermarket tunisiennes (Phira, Eurobump, LPR, Brembo, Bosch)
+  // 2. Si la référence n'est pas répertoriée dans le dictionnaire fixe, générer des alternatives neutres sans imposer de famille erronée
   const baseRef = rawRef.trim().toUpperCase();
   return [
     { brand: 'PIÈCE D\'ORIGINE', reference: baseRef, type: 'OE', designation: `Pièce d'Origine (${baseRef})` },
-    { brand: 'PHIRA / EUROBUMP', reference: `PH-${baseRef}`, type: 'ADAPTABLE', designation: `Équivalent Carrosserie Phira / Eurobump` },
-    { brand: 'LPR / METELLI', reference: `LPR-${baseRef}`, type: 'ADAPTABLE', designation: `Équivalent Freinage LPR / Metelli` },
-    { brand: 'BREMBO / BOSCH', reference: `${baseRef}-EQ`, type: 'ADAPTABLE', designation: `Équivalent Adaptable Premium (${baseRef})` },
-    { brand: 'PURFLUX / VALEO', reference: `${baseRef}-ALT`, type: 'ADAPTABLE', designation: `Alternative Certifiée Purflux / Valeo` }
+    { brand: 'ÉQUIPEMENTIER ADAPTABLE', reference: `${baseRef}-EQ`, type: 'ADAPTABLE', designation: `Équivalent Adaptable Certifié (${baseRef})` },
+    { brand: 'ALTERNATIVE CERTIFIÉE', reference: `${baseRef}-ALT`, type: 'ADAPTABLE', designation: `Alternative Certifiée de Rechange (${baseRef})` }
   ];
 }
 
