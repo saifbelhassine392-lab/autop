@@ -160,10 +160,10 @@ export default function AdminDashboard() {
           <div className="w-24 h-24 relative mx-auto mb-6">
             <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
           </div>
-          <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-widest mb-2">ACCÈS RÉSERVÉ</h2>
+          <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-2">ACCÈS RÉSERVÉ</h2>
           <p className="text-slate-400 uppercase text-sm mb-6">CET ESPACE EST RÉSERVÉ AUX ADMINISTRATEURS AUTOP.</p>
           <button onClick={() => router.push('/')}
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-zinc-900 rounded-xl font-black uppercase tracking-wide transition">
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-black uppercase tracking-wide transition">
             RETOUR À L'ACCUEIL
           </button>
         </div>
@@ -185,7 +185,7 @@ export default function AdminDashboard() {
 
           {authState === 'selection' && (
             <>
-              <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-[4px] mb-2">
+              <h2 className="text-2xl font-black text-white uppercase tracking-[4px] mb-2">
                 QUI COMMENCE SA SESSION ?
               </h2>
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-10">
@@ -202,13 +202,13 @@ export default function AdminDashboard() {
                     key={prof.name}
                     disabled={checkingAuth}
                     onClick={() => handleProfileClick(prof.name)}
-                    className="group relative bg-slate-900 border border-zinc-200 rounded-3xl p-5 hover:border-red-650 transition-all duration-300 transform hover:scale-[1.02] shadow-2xl flex items-center gap-4 overflow-hidden w-full disabled:opacity-50"
+                    className="group relative bg-slate-900 border border-slate-800 rounded-3xl p-5 hover:border-red-650 transition-all duration-300 transform hover:scale-[1.02] shadow-2xl flex items-center gap-4 overflow-hidden w-full disabled:opacity-50"
                   >
-                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${prof.color} flex items-center justify-center text-zinc-900 font-black text-lg shadow-lg`}>
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${prof.color} flex items-center justify-center text-white font-black text-lg shadow-lg`}>
                       {prof.initials}
                     </div>
                     <div className="text-left">
-                      <span className="block font-black text-zinc-900 text-sm tracking-wider group-hover:text-red-400 transition-colors">
+                      <span className="block font-black text-white text-sm tracking-wider group-hover:text-red-400 transition-colors">
                         {prof.name}
                       </span>
                       <span className="block text-[8px] text-slate-500 font-extrabold uppercase tracking-[2px]">
@@ -222,8 +222,8 @@ export default function AdminDashboard() {
           )}
 
           {authState === 'setup_password' && (
-            <div className="bg-slate-900 border border-zinc-200 rounded-[30px] p-8 shadow-2xl text-center">
-              <h3 className="text-zinc-900 font-black text-lg uppercase tracking-wider mb-2">PREMIÈRE CONNEXION</h3>
+            <div className="bg-slate-900 border border-slate-800 rounded-[30px] p-8 shadow-2xl text-center">
+              <h3 className="text-white font-black text-lg uppercase tracking-wider mb-2">PREMIÈRE CONNEXION</h3>
               <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-wide">
                 CHOISISSEZ UN MOT DE PASSE POUR LE PROFIL <span className="text-red-400">{selectedProfName}</span>
               </p>
@@ -235,7 +235,7 @@ export default function AdminDashboard() {
                   placeholder="CHOISISSEZ VOTRE CODE / MOT DE PASSE"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-zinc-200 rounded-xl px-4 py-3 text-xs text-zinc-900 text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase animate-pulse"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase animate-pulse"
                 />
                 
                 {authError && (
@@ -246,14 +246,14 @@ export default function AdminDashboard() {
                   <button
                     type="button"
                     onClick={() => setAuthState('selection')}
-                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-wider transition"
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition"
                   >
                     RETOUR
                   </button>
                   <button
                     type="submit"
                     disabled={checkingAuth}
-                    className="flex-1 py-3 bg-red-650 hover:bg-red-700 text-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
+                    className="flex-1 py-3 bg-red-650 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
                   >
                     {checkingAuth ? 'ENREGISTREMENT...' : 'ENREGISTRER'}
                   </button>
@@ -263,8 +263,8 @@ export default function AdminDashboard() {
           )}
 
           {authState === 'enter_password' && (
-            <div className="bg-slate-900 border border-zinc-200 rounded-[30px] p-8 shadow-2xl text-center">
-              <h3 className="text-zinc-900 font-black text-lg uppercase tracking-wider mb-2">VERROUILLAGE PROFIL</h3>
+            <div className="bg-slate-900 border border-slate-800 rounded-[30px] p-8 shadow-2xl text-center">
+              <h3 className="text-white font-black text-lg uppercase tracking-wider mb-2">VERROUILLAGE PROFIL</h3>
               <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-wide">
                 ENTREZ LE MOT DE PASSE DE <span className="text-red-400">{selectedProfName}</span> POUR ACCÉDER
               </p>
@@ -277,7 +277,7 @@ export default function AdminDashboard() {
                   placeholder="ENTREZ VOTRE MOT DE PASSE"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-zinc-200 rounded-xl px-4 py-3 text-xs text-zinc-900 text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase"
                 />
                 
                 {authError && (
@@ -288,14 +288,14 @@ export default function AdminDashboard() {
                   <button
                     type="button"
                     onClick={() => setAuthState('selection')}
-                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-wider transition"
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition"
                   >
                     RETOUR
                   </button>
                   <button
                     type="submit"
                     disabled={checkingAuth}
-                    className="flex-1 py-3 bg-red-650 hover:bg-red-700 text-zinc-900 rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
+                    className="flex-1 py-3 bg-red-650 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
                   >
                     {checkingAuth ? 'VERIFICATION...' : 'DÉVERROUILLER'}
                   </button>
@@ -309,17 +309,17 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex text-zinc-900 antialiased overflow-hidden">
+    <div className="min-h-screen bg-slate-950 flex text-white antialiased overflow-hidden">
       {/* Sidebar */}
       <AdminSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       {/* Main */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         {/* Top bar */}
-        <header className="bg-slate-900 border-b border-zinc-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <header className="bg-slate-900 border-b border-slate-800 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button 
-              className="md:hidden text-slate-400 hover:text-zinc-900 transition p-1.5"
+              className="md:hidden text-slate-400 hover:text-white transition p-1.5"
               onClick={() => setIsSidebarOpen(true)}
             >
               <Menu className="w-6 h-6" />
@@ -327,21 +327,21 @@ export default function AdminDashboard() {
             <div className="w-10 h-8 relative hidden md:block">
               <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
             </div>
-            <span className="text-zinc-900 font-black uppercase tracking-widest text-[10px] md:text-sm">CONSOLE ADMIN</span>
+            <span className="text-white font-black uppercase tracking-widest text-[10px] md:text-sm">CONSOLE ADMIN</span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <button className="text-slate-400 hover:text-zinc-900 transition p-1.5 hidden sm:block">
+            <button className="text-slate-400 hover:text-white transition p-1.5 hidden sm:block">
               <Bell className="w-4 h-4" />
             </button>
-            <button className="text-slate-400 hover:text-zinc-900 transition p-1.5 hidden sm:block">
+            <button className="text-slate-400 hover:text-white transition p-1.5 hidden sm:block">
               <Settings className="w-4 h-4" />
             </button>
             <div className="flex items-center gap-2 border-l border-slate-700 pl-2 md:pl-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-zinc-900 font-black text-sm shrink-0">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white font-black text-sm shrink-0">
                 {(activeProfile || session?.user?.name || 'A').charAt(0).toUpperCase()}
               </div>
               <div className="hidden sm:block">
-                <p className="text-zinc-900 font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name}</p>
+                <p className="text-white font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name}</p>
                 <p className="text-slate-500 text-[9px] uppercase">{role}</p>
               </div>
             </div>
