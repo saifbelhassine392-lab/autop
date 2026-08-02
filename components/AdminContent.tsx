@@ -14,9 +14,9 @@ import {
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
-const inputCls = "w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-400 placeholder:font-normal placeholder:normal-case";
+const inputCls = "w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 h-10 rounded-lg border border-slate-700 bg-slate-900/60 text-slate-200 focus:outline-none focus:border-slate-500 uppercase placeholder:text-slate-500 placeholder:font-normal placeholder:normal-case transition-colors";
 const labelCls = "block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1";
-const cardCls = "bg-slate-900 border border-slate-800 rounded-xl md:rounded-2xl p-4 md:p-5 mb-4 w-full";
+const cardCls = "bg-slate-800/50 border border-slate-800/50 rounded-xl md:rounded-2xl p-4 md:p-5 mb-4 w-full";
 
 // ─── SECTION: RÉCEPTION DEMANDES ──────────────────────────────────────────────
 interface SectionReceptionProps {
@@ -87,13 +87,13 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR CLIENT, VÉHICULE, N° DEMANDE..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
         <div className="flex gap-2">
           <select 
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer"
+            className="bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-xl border border-slate-700 cursor-pointer"
           >
             <option value="TOUS STATUTS">TOUS STATUTS</option>
             <option value="EN ATTENTE">EN ATTENTE</option>
@@ -102,7 +102,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
           <select 
             value={assigneeFilter}
             onChange={e => setAssigneeFilter(e.target.value)}
-            className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer"
+            className="bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-xl border border-slate-700 cursor-pointer"
           >
             <option value="TOUS LES PROFILS">TOUS LES PROFILS</option>
             <option value="SAIF">TÂCHES SAIF</option>
@@ -130,7 +130,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {/* Sélecteur de profil admin */}
-                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
+                <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded-xl px-2.5 py-1">
                   <span className="text-[8px] text-slate-500 font-black uppercase tracking-wider">Assigné à :</span>
                   <select
                     value={q.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
@@ -144,12 +144,12 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                   </select>
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                  q.status === 'TREATED' ? 'bg-green-500/10 text-green-400 border-green-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                  q.status === 'TREATED' ? 'bg-green-500/15 text-green-400 border-green-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
                 }`}>{q.status === 'TREATED' ? 'TRAITÉ' : 'EN ATTENTE'}</span>
               </div>
             </div>
 
-            <div className="bg-slate-950 rounded-xl p-3 mb-3">
+            <div className="bg-slate-900/60 rounded-xl p-3 mb-3">
               <div className="text-xs font-black text-white uppercase mb-1">{q.brand} {q.model} {q.vin && `· VIN: ${q.vin}`}</div>
               <div className="text-xs text-slate-400 uppercase">
                 {q.items?.map((it: any) => `${it.designation} (x${it.quantity})`).join(' · ')}
@@ -197,7 +197,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                     }
                   }
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-red-500/20"
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/15 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-red-500/20"
               >
                 <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
               </button>
@@ -712,7 +712,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           </div>
           <div>
             <label className={labelCls}>EMAIL CLIENT *</label>
-            <input type="email" className="w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 placeholder:text-slate-400 font-sans" placeholder="email@client.com" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
+            <input type="email" className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 placeholder:text-slate-400 font-sans" placeholder="email@client.com" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
           </div>
           <div>
             <label className={labelCls}>VÉHICULE</label>
@@ -725,7 +725,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         </div>
         <div className="mt-3">
           <label className={labelCls}>NOTES / OBSERVATIONS</label>
-          <textarea rows={2} className="w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 resize-none" placeholder="Notes additionnelles..." value={notes} onChange={e => setNotes(e.target.value)} />
+          <textarea rows={2} className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 resize-none" placeholder="Notes additionnelles..." value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
       </div>
 
@@ -734,13 +734,13 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black uppercase rounded-lg transition cursor-pointer shadow-lg shadow-emerald-600/30 border border-emerald-400/30 font-sans" title="Importer un fichier d'offres fournisseur (Excel/CSV) pour remplir le devis et l'historique">
+            <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-black uppercase rounded-lg transition cursor-pointer border border-slate-700 shadow-sm font-sans" title="Importer un fichier d'offres fournisseur (Excel/CSV) pour remplir le devis et l'historique">
               <Upload className="w-3.5 h-3.5" /> IMPORTER OFFRES FOURNISSEUR (EXCEL/CSV)
               <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportSupplierOffersFile} className="hidden" />
             </label>
             <button 
               onClick={handleOpenSynthese}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-blue-600/30 border border-blue-400/30"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-black uppercase rounded-lg transition shadow-sm border border-slate-700"
             >
               <BarChart2 className="w-3.5 h-3.5" /> SYNTHÈSE MEILLEURES OFFRES
             </button>
@@ -786,11 +786,11 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                   alert("Erreur de connexion.");
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black uppercase rounded-lg transition shadow-lg shadow-emerald-600/30 border border-emerald-400/30"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-white text-[11px] font-black uppercase rounded-lg transition shadow-sm border border-emerald-600/50"
             >
               <Save className="w-3.5 h-3.5" /> ENREGISTRER TOUTES LES OFFRES
             </button>
-            <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black uppercase rounded-lg transition">
+            <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-black uppercase rounded-lg transition shadow-sm">
               <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
             </button>
           </div>
@@ -799,7 +799,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400">
+              <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400">
                 <th className="px-3 py-2.5 text-left rounded-l-lg">DÉSIGNATION</th>
                 <th className="px-3 py-2.5 text-left">RÉFÉRENCE</th>
                 <th className="px-3 py-2.5 text-center">QTÉ</th>
@@ -825,9 +825,9 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                         }}
                         onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('desc'); }}
                         onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                        className="w-full bg-white text-black font-semibold text-xs px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 uppercase min-w-[150px]" placeholder="DÉSIGNATION" />
+                        className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-xs px-2 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 uppercase min-w-[150px]" placeholder="DÉSIGNATION" />
                       {activeSuggestRow === i && activeSuggestField === 'desc' && getSuggestions(it.designation, 'desc').length > 0 && (
-                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                           {getSuggestions(it.designation, 'desc').map((p: any) => (
                             <button key={p.id} type="button"
                               onClick={() => {
@@ -852,9 +852,9 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                         }}
                         onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('ref'); }}
                         onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                        className="w-full bg-white text-black font-semibold text-xs px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 uppercase min-w-[100px]" placeholder="RÉF." />
+                        className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-xs px-2 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 uppercase min-w-[100px]" placeholder="RÉF." />
                       {activeSuggestRow === i && activeSuggestField === 'ref' && getSuggestions(it.reference, 'ref').length > 0 && (
-                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                           {getSuggestions(it.reference, 'ref').map((p: any) => (
                             <button key={p.id} type="button"
                               onClick={() => {
@@ -880,15 +880,15 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                     </td>
                     <td className="px-2 py-2">
                       <input type="number" value={it.qty} min={1} onChange={e => updateLine(i, 'qty', parseFloat(e.target.value) || 1)}
-                        className="w-16 bg-white text-black font-bold text-xs px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 text-center" />
+                        className="w-16 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 text-center" />
                     </td>
                     <td className="px-2 py-2">
                       <input type="number" value={it.puHT || ''} min={0} step={0.001} onChange={e => updateLine(i, 'puHT', parseFloat(e.target.value) || 0)}
-                        className="w-24 bg-white text-black font-bold text-xs px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 text-right" placeholder="" />
+                        className="w-24 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 text-right" placeholder="" />
                     </td>
                     <td className="px-2 py-2">
                       <input type="number" value={it.discount || ''} min={0} max={100} step={1} onChange={e => updateLine(i, 'discount', parseFloat(e.target.value) || 0)}
-                        className="w-16 bg-white text-black font-bold text-xs px-2 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 text-center" placeholder="" />
+                        className="w-16 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 text-center" placeholder="" />
                     </td>
                     <td className="px-2 py-2 text-right font-black text-cyan-400">{discounted.toFixed(3)} TND</td>
                     <td className="px-2 py-2 text-center">
@@ -900,7 +900,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                   {/* HISTORIQUE PIECE UI */}
                   <tr className="border-b-2 border-slate-900 bg-slate-900/40">
                     <td colSpan={7} className="px-3 pb-3 pt-1">
-                      <div className="flex flex-col gap-2 p-2.5 bg-slate-950/80 rounded-lg border border-slate-800/80">
+                      <div className="flex flex-col gap-2 p-2.5 bg-slate-900/60/80 rounded-lg border border-slate-800/80">
                         <div className="flex justify-between items-center">
                           <div className="text-[9px] text-slate-500 font-black tracking-widest uppercase">HISTORIQUE ACHAT/VENTE FOURNISSEURS (Optionnel)</div>
                           {it.reference && (
@@ -931,10 +931,10 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                 <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-slate-900/50 p-2 rounded border border-slate-800 hover:border-slate-700 transition">
                                   <div className="col-span-2">
                                     <select 
-                                      className={`w-full text-xs px-2 py-1.5 rounded border focus:outline-none font-bold ${
-                                        offre.type === 'ORIGINE' ? 'bg-amber-500/10 text-amber-500 border-amber-500/30' :
-                                        offre.type === 'CONCESSIONNAIRE' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
-                                        'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                                      className={`w-full text-xs px-2 h-10 rounded border focus:outline-none font-bold ${
+                                        offre.type === 'ORIGINE' ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' :
+                                        offre.type === 'CONCESSIONNAIRE' ? 'bg-purple-500/15 text-purple-300 border-purple-500/20' :
+                                        'bg-cyan-500/15 text-cyan-300 border-cyan-500/20'
                                       }`}
                                       value={offre.type || 'ADAPTABLE'}
                                       onChange={(e) => {
@@ -960,7 +960,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                   </div>
                                   <div className="col-span-3">
                                     <select 
-                                      className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none"
+                                      className="w-full bg-slate-900/60 text-slate-200 text-xs px-2 h-10 rounded border border-slate-700 focus:border-slate-500 focus:outline-none"
                                       value={offre.supplierId || ''}
                                       onChange={async (e) => {
                                         if (e.target.value === 'NEW_SUPPLIER') {
@@ -1002,7 +1002,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                     </select>
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder="Achat HT" className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-mono"
+                                    <input type="number" placeholder="Achat HT" className="w-full bg-slate-900/60 text-slate-200 text-xs px-2 h-10 rounded border border-slate-700 focus:border-slate-500 focus:outline-none text-right font-mono tabular-nums"
                                       value={offre.purchasePrice || ''} 
                                       onChange={(e) => {
                                         const pVal = parseFloat(e.target.value) || 0;
@@ -1032,7 +1032,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                       }} />
                                   </div>
                                   <div className="col-span-1">
-                                    <input type="number" placeholder="%" className="w-full bg-slate-950 text-amber-400 font-bold text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-center"
+                                    <input type="number" placeholder="%" className="w-full bg-slate-900/60 text-amber-400 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:border-slate-500 focus:outline-none text-center tabular-nums"
                                       value={offre.discount || ''} 
                                       onChange={(e) => {
                                         const disc = parseFloat(e.target.value) || 0;
@@ -1051,7 +1051,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                       }} />
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder={offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE' ? "Prix Comptoir" : "Vente HT"} className="w-full bg-slate-950 text-slate-200 text-xs px-2 py-1.5 rounded border border-slate-700 focus:border-red-500 focus:outline-none text-right font-bold text-green-400 font-mono"
+                                    <input type="number" placeholder={offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE' ? "Prix Comptoir" : "Vente HT"} className="w-full bg-slate-900/60 text-slate-200 text-xs px-2 h-10 rounded border border-slate-700 focus:border-slate-500 focus:outline-none text-right font-bold text-green-400 font-mono tabular-nums"
                                       value={offre.sellingPrice || ''} 
                                       onChange={(e) => {
                                         const sVal = parseFloat(e.target.value) || 0;
@@ -1236,7 +1236,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           <div>
             <label className={labelCls}>REMISE GLOBALE (%)</label>
             <input type="number" min={0} max={100} value={globalDiscount} onChange={e => setGlobalDiscount(parseFloat(e.target.value) || 0)}
-              className="w-full bg-white text-black font-black text-sm px-3 py-2.5 rounded-lg border border-red-500 focus:outline-none text-center text-xl" />
+              className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-black text-sm px-3 h-10 rounded-lg border border-red-500 focus:outline-none text-center text-xl" />
           </div>
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between">
@@ -1358,7 +1358,7 @@ function SectionAjouterFournisseur() {
               <input type={f.type} placeholder={f.placeholder}
                 value={(form as any)[f.key]}
                 onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                className={f.key === 'email' ? "w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-green-500" : inputCls.replace('focus:border-red-500', 'focus:border-green-500')} />
+                className={f.key === 'email' ? "w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-green-500" : inputCls.replace('focus:border-slate-500', 'focus:border-green-500')} />
             </div>
           ))}
         </div>
@@ -1376,7 +1376,7 @@ function SectionAjouterFournisseur() {
                 <input type={f.type} placeholder={f.placeholder}
                   value={(form as any)[f.key]}
                   onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full bg-slate-900 text-white font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500" />
+                  className="w-full bg-slate-900 text-white font-semibold text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500" />
               </div>
             ))}
           </div>
@@ -1445,7 +1445,7 @@ function SectionListeFournisseurs() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER UN FOURNISSEUR..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
       </div>
 
@@ -1506,7 +1506,7 @@ function SectionListeFournisseurs() {
               </div>
               <div>
                 <label className={labelCls}>EMAIL</label>
-                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className="w-full bg-white text-black font-semibold text-sm px-3 py-2 rounded-lg border border-slate-300 focus:outline-none" />
+                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 py-2 rounded-lg border border-slate-700 focus:outline-none" />
               </div>
               <div>
                 <label className={labelCls}>ADRESSE</label>
@@ -1896,7 +1896,7 @@ function SectionConsultationFournisseur() {
               <div>
                 <label className={labelCls}>FOURNISSEUR *</label>
                 <select value={selectedSupplier} onChange={e => setSelectedSupplier(e.target.value)}
-                  className="w-full bg-white text-black font-black text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-green-500 uppercase">
+                  className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-black text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-green-500 uppercase">
                   <option value="">-- CHOISIR UN FOURNISSEUR --</option>
                   {suppliers.map(s => (
                     <option key={s.id} value={s.id}>{s.name.toUpperCase()}</option>
@@ -1904,7 +1904,7 @@ function SectionConsultationFournisseur() {
                 </select>
               </div>
               {supplier && (
-                <div className="bg-slate-950 rounded-lg p-3 text-xs">
+                <div className="bg-slate-900/60 rounded-lg p-3 text-xs">
                   <p className="font-black text-white uppercase">{supplier.name}</p>
                   {supplier.phone && <p className="text-slate-400 uppercase font-sans">TÉL: {supplier.phone}</p>}
                   {supplier.email && <p className="text-slate-400 font-sans">{supplier.email}</p>}
@@ -1927,7 +1927,7 @@ function SectionConsultationFournisseur() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400">
+                  <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400">
                     <th className="px-3 py-2.5 text-left rounded-l-lg">RÉFÉRENCE</th>
                     <th className="px-3 py-2.5 text-left">DÉSIGNATION *</th>
                     <th className="px-3 py-2.5 text-center">QTÉ</th>
@@ -1935,7 +1935,7 @@ function SectionConsultationFournisseur() {
                     <th className="px-3 py-2.5 text-right">REMISE %</th>
                     <th className="px-3 py-2.5 text-right">TVA %</th>
                     <th className="px-3 py-2.5 text-right">TOTAL TTC</th>
-                    <th className="px-3 py-2.5 rounded-r-lg"></th>
+                    <th className="px-3 h-10 rounded-r-lg"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1953,9 +1953,9 @@ function SectionConsultationFournisseur() {
                             }}
                             onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('ref'); }}
                             onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                            className="w-full bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none uppercase min-w-[90px]" placeholder="RÉF." />
+                            className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none uppercase min-w-[90px]" placeholder="RÉF." />
                           {activeSuggestRow === i && activeSuggestField === 'ref' && getSuggestions(it.reference, 'ref').length > 0 && (
-                            <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                            <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                               {getSuggestions(it.reference, 'ref').map((p: any) => (
                                 <button key={p.id} type="button"
                                   onClick={() => {
@@ -1989,9 +1989,9 @@ function SectionConsultationFournisseur() {
                             }}
                             onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('desc'); }}
                             onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                            className="w-full bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none uppercase min-w-[160px]" placeholder="DÉSIGNATION" />
+                            className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none uppercase min-w-[160px]" placeholder="DÉSIGNATION" />
                           {activeSuggestRow === i && activeSuggestField === 'desc' && getSuggestions(it.designation, 'desc').length > 0 && (
-                            <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                            <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                               {getSuggestions(it.designation, 'desc').map((p: any) => (
                                 <button key={p.id} type="button"
                                   onClick={() => {
@@ -2010,19 +2010,19 @@ function SectionConsultationFournisseur() {
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={it.quantity} min={1} onChange={e => updateItem(i, 'quantity', parseInt(e.target.value) || 1)}
-                            className="w-14 bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none text-center" />
+                            className="w-14 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none text-center" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={it.unitPrice} min={0} step={0.001} onChange={e => updateItem(i, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-24 bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none text-right" placeholder="0.000" />
+                            className="w-24 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none text-right" placeholder="0.000" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={it.discount} min={0} max={100} onChange={e => updateItem(i, 'discount', parseFloat(e.target.value) || 0)}
-                            className="w-16 bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none text-center" placeholder="0" />
+                            className="w-16 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none text-center" placeholder="0" />
                         </td>
                         <td className="px-2 py-2">
                           <input type="number" value={it.tva} min={0} max={100} onChange={e => updateItem(i, 'tva', parseFloat(e.target.value) || 19)}
-                            className="w-16 bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none text-center" placeholder="19" />
+                            className="w-16 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none text-center" placeholder="19" />
                         </td>
                         <td className="px-2 py-2 text-right font-black text-cyan-400">{lineTTC.toFixed(3)} TND</td>
                         <td className="px-2 py-2 text-center">
@@ -2052,7 +2052,7 @@ function SectionConsultationFournisseur() {
           <div className={cardCls}>
             <label className={labelCls}>NOTES / CONDITIONS</label>
             <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)}
-              className="w-full bg-white text-black font-semibold text-sm px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none resize-none" placeholder="Délai de livraison, conditions paiement..." />
+              className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-sm px-3 h-10 rounded-lg border border-slate-700 focus:outline-none resize-none" placeholder="Délai de livraison, conditions paiement..." />
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -2100,7 +2100,7 @@ function SectionConsultationFournisseur() {
             <div className="flex gap-2 flex-wrap">
               {suppliers.filter(s => s.b2bLogin && s.b2bPassword).length > 0 ? (
                 suppliers.filter(s => s.b2bLogin && s.b2bPassword).map(s => (
-                  <label key={s.id} className="flex items-center gap-2 bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 cursor-pointer text-xs font-black uppercase text-white hover:border-cyan-500/50 select-none">
+                  <label key={s.id} className="flex items-center gap-2 bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-800 cursor-pointer text-xs font-black uppercase text-white hover:border-cyan-500/50 select-none">
                     <input type="checkbox" checked={selectedSuppIds.includes(s.id)} onChange={() => handleToggleSupplier(s.id)} className="rounded border-slate-700 text-cyan-600 focus:ring-cyan-500 bg-slate-900" />
                     🤖 {s.name}
                   </label>
@@ -2132,7 +2132,7 @@ function SectionConsultationFournisseur() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400">
+                  <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400">
                     <th className="px-3 py-2.5 text-left rounded-l-lg">DÉSIGNATION ARTICLE *</th>
                     <th className="px-3 py-2.5 text-left">RÉFÉRENCE</th>
                     <th className="px-3 py-2.5 text-center">QTÉ</th>
@@ -2151,9 +2151,9 @@ function SectionConsultationFournisseur() {
                           }} 
                           onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('desc'); }}
                           onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                          className="w-full bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none uppercase min-w-[160px]" placeholder="DÉSIGNATION ARTICLE" />
+                          className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none uppercase min-w-[160px]" placeholder="DÉSIGNATION ARTICLE" />
                         {activeSuggestRow === i && activeSuggestField === 'desc' && getSuggestions(it.designation, 'desc').length > 0 && (
-                          <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                          <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                             {getSuggestions(it.designation, 'desc').map((p: any) => (
                               <button key={p.id} type="button"
                                 onClick={() => {
@@ -2177,9 +2177,9 @@ function SectionConsultationFournisseur() {
                           }} 
                           onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('ref'); }}
                           onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                          className="w-full bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none uppercase min-w-[90px]" placeholder="RÉF." />
+                          className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none uppercase min-w-[90px]" placeholder="RÉF." />
                         {activeSuggestRow === i && activeSuggestField === 'ref' && getSuggestions(it.reference, 'ref').length > 0 && (
-                          <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-950 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
+                          <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-slate-900/60 border border-slate-700 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
                             {getSuggestions(it.reference, 'ref').map((p: any) => (
                               <button key={p.id} type="button"
                                 onClick={() => {
@@ -2203,7 +2203,7 @@ function SectionConsultationFournisseur() {
                         })()}
                       </td>
                       <td className="px-2 py-2">
-                        <input type="number" value={it.quantity} min={1} onChange={e => updateCompItem(i, 'quantity', parseInt(e.target.value) || 1)} className="w-14 bg-white text-black font-bold text-xs px-2 py-1.5 rounded border border-slate-300 focus:outline-none text-center" />
+                        <input type="number" value={it.quantity} min={1} onChange={e => updateCompItem(i, 'quantity', parseInt(e.target.value) || 1)} className="w-14 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-2 h-10 rounded border border-slate-700 focus:outline-none text-center tabular-nums" />
                       </td>
                       <td className="px-2 py-2 text-center">
                         <button onClick={() => removeCompLine(i)} className="text-slate-500 hover:text-red-400 p-1 transition">
@@ -2224,7 +2224,7 @@ function SectionConsultationFournisseur() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
-                    <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-500 border-b border-slate-855">
+                    <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-500 border-b border-slate-855">
                       <th className="px-4 py-3">ARTICLE</th>
                       {selectedSuppIds.map(id => {
                         const s = suppliers.find(x => x.id === id);
@@ -2238,7 +2238,7 @@ function SectionConsultationFournisseur() {
                       if (!it.designation) return null;
                       const { minPrice, bestSuppId } = getLowestPriceInfo(idx);
                       return (
-                        <tr key={idx} className="border-b border-slate-855 hover:bg-slate-950/10">
+                        <tr key={idx} className="border-b border-slate-855 hover:bg-slate-900/60/10">
                           <td className="px-4 py-3">
                             <span className="font-bold text-white uppercase">{it.designation}</span>
                             {it.reference && <span className="block text-[10px] text-slate-400">REF: {it.reference.toUpperCase()}</span>}
@@ -2251,11 +2251,11 @@ function SectionConsultationFournisseur() {
                                 <div className="flex flex-col gap-1 items-center justify-center">
                                   <div className="flex items-center gap-1">
                                     <span className="text-[9px] text-slate-500 font-bold uppercase">P.U.</span>
-                                    <input type="number" min={0} step={0.001} value={valObj.price || ''} onChange={e => handlePriceChange(id, idx, 'price', parseFloat(e.target.value) || 0)} className="w-20 bg-white text-black font-bold text-center text-xs px-1.5 py-1 rounded border border-slate-350 focus:outline-none" placeholder="0.000" />
+                                    <input type="number" min={0} step={0.001} value={valObj.price || ''} onChange={e => handlePriceChange(id, idx, 'price', parseFloat(e.target.value) || 0)} className="w-20 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-center text-xs px-1.5 py-1 rounded border border-slate-350 focus:outline-none tabular-nums" placeholder="0.000" />
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="text-[9px] text-slate-500 font-bold uppercase">REM%</span>
-                                    <input type="number" min={0} max={100} step={1} value={valObj.discount || ''} onChange={e => handlePriceChange(id, idx, 'discount', parseFloat(e.target.value) || 0)} className="w-20 bg-white text-black font-bold text-center text-xs px-1.5 py-1 rounded border border-slate-350 focus:outline-none" placeholder="0%" />
+                                    <input type="number" min={0} max={100} step={1} value={valObj.discount || ''} onChange={e => handlePriceChange(id, idx, 'discount', parseFloat(e.target.value) || 0)} className="w-20 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-center text-xs px-1.5 py-1 rounded border border-slate-350 focus:outline-none tabular-nums" placeholder="0%" />
                                   </div>
                                   {valObj.price > 0 && (
                                     <span className="text-[9px] text-cyan-400 font-mono font-bold mt-0.5">NET: {(valObj.price * (1 - valObj.discount / 100)).toFixed(3)} DT</span>
@@ -2277,7 +2277,7 @@ function SectionConsultationFournisseur() {
                     })}
 
                     {/* Ligne Totaux par Fournisseur */}
-                    <tr className="bg-slate-950/60 font-black border-t border-slate-800">
+                    <tr className="bg-slate-900/60/60 font-black border-t border-slate-800">
                       <td className="px-4 py-3.5 text-slate-450 uppercase text-[10px]">TOTAL DE LA CONSULTATION</td>
                       {selectedSuppIds.map(id => {
                         const total = compItems.reduce((sum, it, idx) => {
@@ -2595,7 +2595,7 @@ function SectionGestionArticles() {
               <div className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-4 border-b border-slate-800 pb-2">IMPORTER DEPUIS UN FICHIER EXCEL (CSV)</div>
               <p className="text-xs text-slate-400 mb-4 leading-relaxed uppercase">
                 IMPORTEZ DES CENTAINES DE PIÈCES D'UN SEUL COUP. LE FICHIER CSV DOIT EN TÊTE DES COLONNES COMPORTER :<br />
-                <code className="bg-slate-950 px-1.5 py-0.5 rounded text-[10px] text-cyan-400 font-mono tracking-normal block mt-2 text-center uppercase">REFERENCE | DESIGNATION | QTE | MARQUE | VEHICULES CONCERNEES | COUT REVIENT | PRIX VENTE</code>
+                <code className="bg-slate-900/60 px-1.5 py-0.5 rounded text-[10px] text-cyan-400 font-mono tracking-normal block mt-2 text-center uppercase">REFERENCE | DESIGNATION | QTE | MARQUE | VEHICULES CONCERNEES | COUT REVIENT | PRIX VENTE</code>
               </p>
 
               <div className="space-y-4">
@@ -2609,7 +2609,7 @@ function SectionGestionArticles() {
                 </div>
 
                 {csvFile && (
-                  <div className="bg-slate-950 p-3 rounded-xl border border-slate-850 flex items-center justify-between text-xs">
+                  <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-850 flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-300 font-mono">{csvFile.name} ({csvPreview.length} articles reconnus)</span>
                     <button onClick={() => { setCsvFile(null); setCsvPreview([]); }} className="text-red-500 hover:text-red-400 text-[10px] font-black uppercase">ANNULER</button>
                   </div>
@@ -2639,14 +2639,14 @@ function SectionGestionArticles() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input type="text" placeholder="RECHERCHER DANS LES ARTICLES (RÉF, NOM, MARQUE, VÉHICULE)..."
                 value={search} onChange={e => setSearch(e.target.value)}
-                className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+                className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" />
             </div>
           </div>
 
           {editingProduct && (
             <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full text-left relative">
-                <button onClick={() => setEditingProduct(null)} className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-950/60 border border-slate-800 transition">
+                <button onClick={() => setEditingProduct(null)} className="absolute top-5 right-5 text-slate-400 hover:text-white p-2 rounded-xl bg-slate-900/60/60 border border-slate-800 transition">
                   <X className="w-4 h-4" />
                 </button>
                 <h3 className="text-base font-black text-white mb-4 uppercase tracking-widest text-cyan-400">ÉDITER LA PIÈCE</h3>
@@ -2685,7 +2685,7 @@ function SectionGestionArticles() {
                     </div>
                   </div>
                   <div className="flex gap-3 pt-3">
-                    <button onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-400 rounded-xl text-xs font-black uppercase">ANNULER</button>
+                    <button onClick={() => setEditingProduct(null)} className="flex-1 py-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-800 text-slate-400 rounded-xl text-xs font-black uppercase">ANNULER</button>
                     <button onClick={handleEditSubmit} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl text-xs font-black uppercase">ENREGISTRER MODIFICATIONS</button>
                   </div>
                 </div>
@@ -2702,7 +2702,7 @@ function SectionGestionArticles() {
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
                   <thead>
-                    <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-500 border-b border-slate-800">
+                    <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-500 border-b border-slate-800">
                       <th className="px-4 py-3">RÉFÉRENCE</th>
                       <th className="px-4 py-3">DÉSIGNATION</th>
                       <th className="px-4 py-3">MARQUE</th>
@@ -2715,7 +2715,7 @@ function SectionGestionArticles() {
                   </thead>
                   <tbody>
                     {filtered.map(p => (
-                      <tr key={p.id} className="border-b border-slate-850 hover:bg-slate-950/20 transition">
+                      <tr key={p.id} className="border-b border-slate-850 hover:bg-slate-900/60/20 transition">
                         <td className="px-4 py-2.5 font-mono font-bold text-slate-300">{p.reference}</td>
                         <td className="px-4 py-2.5 font-bold text-white uppercase">{p.name}</td>
                         <td className="px-4 py-2.5 font-bold text-slate-400 uppercase">{p.brand || '-'}</td>
@@ -3080,7 +3080,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR EMAIL CLIENT, VEHICULE..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
       </div>
 
@@ -3106,7 +3106,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
                     <span className="font-black text-white text-base font-mono">{(d.totalPrice || 0).toFixed(3)} TND</span>
                   </div>
                   {/* Sélecteur de profil admin */}
-                  <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
+                  <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded-xl px-2.5 py-1">
                     <span className="text-[8px] text-slate-500 font-black uppercase tracking-wider">Assigné à :</span>
                     <select
                       value={d.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
@@ -3123,7 +3123,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
               </div>
 
               {/* Items */}
-              <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60 mb-4 text-xs">
+              <div className="bg-slate-900/60/40 p-4 rounded-2xl border border-slate-800/60 mb-4 text-xs">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">ARTICLES DU DEVIS :</span>
                 {d.items?.map((item: any, idx: number) => (
                   <div key={item.id || idx} className="flex justify-between items-center border-b border-slate-800/20 pb-1.5 last:border-0 last:pb-0 mb-1.5 last:mb-0">
@@ -3171,7 +3171,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
                       }
                     }
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-xs font-black uppercase tracking-wide transition border border-red-500/20"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-red-500/15 hover:bg-red-500 hover:text-white text-red-400 rounded-xl text-xs font-black uppercase tracking-wide transition border border-red-500/20"
                 >
                   <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
                 </button>
@@ -3292,7 +3292,7 @@ function SectionBonsEtLivraisons() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR N° COMMANDE, NOM CLIENT, EMAIL..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
       </div>
 
@@ -3325,7 +3325,7 @@ function SectionBonsEtLivraisons() {
                   </button>
                 </div>
                 {/* Sélecteur de profil admin */}
-                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
+                <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 rounded-xl px-2.5 py-1">
                   <span className="text-[8px] text-slate-500 font-black uppercase tracking-wider">Assigné à :</span>
                   <select
                     value={o.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
@@ -3342,7 +3342,7 @@ function SectionBonsEtLivraisons() {
             </div>
 
             {/* Articles list */}
-            <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800/60 mb-4 text-xs">
+            <div className="bg-slate-900/60/40 p-4 rounded-2xl border border-slate-800/60 mb-4 text-xs">
               <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">ARTICLES DU BON DE COMMANDE :</span>
               {o.items?.map((item: any) => (
                 <div key={item.id} className="flex justify-between items-center border-b border-slate-800/20 pb-1.5 last:border-0 last:pb-0 mb-1.5 last:mb-0">
@@ -3353,13 +3353,13 @@ function SectionBonsEtLivraisons() {
             </div>
 
             {/* Formulaire statut préparé par admin */}
-            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-850 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-850 grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div>
                 <label className={labelCls}>STATUT DE LIVRAISON</label>
                 <select 
                   value={statusMap[o.id] || o.status}
                   onChange={e => setStatusMap({...statusMap, [o.id]: e.target.value})}
-                  className="w-full bg-white text-black font-black text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 uppercase"
+                  className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-black text-xs px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 uppercase"
                 >
                   <option value="PENDING">EN ATTENTE DE VALIDATION</option>
                   <option value="CONFIRMED">CONFIRMÉE / EN PRÉPARATION</option>
@@ -3375,7 +3375,7 @@ function SectionBonsEtLivraisons() {
                   value={noteMap[o.id] || ''}
                   onChange={e => setNoteMap({...noteMap, [o.id]: e.target.value})}
                   placeholder="Ex: COMMANDE PRÊTE AU COMPTOIR / COLIS EN ROUTE" 
-                  className="w-full bg-white text-black font-semibold text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:border-red-500 uppercase"
+                  className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 text-xs px-3 h-10 rounded-lg border border-slate-700 focus:outline-none focus:border-slate-500 uppercase"
                 />
               </div>
               <div>
@@ -3521,8 +3521,8 @@ function SectionSuiviPO() {
   const statusColors: Record<string, string> = {
     DRAFT: 'bg-slate-800 text-slate-400 border-slate-700',
     SENT: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-    CONFIRMED: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-    RECEIVED: 'bg-green-500/10 text-green-400 border-green-500/30',
+    CONFIRMED: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+    RECEIVED: 'bg-green-500/15 text-green-400 border-green-500/20',
   };
 
   return (
@@ -3541,7 +3541,7 @@ function SectionSuiviPO() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400">
+                <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400">
                   <th className="px-4 py-3 rounded-l-lg">N° COMMANDE</th>
                   <th className="px-4 py-3">FOURNISSEUR</th>
                   <th className="px-4 py-3">DATE</th>
@@ -3573,7 +3573,7 @@ function SectionSuiviPO() {
                         <select 
                           value={o.status}
                           onChange={e => handleUpdateStatus(o.id, e.target.value)}
-                          className="bg-slate-950 text-white border border-slate-800 rounded-lg text-[10px] font-black uppercase p-1.5 focus:outline-none focus:border-red-500"
+                          className="bg-slate-900/60 text-white border border-slate-800 rounded-lg text-[10px] font-black uppercase p-1.5 focus:outline-none focus:border-slate-500"
                         >
                           <option value="DRAFT">DRAFT</option>
                           <option value="SENT">SENT</option>
@@ -3615,7 +3615,7 @@ function SectionSuiviPO() {
             <div className="overflow-x-auto max-h-60 overflow-y-auto border border-slate-800 rounded-2xl mb-4">
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="bg-slate-950 text-[10px] font-black text-slate-400 uppercase">
+                  <tr className="bg-slate-900/60 text-[10px] font-black text-slate-400 uppercase">
                     <th className="px-3 py-2">Référence</th>
                     <th className="px-3 py-2">Désignation</th>
                     <th className="px-3 py-2 text-center">Qté</th>
@@ -3637,7 +3637,7 @@ function SectionSuiviPO() {
               </table>
             </div>
 
-            <div className="flex justify-between items-center bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs">
+            <div className="flex justify-between items-center bg-slate-900/60 p-4 rounded-2xl border border-slate-800 text-xs">
               <div>
                 <span className="text-slate-400 font-bold uppercase block text-[10px]">Statut Actuel</span>
                 <span className={`inline-block mt-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${statusColors[selectedOrder.status]}`}>
@@ -3800,14 +3800,14 @@ function SectionComptabilite() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR CLIENT, EMAIL, FACTURE..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
         <button
           onClick={() => setShowOnlyDelivered(!showOnlyDelivered)}
           className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider border transition-all ${
             showOnlyDelivered 
               ? 'bg-red-650/15 border-red-500 text-white' 
-              : 'bg-white text-black border-slate-300'
+              : 'bg-slate-900/60 text-slate-100 border border-slate-700 border-slate-700'
           }`}
         >
           {showOnlyDelivered ? '✓ Uniquement Livrées (Facturées)' : 'Toutes les commandes'}
@@ -3823,7 +3823,7 @@ function SectionComptabilite() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/40 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <tr className="border-b border-slate-800 bg-slate-900/60/40 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                   <th className="px-4 py-3">N° Facture</th>
                   <th className="px-4 py-3">Client</th>
                   <th className="px-4 py-3">Date émise</th>
@@ -3852,7 +3852,7 @@ function SectionComptabilite() {
                           onClick={() => handleTogglePaymentStatus(o.id, o.paymentStatus)}
                           className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${
                             o.paymentStatus === 'PAID'
-                              ? 'bg-green-500/10 text-green-400 border-green-500/30'
+                              ? 'bg-green-500/15 text-green-400 border-green-500/20'
                               : 'bg-red-500/10 text-red-400 border-red-500/30'
                           }`}
                         >
@@ -4052,7 +4052,7 @@ function SectionRobotB2B() {
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase border cursor-pointer select-none transition ${
                   isChecked
                     ? 'bg-cyan-950/80 border-cyan-500 text-white shadow-md shadow-cyan-500/10'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
                 <input
@@ -4072,7 +4072,7 @@ function SectionRobotB2B() {
           )}
         </div>
 
-        <div className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-400">
           🌐 Recherche simultanée sur <span className="text-cyan-400 font-black">{selectedSupplierIds.length} fournisseur(s) sélectionné(s)</span> : {
             b2bSuppliers.filter(s => selectedSupplierIds.includes(s.id)).map(s => s.name.toUpperCase()).join(', ') || 'Aucun'
           }
@@ -4089,7 +4089,7 @@ function SectionRobotB2B() {
             onChange={e => setQuery(e.target.value)}
             placeholder="EXEMPLE: 1611273080, 1306J5, KIT EMBRAYAGE, BOUCHON..."
             required
-            className="flex-1 bg-white text-black font-black text-base px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300 placeholder:font-normal placeholder:normal-case"
+            className="flex-1 bg-slate-900/60 text-slate-100 border border-slate-700 font-black text-base px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-300 placeholder:font-normal placeholder:normal-case"
           />
           <button
             type="submit"
@@ -4139,7 +4139,7 @@ function SectionRobotB2B() {
                       const hasItems = (bd.items || []).length > 0;
                       const bestItem = (bd.items || []).find((i: any) => i.available) || (bd.items || [])[0];
                       return (
-                        <div key={idx} className={`flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-bold ${hasItems ? 'bg-green-950/20 border-green-700/40 text-green-300' : bd.statusCode === 'NOT_FOUND' || bd.statusCode === 'NO_STOCK' ? 'bg-amber-950/20 border-amber-800/40 text-amber-200' : 'bg-slate-950 border-slate-800 text-slate-500'}`}>
+                        <div key={idx} className={`flex items-center justify-between px-4 py-3 rounded-xl border text-xs font-bold ${hasItems ? 'bg-green-950/20 border-green-700/40 text-green-300' : bd.statusCode === 'NOT_FOUND' || bd.statusCode === 'NO_STOCK' ? 'bg-amber-950/20 border-amber-800/40 text-amber-200' : 'bg-slate-900/60 border-slate-800 text-slate-500'}`}>
                           <div className="flex items-center gap-3">
                             <span className="text-base">{hasItems ? '✅' : bd.statusCode === 'NOT_FOUND' || bd.statusCode === 'NO_STOCK' ? 'ℹ️' : '—'}</span>
                             <span className="font-black uppercase text-white">{bd.supplierName}</span>
@@ -4175,7 +4175,7 @@ function SectionRobotB2B() {
                     className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
                       availabilityFilter === 'ALL'
                         ? 'bg-cyan-600 border-cyan-500 text-white shadow-md shadow-cyan-500/20'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
                     }`}
                   >
                     🌐 TOUS ({rawItems.length})
@@ -4187,7 +4187,7 @@ function SectionRobotB2B() {
                     className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
                       availabilityFilter === 'DISPONIBLE'
                         ? 'bg-green-700 border-green-500 text-white shadow-md shadow-green-500/20'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-green-600/50 hover:text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-green-600/50 hover:text-white'
                     }`}
                   >
                     🟢 DISPONIBLE EN STOCK ({countAvailable})
@@ -4199,7 +4199,7 @@ function SectionRobotB2B() {
                     className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
                       availabilityFilter === 'ARRIVAGE'
                         ? 'bg-blue-700 border-blue-500 text-white shadow-md shadow-blue-500/20'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-blue-600/50 hover:text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-blue-600/50 hover:text-white'
                     }`}
                   >
                     🔵 EN ARRIVAGE ({countArrivage})
@@ -4211,7 +4211,7 @@ function SectionRobotB2B() {
                     className={`px-3.5 py-2 rounded-xl text-xs font-black uppercase transition border ${
                       availabilityFilter === 'SUR_COMMANDE'
                         ? 'bg-amber-700 border-amber-500 text-white shadow-md shadow-amber-500/20'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-amber-600/50 hover:text-white'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-amber-600/50 hover:text-white'
                     }`}
                   >
                     🟡 SUR COMMANDE ({countCommande})
@@ -4276,11 +4276,11 @@ function SectionRobotB2B() {
                   </div>
                 </div>
               ) : rawItems.length > 0 ? (
-                <div className="p-4 bg-slate-950/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
+                <div className="p-4 bg-slate-900/60/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
                   Aucun article ne correspond au filtre sélectionné ({availabilityFilter}).
                 </div>
               ) : (
-                <div className="p-4 bg-slate-950/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
+                <div className="p-4 bg-slate-900/60/40 rounded-xl text-center text-slate-400 font-bold text-xs uppercase">
                   Aucune offre directe trouvée chez les fournisseurs B2B pour cette référence.
                 </div>
               )}
@@ -4504,7 +4504,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
               target="_blank"
               rel="noopener noreferrer"
               title={`Ouvrir ${item.name} (${item.code})`}
-              className={`p-2 bg-slate-950 rounded-xl border ${item.color} hover:bg-slate-800 transition flex flex-col justify-between shadow-md text-left group`}
+              className={`p-2 bg-slate-900/60 rounded-xl border ${item.color} hover:bg-slate-800 transition flex flex-col justify-between shadow-md text-left group`}
             >
               <span className="text-[10px] font-black uppercase truncate group-hover:underline">{item.name}</span>
               <span className="text-[8px] font-mono font-bold text-slate-400 truncate">🔑 {item.code}</span>
@@ -4526,7 +4526,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             value={vinInput}
             onChange={e => setVinInput(e.target.value.toUpperCase())}
             placeholder="RECHERCHER PAR VIN, RÉFÉRENCE OE, ÉQUIVALENT (PHIRA, LPR...), OU DÉSIGNATION (ex: Pare-chocs Peugeot 208, 7401AX, VF3...)"
-            className="flex-1 bg-white text-black font-black text-sm px-4 py-3 rounded-xl border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-400 placeholder:font-normal placeholder:normal-case"
+            className="flex-1 bg-slate-900/60 text-slate-100 border border-slate-700 font-black text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-slate-400 placeholder:font-normal placeholder:normal-case"
           />
           <button
             type="button"
@@ -4563,7 +4563,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 border ${
                     vinInput.toUpperCase() === v.vin.toUpperCase()
                       ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-md'
-                      : 'bg-slate-950 border-slate-800 text-slate-300 hover:border-slate-700'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-300 hover:border-slate-700'
                   }`}
                 >
                   <span className="font-mono text-cyan-400">{v.vin}</span>
@@ -4576,7 +4576,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
         {/* Identified Vehicle Badge */}
         {catalogData && (
-          <div className="bg-slate-950 border border-cyan-500/30 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div className="bg-slate-900/60 border border-cyan-500/30 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div className="flex items-center gap-3">
               <span className="text-3xl">🚘</span>
               <div>
@@ -4696,7 +4696,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase transition flex items-center gap-2 border ${
                       selectedSectionIndex === idx
                         ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg font-extrabold'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
                     }`}
                   >
                     <span>📁 {sec.title}</span>
@@ -4705,7 +4705,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
               </div>
 
               {/* Native Interactive Vector Schematics Viewer (Web & Electron Compatible) */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden shadow-2xl">
+              <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5 flex flex-col items-center justify-center space-y-4 relative overflow-hidden shadow-2xl">
                 <div className="w-full flex justify-between items-center text-[10px] font-black text-cyan-400 uppercase tracking-widest border-b border-slate-900 pb-2">
                   <span>🖼️ SCHÉMA ÉCLATÉ INTERACTIF : {currentSection?.title}</span>
                   <span className="text-emerald-400 font-bold">⚡ RENDU DASHBOARD VELECTRON / WEB 100% ACTIF</span>
@@ -4808,7 +4808,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             </div>
 
             {/* Dual Search Option Selector (Designation vs Reference Number) */}
-            <div className="flex gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+            <div className="flex gap-2 p-1 bg-slate-900/60 rounded-xl border border-slate-800">
               <button
                 type="button"
                 onClick={() => setSearchMode('TEXT')}
@@ -4852,7 +4852,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                   className={`px-2 py-0.5 rounded text-[9px] font-bold transition border ${
                     selectedCategory === cat
                       ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
                   }`}
                 >
                   {cat}
@@ -4871,7 +4871,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                     ? "RECHERCHE PAR DÉSIGNATION (ex: Embrayage 308, Pare-chocs, Phare, Filtre...)"
                     : "RECHERCHE PAR RÉFÉRENCE (ex: 7401AX, A2048800124, 424917...)"
                 }
-                className="w-full bg-slate-950 text-white font-bold text-xs p-3 rounded-xl border border-cyan-500/50 focus:outline-none focus:border-cyan-400 placeholder:text-slate-500 uppercase placeholder:normal-case"
+                className="w-full bg-slate-900/60 text-white font-bold text-xs p-3 rounded-xl border border-cyan-500/50 focus:outline-none focus:border-cyan-400 placeholder:text-slate-500 uppercase placeholder:normal-case"
               />
               {partFilterText && (
                 <button
@@ -4901,7 +4901,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                   className={`p-4 rounded-xl border transition flex flex-col gap-3 ${
                     inBasket
                       ? 'bg-emerald-950/40 border-emerald-500/60'
-                      : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                      : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
@@ -4977,7 +4977,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                               className={`px-2.5 py-1 rounded-md text-[10px] border flex items-center gap-2 transition ${
                                 eqInBasket
                                   ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
-                                  : 'bg-slate-950 border-slate-700 text-slate-300 hover:border-slate-600'
+                                  : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-600'
                               }`}
                             >
                               <span className="font-extrabold text-amber-300 uppercase">{eq.brand}:</span>
@@ -5016,7 +5016,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
               value={oeRefInput}
               onChange={e => setOeRefInput(e.target.value.toUpperCase())}
               placeholder="AJOUTER MANUELLEMENT UNE RÉFÉRENCE CARROSSERIE OU OE..."
-              className="flex-1 bg-white text-black font-bold text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none uppercase placeholder:normal-case placeholder:font-normal"
+              className="flex-1 bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 py-2 rounded-xl border border-slate-700 focus:outline-none uppercase placeholder:normal-case placeholder:font-normal"
             />
             <button
               type="button"
@@ -5054,7 +5054,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             ) : (
               <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
                 {basket.map((b) => (
-                  <div key={b.ref} className="p-3 bg-slate-950 border border-slate-800 rounded-xl flex justify-between items-center">
+                  <div key={b.ref} className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex justify-between items-center">
                     <div>
                       <span className="font-mono text-cyan-400 font-bold text-xs uppercase block">OE #{b.ref}</span>
                       <span className="text-[10px] text-slate-300 uppercase font-semibold line-clamp-1">{b.designation}</span>
@@ -5222,12 +5222,12 @@ function SectionHistoriquePrixArticles() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input type="text" placeholder="RECHERCHER PAR RÉFÉRENCE ARTICLE, FOURNISSEUR..."
             value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-cyan-500 uppercase placeholder:normal-case placeholder:font-normal" />
+            className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-cyan-500 uppercase placeholder:normal-case placeholder:font-normal" />
         </div>
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
-          className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer uppercase"
+          className="bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-xl border border-slate-700 cursor-pointer uppercase"
         >
           <option value="TOUS">TOUS LES TYPES</option>
           <option value="OEM">ORIGINE / OEM / PVP</option>
@@ -5244,7 +5244,7 @@ function SectionHistoriquePrixArticles() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="bg-slate-950 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800">
+                <tr className="bg-slate-900/60 text-[10px] font-black uppercase text-slate-400 border-b border-slate-800">
                   <th className="px-4 py-3">RÉFÉRENCE ARTICLE</th>
                   <th className="px-4 py-3">TYPE OFFRE</th>
                   <th className="px-4 py-3">FOURNISSEUR</th>
@@ -5256,11 +5256,11 @@ function SectionHistoriquePrixArticles() {
               </thead>
               <tbody>
                 {filtered.map(h => (
-                  <tr key={h.id} className="border-b border-slate-800/60 hover:bg-slate-950/40 transition">
+                  <tr key={h.id} className="border-b border-slate-800/60 hover:bg-slate-900/60/40 transition">
                     <td className="px-4 py-3 font-mono font-black text-cyan-400 uppercase text-sm">{h.reference}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                        h.type === 'OEM' || h.isConcessionnaire ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
+                        h.type === 'OEM' || h.isConcessionnaire ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
                       }`}>
                         {h.type === 'OEM' || h.isConcessionnaire ? 'ORIGINE / OEM' : 'ADAPTABLE'}
                       </span>
@@ -5306,7 +5306,7 @@ function SectionHistoriquePrixArticles() {
               </div>
               <div>
                 <label className={labelCls}>TYPE D'OFFRE</label>
-                <select className="w-full bg-white text-black font-bold text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none uppercase" value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}>
+                <select className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-lg border border-slate-700 focus:outline-none uppercase" value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}>
                   <option value="ADAPTABLE">ADAPTABLE</option>
                   <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
                 </select>
@@ -5322,7 +5322,7 @@ function SectionHistoriquePrixArticles() {
                 </div>
               </div>
               <div className="flex gap-2 pt-3">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 bg-slate-950 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 bg-slate-900/60 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
                 <button onClick={handleCreate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase rounded-xl">ENREGISTRER</button>
               </div>
             </div>
@@ -5349,7 +5349,7 @@ function SectionHistoriquePrixArticles() {
               </div>
               <div>
                 <label className={labelCls}>TYPE D'OFFRE</label>
-                <select className="w-full bg-white text-black font-bold text-xs px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none uppercase" value={editingItem.type} onChange={e => setEditingItem({ ...editingItem, type: e.target.value })}>
+                <select className="w-full bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-lg border border-slate-700 focus:outline-none uppercase" value={editingItem.type} onChange={e => setEditingItem({ ...editingItem, type: e.target.value })}>
                   <option value="ADAPTABLE">ADAPTABLE</option>
                   <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
                 </select>
@@ -5365,7 +5365,7 @@ function SectionHistoriquePrixArticles() {
                 </div>
               </div>
               <div className="flex gap-2 pt-3">
-                <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 bg-slate-950 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 bg-slate-900/60 text-slate-400 font-black text-xs uppercase rounded-xl">ANNULER</button>
                 <button onClick={handleUpdate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs uppercase rounded-xl">SAUVEGARDER</button>
               </div>
             </div>
@@ -5545,7 +5545,7 @@ function SectionHistoriqueAchats() {
             <select
               value={selectedSuppId}
               onChange={e => setSelectedSuppId(e.target.value)}
-              className="bg-white text-black font-bold text-xs px-3 py-2.5 rounded-xl border border-slate-300 cursor-pointer"
+              className="bg-slate-900/60 text-slate-100 border border-slate-700 font-bold text-xs px-3 h-10 rounded-xl border border-slate-700 cursor-pointer"
             >
               <option value="">TOUS LES FOURNISSEURS</option>
               {suppliers.map(s => (
@@ -5559,7 +5559,7 @@ function SectionHistoriqueAchats() {
                 placeholder="RECHERCHER PAR N° BON, RÉFÉRENCE OU DÉSIGNATION DE PIÈCE..."
                 value={suppSearch}
                 onChange={e => setSuppSearch(e.target.value)}
-                className="w-full bg-white text-black font-semibold pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case placeholder:font-normal" 
+                className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-2.5 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case placeholder:font-normal" 
               />
             </div>
           </div>
@@ -5623,7 +5623,7 @@ function SectionHistoriqueAchats() {
               placeholder="SAISISSEZ UNE RÉFÉRENCE OU DÉSIGNATION DE PIÈCE..."
               value={articleSearch}
               onChange={e => handleArticleSearchChange(e.target.value)}
-              className="w-full bg-white text-black font-semibold pl-10 pr-4 py-3 rounded-xl text-sm border border-slate-300 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case"
+              className="w-full bg-slate-900/60 text-slate-100 font-semibold border border-slate-700 pl-10 pr-4 py-3 rounded-xl text-sm border border-slate-700 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case"
             />
 
             {/* Suggestions Dropdown */}
@@ -5814,8 +5814,8 @@ function SectionChatInterne() {
   return (
     <div className="h-[calc(100vh-120px)] flex bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
       {/* Sidebar des conversations */}
-      <div className="w-1/3 border-r border-slate-800/80 bg-slate-950/40 flex flex-col">
-        <div className="p-4 border-b border-slate-800 bg-slate-950/60">
+      <div className="w-1/3 border-r border-slate-800/80 bg-slate-900/60/40 flex flex-col">
+        <div className="p-4 border-b border-slate-800 bg-slate-900/60/60">
           <h3 className="text-white text-xs font-black uppercase tracking-widest">CONVERSATIONS</h3>
           <p className="text-[9px] text-slate-500 uppercase font-bold mt-1">SÉLECTIONNEZ UN CLIENT POUR LUI RÉPONDRE</p>
         </div>
@@ -5864,7 +5864,7 @@ function SectionChatInterne() {
         {selectedUserId ? (
           <>
             {/* User Header */}
-            <div className="p-4 bg-slate-950/40 border-b border-slate-800 flex justify-between items-center">
+            <div className="p-4 bg-slate-900/60/40 border-b border-slate-800 flex justify-between items-center">
               <div>
                 <h4 className="text-white text-xs font-black uppercase tracking-wider">
                   {activeConv?.user?.name || `${activeConv?.user?.firstName || ''} ${activeConv?.user?.lastName || ''}`.trim() || 'Client'}
@@ -5916,7 +5916,7 @@ function SectionChatInterne() {
 
             {/* Attachment preview */}
             {attachment && (
-              <div className="px-6 py-2 bg-slate-950/40 border-t border-slate-800 flex items-center justify-between">
+              <div className="px-6 py-2 bg-slate-900/60/40 border-t border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-[10px]">
                   <Paperclip className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="text-slate-300 font-bold uppercase truncate max-w-[300px]">{attachment.name}</span>
@@ -5933,7 +5933,7 @@ function SectionChatInterne() {
             {/* Reply Form */}
             <form
               onSubmit={handleSendReply}
-              className="p-4 border-t border-slate-800/80 bg-slate-950/20 flex gap-3 items-center"
+              className="p-4 border-t border-slate-800/80 bg-slate-900/60/20 flex gap-3 items-center"
             >
               <input
                 ref={fileInputRef}
@@ -5955,7 +5955,7 @@ function SectionChatInterne() {
                 placeholder="Saisissez votre réponse..."
                 value={reply}
                 onChange={e => setReply(e.target.value)}
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 uppercase placeholder:normal-case font-semibold"
+                className="flex-1 bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-slate-500 uppercase placeholder:normal-case font-semibold"
                 disabled={sending}
               />
               <button
