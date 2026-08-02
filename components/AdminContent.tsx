@@ -114,9 +114,9 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-slate-500 font-bold uppercase">CHARGEMENT...</div>
+        <div className="text-center py-16 text-slate-500 font-black uppercase tracking-widest text-xs animate-pulse">CHARGEMENT...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-slate-600 font-bold uppercase">AUCUNE DEMANDE TROUVÉE</div>
+        <div className="text-center py-16 text-slate-500 font-black uppercase tracking-widest text-xs">AUCUNE DEMANDE TROUVÉE</div>
       ) : (
         filtered.map((q) => (
           <div key={q.id} className={cardCls}>

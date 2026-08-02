@@ -56,10 +56,10 @@ const sections: SidebarSection[] = [
     title: "DEMANDES CLIENTS",
     color: "text-red-400",
     items: [
-      { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-500' },
-      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-blue-500' },
-      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-green-500' },
-      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-purple-500' },
+      { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-500/80' },
+      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-blue-500/80' },
+      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-green-500/80' },
+      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-purple-500/80' },
       { id: 'chat-interne', label: 'CHAT INTERNE / PRIX', icon: MessageSquare },
     ]
   },
@@ -198,7 +198,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={`carbon-pattern border-r border-red-600/20 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`carbon-pattern border-r border-slate-800 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
       {/* Logo Header */}
       <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-slate-800/85 bg-slate-950/70 backdrop-blur-md">
         <div className="w-32 h-16 relative mb-2">
@@ -248,7 +248,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                   onClick={() => setAdminSection(item.id)}
                   className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider mb-1.5 transition-all duration-150 border group ${
                     isActive
-                      ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-600/30 font-black'
+                      ? 'bg-slate-800 text-white border-slate-700 border-l-4 border-l-slate-400 shadow-sm font-black'
                       : 'bg-slate-900/90 text-slate-100 border-slate-800 hover:bg-slate-800 hover:text-white hover:border-slate-600'
                   }`}
                 >
