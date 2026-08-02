@@ -1,6 +1,6 @@
 "use client";
 
-import { useApp } from '@/lib/context';
+import { Upload, useApp } from '@/lib/context';
 import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { searchDictionaryAndEquivalents, getEquivalentsForRef, validateCriticalPartCompatibility } from '@/lib/equivalentsDictionary';
@@ -2642,6 +2642,53 @@ function SectionGestionArticles() {
                 className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
             </div>
           </div>
+
+          {showBulkImageModal && (
+            <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-lg w-full text-left relative">
+                <button onClick={() => !bulkImageStatus.includes('uploading') && setShowBulkImageModal(false)} className="absolute top-5 right-5 text-zinc-500 hover:text-zinc-950 p-2 rounded-xl bg-white/60 border border-zinc-200 transition">
+                  <X className="w-4 h-4" />
+                </button>
+                <h3 className="text-base font-black text-zinc-950 mb-4 uppercase tracking-widest flex items-center gap-2">
+                  <Upload className="w-5 h-5 text-cyan-500" /> IMPORTATION DE PHOTOS
+                </h3>
+                
+                <p className="text-xs text-zinc-500 mb-4">Sélectionnez vos images (JPG/PNG). Le nom du fichier doit **exactement** correspondre à la référence (ex: <code className="bg-zinc-100 text-zinc-900 px-1 py-0.5 rounded">FDB4336.jpg</code>).</p>
+
+                <div className="border-2 border-dashed border-zinc-200 rounded-2xl p-6 text-center hover:bg-zinc-50 transition cursor-pointer relative">
+                  <input type="file" multiple accept="image/png, image/jpeg" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={(e) => {
+                    if (e.target.files) {
+                      setBulkImageFiles(Array.from(e.target.files));
+                    }
+                  }} />
+                  <Upload className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
+                  <div className="text-sm font-bold text-zinc-950">Cliquez ou glissez vos images ici</div>
+                  <div className="text-xs text-zinc-500 mt-1">{bulkImageFiles.length > 0 ? `${bulkImageFiles.length} fichier(s) sélectionné(s)` : 'JPG, PNG uniquement'}</div>
+                </div>
+
+                {bulkImageStatus === 'uploading' && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-xs font-bold text-zinc-500">
+                      <span>IMPORTATION EN COURS...</span>
+                      <span>{bulkImageProgress}%</span>
+                    </div>
+                    <div className="w-full bg-zinc-100 rounded-full h-2 overflow-hidden">
+                      <div className="bg-cyan-500 h-2 transition-all duration-300" style={{ width: `${bulkImageProgress}%` }}></div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-6">
+                  <button onClick={() => setShowBulkImageModal(false)} disabled={bulkImageStatus === 'uploading'} className="flex-1 px-4 py-3 bg-zinc-100 text-zinc-600 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-zinc-200 transition">
+                    ANNULER
+                  </button>
+                  <button onClick={handleBulkImageUpload} disabled={bulkImageFiles.length === 0 || bulkImageStatus === 'uploading'} className="flex-1 px-4 py-3 bg-cyan-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-cyan-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    DÉMARRER L'IMPORT
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {editingProduct && (
             <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
