@@ -4,27 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { ensureCatalogSeeded } from '@/lib/autoSeed';
 
-);
-    const html = await res.text();
-    const regex = /murl&quot;:&quot;(https?:[^&]+)&quot;/g;
-    let match;
-    const imgUrls: string[] = [];
-    while ((match = regex.exec(html)) !== null && imgUrls.length < 3) {
-      imgUrls.push(match[1]);
-    }
-    
-    if (imgUrls.length > 0) {
-      const httpsUrls = imgUrls.map(u => u.replace('http://', 'https://'));
-      await prisma.product.update({
-        where: { id: productId },
-        data: { images: JSON.stringify(httpsUrls) }
-      });
-      console.log(`[Image Fetcher] Saved ${httpsUrls.length} images for product ${reference}`);
-    }
-  } catch (e) {
-    console.error("[Image Fetcher] Error fetching image for", reference, e);
-  }
-}
+
 
 export async function GET(req: NextRequest) {
   try {
