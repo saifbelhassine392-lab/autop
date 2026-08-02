@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
         { reference: { contains: search } },
         { description: { contains: search } },
         { brand: { contains: search } },
+        { compatible: { contains: search } },
       ];
     }
 
