@@ -5602,6 +5602,34 @@ function SectionHistoriquePrixArticles() {
   const [parsingSheet, setParsingSheet] = useState(false);
   const [importingSheet, setImportingSheet] = useState(false);
 
+  // États pour la consultation d'historique d'achats Odoo par article
+  const [odooSearchRef, setOdooSearchRef] = useState('');
+  const [odooHistoryData, setOdooHistoryData] = useState<any | null>(null);
+  const [loadingOdooHistory, setLoadingOdooHistory] = useState(false);
+  const [showOdooHistoryModal, setShowOdooHistoryModal] = useState(false);
+
+  const fetchOdooPurchaseHistory = async (ref: string) => {
+    const cleanRef = ref.trim().toUpperCase();
+    if (!cleanRef) return;
+    setLoadingOdooHistory(true);
+    setOdooSearchRef(cleanRef);
+    setShowOdooHistoryModal(true);
+    try {
+      const res = await fetch(`/api/odoo/purchase-history?reference=${encodeURIComponent(cleanRef)}`);
+      const data = await res.json();
+      if (data.success) {
+        setOdooHistoryData(data);
+      } else {
+        setOdooHistoryData({ success: false, reference: cleanRef, hasHistory: false, summary: null, purchases: [], sales: [] });
+      }
+    } catch (err) {
+      console.error(err);
+      setOdooHistoryData({ success: false, reference: cleanRef, hasHistory: false, summary: null, purchases: [], sales: [] });
+    } finally {
+      setLoadingOdooHistory(false);
+    }
+  };
+
   const [newItem, setNewItem] = useState({
     reference: '',
     designation: '',
@@ -5938,6 +5966,58 @@ function SectionHistoriquePrixArticles() {
         ))}
       </div>
 
+      {/* Bloc Recherche Historique d'Achat Odoo par Article */}
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-zinc-950 p-4 sm:p-5 rounded-2xl text-white shadow-lg space-y-3 border border-purple-500/30">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-purple-500/20 text-purple-300 font-bold">🟣</span>
+            <div>
+              <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                HISTORIQUE D'ACHAT PAR ARTICLE (LOGS ODOO ERP EN DIRECT)
+              </h3>
+              <p className="text-purple-200 text-xs">
+                Saisissez une référence pour extraire instantanément le dernier prix d'achat, fournisseur, date et évolution
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={(e) => { e.preventDefault(); fetchOdooPurchaseHistory(odooSearchRef); }} className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-300" />
+            <input
+              type="text"
+              value={odooSearchRef}
+              onChange={e => setOdooSearchRef(e.target.value)}
+              placeholder="EXEMPLE : 7410GE, CL4100, 7410CF, 1306J5, 1440TV..."
+              className="w-full bg-purple-950/60 border border-purple-400/40 text-white font-mono font-black pl-10 pr-4 h-11 rounded-xl text-sm focus:outline-none focus:border-purple-300 placeholder:text-purple-300/60 uppercase"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loadingOdooHistory || !odooSearchRef.trim()}
+            className="px-5 h-11 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-md disabled:opacity-50"
+          >
+            {loadingOdooHistory ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+            CONSULTER L'HISTORIQUE ODOO
+          </button>
+        </form>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-purple-200/80 pt-1">
+          <span className="font-bold text-[10px] uppercase">RÉFÉRENCES DIRECTES :</span>
+          {['CL4100', '7410CF', '7410GE', '1306J5', '1440TV', '0014329101008'].map(rf => (
+            <button
+              key={rf}
+              type="button"
+              onClick={() => { setOdooSearchRef(rf); fetchOdooPurchaseHistory(rf); }}
+              className="px-2.5 py-1 rounded-lg bg-purple-800/60 hover:bg-purple-700/80 text-purple-100 font-mono font-bold text-[11px] border border-purple-600/40 transition"
+            >
+              {rf}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Search & Type Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
@@ -5995,7 +6075,16 @@ function SectionHistoriquePrixArticles() {
                       {getSourceBadge(h.source)}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-mono font-black text-red-650 uppercase text-sm">{h.reference}</div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fetchOdooPurchaseHistory(h.reference)}
+                          className="font-mono font-black text-purple-900 hover:text-purple-600 hover:underline uppercase text-sm"
+                          title="Cliquer pour voir l'historique d'achat Odoo"
+                        >
+                          {h.reference}
+                        </button>
+                      </div>
                       <div className="text-zinc-600 text-[11px] truncate max-w-[220px]">{h.designation || '-'}</div>
                     </td>
                     <td className="px-4 py-3">
@@ -6008,7 +6097,7 @@ function SectionHistoriquePrixArticles() {
                         <div className="text-[10px] text-zinc-500 font-mono">{h.sourceDetails}</div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-purple-900">
+                    <td className="px-4 py-3 text-right font-mono font-black text-zinc-950">
                       {h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : '-'}
                       {h.discount > 0 && <span className="text-[10px] text-zinc-500 ml-1">(-{h.discount}%)</span>}
                     </td>
@@ -6027,6 +6116,13 @@ function SectionHistoriquePrixArticles() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => fetchOdooPurchaseHistory(h.reference)}
+                          className="p-1.5 text-purple-700 hover:bg-purple-50 rounded-lg transition"
+                          title="Historique d'achat Odoo"
+                        >
+                          <Database className="w-4 h-4" />
+                        </button>
                         <button onClick={() => setEditingItem(h)} className="p-1.5 text-zinc-400 hover:text-blue-600 transition" title="Modifier">
                           <Edit3 className="w-4 h-4" />
                         </button>
@@ -6327,6 +6423,224 @@ function SectionHistoriquePrixArticles() {
           </div>
         </div>
       )}
+
+      {/* Modal Historique d'Achat Odoo par Article */}
+      {showOdooHistoryModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-5">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-5 sm:p-7 max-w-4xl w-full relative text-left shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowOdooHistoryModal(false)}
+              className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-950 transition p-1"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* En-tête de la fiche article Odoo */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-200 pb-4 pr-8">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-100 border border-purple-200 flex items-center justify-center text-purple-700 text-xl font-bold">
+                  🟣
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-lg text-zinc-950 uppercase">
+                      #{odooSearchRef}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-300">
+                      ODOO ERP
+                    </span>
+                  </div>
+                  <p className="text-xs font-bold text-zinc-600 uppercase">
+                    {odooHistoryData?.summary?.articleName || 'Fiche Suivi Achat'}
+                  </p>
+                </div>
+              </div>
+
+              {odooHistoryData?.summary && (
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    📦 {odooHistoryData.summary.stockOdoo} EN STOCK MAGASIN
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {loadingOdooHistory ? (
+              <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-wider flex flex-col items-center justify-center gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                <span>Interrogation des logs d'achats et ventes Odoo ERP en temps réel...</span>
+              </div>
+            ) : !odooHistoryData?.hasHistory || (!odooHistoryData.purchases?.length && !odooHistoryData.sales?.length) ? (
+              /* Message si aucun achat / historique */
+              <div className="text-center py-12 px-6 bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-3xl space-y-2 my-4">
+                <div className="text-3xl">⚠️</div>
+                <h4 className="text-base font-black text-amber-950 uppercase tracking-wide">
+                  Aucun historique d'achat pour cette référence
+                </h4>
+                <p className="text-xs text-amber-800 font-medium max-w-md mx-auto">
+                  La référence <strong>"{odooSearchRef}"</strong> n'a fait l'objet d'aucune commande d'achat fournisseur enregistrée dans la base Odoo.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* 4 Cartes Synthèse (En Noir et Gros Gras) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-1">
+                      🏬 FOURNISSEUR (DERNIER ACHAT)
+                    </span>
+                    <span className="text-sm font-black text-zinc-950 uppercase truncate">
+                      {odooHistoryData.summary.lastSupplier || 'Inconnu'}
+                    </span>
+                  </div>
+
+                  <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-900 mb-1">
+                      💰 DERNIER PRIX D'ACHAT (HT)
+                    </span>
+                    <span className="text-lg font-black text-zinc-950 font-mono">
+                      {odooHistoryData.summary.lastPurchasePrice ? `${odooHistoryData.summary.lastPurchasePrice.toFixed(3)} TND` : '-'}
+                    </span>
+                  </div>
+
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 mb-1">
+                      🏷️ DERNIER PRIX DE VENTE (HT)
+                    </span>
+                    <span className="text-lg font-black text-zinc-950 font-mono">
+                      {odooHistoryData.summary.lastSellingPrice ? `${odooHistoryData.summary.lastSellingPrice.toFixed(3)} TND` : '-'}
+                    </span>
+                  </div>
+
+                  <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-1">
+                      📅 DERNIÈRE DATE D'ACHAT
+                    </span>
+                    <span className="text-sm font-black text-zinc-950 font-mono">
+                      {odooHistoryData.summary.lastPurchaseDate || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tableau Chronologique des Achats (Odoo) */}
+                {odooHistoryData.purchases && odooHistoryData.purchases.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
+                        <span>📦 HISTORIQUE CHRONOLOGIQUE DES ACHATS FOURNISSEURS</span>
+                        <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full text-[10px]">
+                          {odooHistoryData.purchases.length} TRANSACTION(S)
+                        </span>
+                      </h4>
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase">ÉVOLUTION DES PRIX</span>
+                    </div>
+
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
+                            <th className="px-4 py-3">DATE D'ACHAT</th>
+                            <th className="px-4 py-3">FOURNISSEUR</th>
+                            <th className="px-4 py-3">N° COMMANDE (PO)</th>
+                            <th className="px-4 py-3 text-center">QUANTITÉ</th>
+                            <th className="px-4 py-3 text-right">PRIX ACHAT UNIT. (HT)</th>
+                            <th className="px-4 py-3 text-center">STATUT</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {odooHistoryData.purchases.map((po: any, idx: number) => (
+                            <tr key={idx} className={idx === 0 ? "bg-purple-50/40 font-bold" : "hover:bg-zinc-50"}>
+                              <td className="px-4 py-3 font-mono font-black text-zinc-950">
+                                {po.date}
+                              </td>
+                              <td className="px-4 py-3 font-black text-zinc-950 uppercase">
+                                {po.supplierName}
+                              </td>
+                              <td className="px-4 py-3 font-mono font-black text-purple-900">
+                                {po.orderNumber}
+                              </td>
+                              <td className="px-4 py-3 text-center font-mono font-black text-zinc-950">
+                                {po.quantity}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-black text-zinc-950 text-sm">
+                                {po.purchasePrice ? `${po.purchasePrice.toFixed(3)} TND` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                  po.state === 'Validé' || po.state === 'Reçu' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-700'
+                                }`}>
+                                  {po.state}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tableau des Ventes Clients (Odoo) */}
+                {odooHistoryData.sales && odooHistoryData.sales.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
+                        <span>👥 HISTORIQUE DES VENTES CLIENTS</span>
+                        <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
+                          {odooHistoryData.sales.length} VENTE(S)
+                        </span>
+                      </h4>
+                    </div>
+
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
+                            <th className="px-4 py-3">DATE DE VENTE</th>
+                            <th className="px-4 py-3">CLIENT</th>
+                            <th className="px-4 py-3">N° COMMANDE (SO)</th>
+                            <th className="px-4 py-3 text-center">QUANTITÉ</th>
+                            <th className="px-4 py-3 text-right">PRIX VENTE UNIT. (HT)</th>
+                            <th className="px-4 py-3 text-center">STATUT</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {odooHistoryData.sales.slice(0, 10).map((so: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-zinc-50">
+                              <td className="px-4 py-3 font-mono font-black text-zinc-950">
+                                {so.date}
+                              </td>
+                              <td className="px-4 py-3 font-black text-zinc-950 uppercase">
+                                {so.clientName}
+                              </td>
+                              <td className="px-4 py-3 font-mono font-black text-emerald-800">
+                                {so.orderNumber}
+                              </td>
+                              <td className="px-4 py-3 text-center font-mono font-black text-zinc-950">
+                                {so.quantity}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono font-black text-emerald-700 text-sm">
+                                {so.sellingPrice ? `${so.sellingPrice.toFixed(3)} TND` : '-'}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                  so.state === 'Livré' || so.state === 'Confirmé' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-700'
+                                }`}>
+                                  {so.state}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -6438,6 +6752,31 @@ function SectionHistoriqueAchats() {
     ).slice(0, 8);
     setSuggestions(filtered);
   };
+
+  const [odooArticleData, setOdooArticleData] = useState<any | null>(null);
+  const [loadingOdooArticle, setLoadingOdooArticle] = useState(false);
+
+  const fetchOdooArticle = async (ref: string) => {
+    const cleanRef = ref.trim().toUpperCase();
+    if (!cleanRef) return;
+    setLoadingOdooArticle(true);
+    try {
+      const res = await fetch(`/api/odoo/purchase-history?reference=${encodeURIComponent(cleanRef)}`);
+      const data = await res.json();
+      setOdooArticleData(data);
+    } catch (e) {
+      console.error(e);
+      setOdooArticleData(null);
+    } finally {
+      setLoadingOdooArticle(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedArticleRef) {
+      fetchOdooArticle(selectedArticleRef);
+    }
+  }, [selectedArticleRef]);
 
   // Find all purchase orders containing the selected article reference
   const articlePurchases = useMemo(() => {
@@ -6602,48 +6941,167 @@ function SectionHistoriqueAchats() {
             )}
           </div>
 
-          {/* Article Purchases Table */}
+          {/* Article Purchases Table & Odoo Integration */}
           {selectedArticleRef ? (
-            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-2xl space-y-4">
-              <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest border-b border-zinc-200 pb-2 flex justify-between">
-                <span>HISTORIQUE DES ACHATS POUR LA RÉFÉRENCE :</span>
-                <span className="text-red-400 font-mono">#{selectedArticleRef.toUpperCase()}</span>
-              </h3>
+            <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-2xl space-y-5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-zinc-200 pb-3 gap-2">
+                <div>
+                  <h3 className="text-sm font-black text-zinc-950 uppercase tracking-wide flex items-center gap-2">
+                    <span>HISTORIQUE DES ACHATS POUR LA RÉFÉRENCE :</span>
+                    <span className="text-purple-900 font-mono text-base font-black">#{selectedArticleRef.toUpperCase()}</span>
+                  </h3>
+                  <p className="text-xs text-zinc-500 font-bold uppercase">
+                    {odooArticleData?.summary?.articleName || 'Fiche Article'}
+                  </p>
+                </div>
+                {odooArticleData?.summary && (
+                  <span className="px-3 py-1 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    📦 {odooArticleData.summary.stockOdoo} EN STOCK ODOO
+                  </span>
+                )}
+              </div>
 
-              {articlePurchases.length === 0 ? (
-                <p className="text-zinc-600 font-bold text-center py-6 uppercase text-xs">Aucun achat enregistré pour cette pièce</p>
+              {loadingOdooArticle ? (
+                <div className="text-center py-10 text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                  Chargement de l'historique Odoo...
+                </div>
+              ) : !odooArticleData?.hasHistory && articlePurchases.length === 0 ? (
+                <div className="text-center py-8 px-4 bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-2xl space-y-1">
+                  <p className="text-amber-950 font-black text-sm uppercase">
+                    Aucun historique d'achat pour cette référence
+                  </p>
+                  <p className="text-amber-800 text-xs font-medium">
+                    Cette pièce n'a fait l'objet d'aucune commande d'achat enregistrée.
+                  </p>
+                </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-850 text-[9px] font-black text-zinc-600 uppercase tracking-widest">
-                        <th className="py-2">Date d'achat</th>
-                        <th className="py-2">Fournisseur</th>
-                        <th className="py-2">N° Bon Commande</th>
-                        <th className="py-2 text-center">Quantité</th>
-                        <th className="py-2 text-right">Prix Unit. HT</th>
-                        <th className="py-2 text-right">Total HT</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {articlePurchases.map((ap, idx) => (
-                        <tr key={idx} className="border-b border-slate-850/30 hover:bg-zinc-50/10 text-slate-300">
-                          <td className="py-2 font-medium">{ap.date}</td>
-                          <td className="py-2 font-bold uppercase">{ap.supplierName}</td>
-                          <td className="py-2 font-mono text-green-400 font-bold">#{ap.poNumber}</td>
-                          <td className="py-2 text-center font-mono">{ap.quantity}</td>
-                          <td className="py-2 text-right font-mono">{ap.unitPrice.toFixed(3)} TND</td>
-                          <td className="py-2 text-right font-mono font-bold text-zinc-950">{ap.total.toFixed(3)} TND</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-5">
+                  {/* Synthèse Métriques Clés */}
+                  {odooArticleData?.summary && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 flex flex-col justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                          🏬 FOURNISSEUR (DERNIER ACHAT)
+                        </span>
+                        <span className="text-sm font-black text-zinc-950 uppercase truncate mt-1">
+                          {odooArticleData.summary.lastSupplier || 'Inconnu'}
+                        </span>
+                      </div>
+
+                      <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-3.5 flex flex-col justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-purple-900">
+                          💰 DERNIER PRIX D'ACHAT (HT)
+                        </span>
+                        <span className="text-base font-black text-zinc-950 font-mono mt-1">
+                          {odooArticleData.summary.lastPurchasePrice ? `${odooArticleData.summary.lastPurchasePrice.toFixed(3)} TND` : '-'}
+                        </span>
+                      </div>
+
+                      <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-3.5 flex flex-col justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900">
+                          🏷️ DERNIER PRIX DE VENTE (HT)
+                        </span>
+                        <span className="text-base font-black text-zinc-950 font-mono mt-1">
+                          {odooArticleData.summary.lastSellingPrice ? `${odooArticleData.summary.lastSellingPrice.toFixed(3)} TND` : '-'}
+                        </span>
+                      </div>
+
+                      <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3.5 flex flex-col justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                          📅 DERNIÈRE DATE D'ACHAT
+                        </span>
+                        <span className="text-sm font-black text-zinc-950 font-mono mt-1">
+                          {odooArticleData.summary.lastPurchaseDate || '-'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tableau des Achats Odoo */}
+                  {odooArticleData?.purchases && odooArticleData.purchases.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
+                        <span>🟣 ACHATS FOURNISSEURS ENREGISTRÉS DANS ODOO ERP</span>
+                        <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full text-[10px]">
+                          {odooArticleData.purchases.length}
+                        </span>
+                      </h4>
+                      <div className="overflow-x-auto border border-zinc-200 rounded-2xl">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-zinc-100 border-b border-zinc-200 text-[10px] font-black text-zinc-700 uppercase tracking-wider">
+                              <th className="px-3 py-2.5">Date d'achat</th>
+                              <th className="px-3 py-2.5">Fournisseur</th>
+                              <th className="px-3 py-2.5">N° Bon Commande</th>
+                              <th className="px-3 py-2.5 text-center">Quantité</th>
+                              <th className="px-3 py-2.5 text-right">Prix Unit. HT</th>
+                              <th className="px-3 py-2.5 text-center">Statut</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-100">
+                            {odooArticleData.purchases.map((po: any, idx: number) => (
+                              <tr key={idx} className={idx === 0 ? "bg-purple-50/40 font-bold" : "hover:bg-zinc-50"}>
+                                <td className="px-3 py-2.5 font-mono font-black text-zinc-950">{po.date}</td>
+                                <td className="px-3 py-2.5 font-black text-zinc-950 uppercase">{po.supplierName}</td>
+                                <td className="px-3 py-2.5 font-mono font-black text-purple-900">{po.orderNumber}</td>
+                                <td className="px-3 py-2.5 text-center font-mono font-black text-zinc-950">{po.quantity}</td>
+                                <td className="px-3 py-2.5 text-right font-mono font-black text-zinc-950">
+                                  {po.purchasePrice ? `${po.purchasePrice.toFixed(3)} TND` : '-'}
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                                    {po.state}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tableau des Bons d'Achats Internes (si existants) */}
+                  {articlePurchases.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider">
+                        📝 BONS DE COMMANDE INTERNES (APPLICATION)
+                      </h4>
+                      <div className="overflow-x-auto border border-zinc-200 rounded-2xl">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-zinc-100 border-b border-zinc-200 text-[10px] font-black text-zinc-700 uppercase tracking-wider">
+                              <th className="px-3 py-2.5">Date</th>
+                              <th className="px-3 py-2.5">Fournisseur</th>
+                              <th className="px-3 py-2.5">N° Bon</th>
+                              <th className="px-3 py-2.5 text-center">Quantité</th>
+                              <th className="px-3 py-2.5 text-right">Prix Unit. HT</th>
+                              <th className="px-3 py-2.5 text-right">Total HT</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-zinc-100">
+                            {articlePurchases.map((ap, idx) => (
+                              <tr key={idx} className="hover:bg-zinc-50">
+                                <td className="px-3 py-2.5 font-mono font-black text-zinc-950">{ap.date}</td>
+                                <td className="px-3 py-2.5 font-black text-zinc-950 uppercase">{ap.supplierName}</td>
+                                <td className="px-3 py-2.5 font-mono font-black text-green-700">#{ap.poNumber}</td>
+                                <td className="px-3 py-2.5 text-center font-mono font-black text-zinc-950">{ap.quantity}</td>
+                                <td className="px-3 py-2.5 text-right font-mono font-black text-zinc-950">{ap.unitPrice.toFixed(3)} TND</td>
+                                <td className="px-3 py-2.5 text-right font-mono font-black text-zinc-950">{ap.total.toFixed(3)} TND</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-12 bg-white/20 border border-slate-850 border-dashed rounded-3xl text-zinc-600 font-bold uppercase text-xs">
-              Veuillez sélectionner un article ci-dessus pour consulter ses achats
+            <div className="text-center py-12 bg-zinc-50 border border-zinc-200 border-dashed rounded-3xl text-zinc-500 font-bold uppercase text-xs">
+              Veuillez sélectionner ou rechercher un article ci-dessus pour consulter son historique d'achats Odoo
             </div>
           )}
         </div>
