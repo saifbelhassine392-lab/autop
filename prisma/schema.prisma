@@ -420,17 +420,25 @@ model HistoriquePiece {
 model PartPriceHistory {
   id                String    @id @default(cuid())
   reference         String
+  brand             String?
+  designation       String?
   type              String    @default("ADAPTABLE")
   supplierId        String?
   supplier          Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   supplierName      String?
   purchasePrice     Float?
   sellingPrice      Float?
+  discount          Float?    @default(0)
+  stock             Int?      @default(0)
+  source            String    @default("DEVIS_INTERNE") // "ODOO" | "EMAIL" | "GOOGLE_SHEETS" | "B2B_ROBOT" | "DEVIS_INTERNE"
+  sourceDetails     String?
+  date              DateTime  @default(now())
   isConcessionnaire Boolean   @default(false)
   updatedAt         DateTime  @updatedAt
   createdAt         DateTime  @default(now())
 
   @@index([reference])
+  @@index([source])
 }
 
 model VehicleVinCatalog {

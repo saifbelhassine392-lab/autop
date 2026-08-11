@@ -6,48 +6,66 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const reference = searchParams.get('reference');
     const referencesParam = searchParams.get('references');
+    const source = searchParams.get('source');
+    const q = searchParams.get('q') || searchParams.get('search');
+    const liveOdoo = searchParams.get('liveOdoo') === 'true';
+
+    const whereClause: any = {};
+
+    if (source && source !== 'ALL') {
+      whereClause.source = source.toUpperCase();
+    }
 
     if (referencesParam) {
       const refs = referencesParam.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
-      const histories = await prisma.partPriceHistory.findMany({
-        where: {
-          reference: { in: refs }
-        },
-        include: {
-          supplier: true
-        },
-        orderBy: {
-          updatedAt: 'desc'
-        }
-      });
-      return NextResponse.json({ success: true, data: histories });
-    }
-
-    if (!reference) {
-      const histories = await prisma.partPriceHistory.findMany({
-        include: {
-          supplier: true
-        },
-        orderBy: {
-          updatedAt: 'desc'
-        }
-      });
-      return NextResponse.json({ success: true, data: histories });
+      whereClause.reference = { in: refs };
+    } else if (reference) {
+      whereClause.reference = reference.trim().toUpperCase();
+    } else if (q) {
+      const cleanQ = q.trim().toUpperCase();
+      whereClause.OR = [
+        { reference: { contains: cleanQ } },
+        { designation: { contains: q.trim() } },
+        { brand: { contains: cleanQ } },
+        { supplierName: { contains: q.trim() } },
+        { sourceDetails: { contains: q.trim() } }
+      ];
     }
 
     const histories = await prisma.partPriceHistory.findMany({
-      where: {
-        reference: reference
-      },
+      where: whereClause,
       include: {
         supplier: true
       },
       orderBy: {
         updatedAt: 'desc'
-      }
+      },
+      take: 200
     });
 
-    return NextResponse.json({ success: true, data: histories });
+    // Si recherche en direct dans Odoo demandée
+    let liveOdooResults: any[] = [];
+    if (liveOdoo && reference) {
+      try {
+        const { searchOdooByReference } = await import('@/lib/odoo');
+        liveOdooResults = await searchOdooByReference(reference);
+      } catch (odooErr) {
+        console.warn("[Historique Prix] Odoo live query skipped:", odooErr);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: histories,
+      liveOdoo: liveOdooResults,
+      sourcesCount: {
+        odoo: histories.filter(h => h.source === 'ODOO').length,
+        email: histories.filter(h => h.source === 'EMAIL').length,
+        sheets: histories.filter(h => h.source === 'GOOGLE_SHEETS').length,
+        b2b: histories.filter(h => h.source === 'B2B_ROBOT').length,
+        devis: histories.filter(h => h.source === 'DEVIS_INTERNE' || !h.source).length,
+      }
+    });
   } catch (error) {
     console.error("Erreur API historique-prix GET:", error);
     return NextResponse.json({ success: false, error: "Erreur interne du serveur" }, { status: 500 });

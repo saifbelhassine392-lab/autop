@@ -10,7 +10,8 @@ import {
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
-  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle, Loader2
+  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle, Loader2,
+  RefreshCw, FileSpreadsheet, Database, Sparkles, CheckCircle2, ExternalLink, Layers
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -4014,6 +4015,8 @@ function SectionRobotB2B() {
   const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'DISPONIBLE' | 'SUR_COMMANDE' | 'ARRIVAGE'>('ALL');
   const [fallbackData, setFallbackData] = useState<{ logs: any[]; stats: any; summary: string } | null>(null);
   const [showFallbackLog, setShowFallbackLog] = useState(false);
+  const [multiSourceHistory, setMultiSourceHistory] = useState<any[]>([]);
+  const [liveOdooItems, setLiveOdooItems] = useState<any[]>([]);
 
   useEffect(() => {
     fetch('/api/suppliers').then(r => r.json()).then(d => {
@@ -4076,6 +4079,19 @@ function SectionRobotB2B() {
     if (!cleanQuery || selectedSupplierIds.length === 0) return;
     setLoading(true);
     setResult(null);
+    setMultiSourceHistory([]);
+    setLiveOdooItems([]);
+
+    // Fetch consolidated multi-source history & live Odoo in parallel
+    fetch(`/api/historique-prix?reference=${encodeURIComponent(cleanQuery)}&liveOdoo=true`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          setMultiSourceHistory(res.data || []);
+          setLiveOdooItems(res.liveOdoo || []);
+        }
+      })
+      .catch(() => {});
 
     const targetSuppliers = b2bSuppliers.filter(s => selectedSupplierIds.includes(s.id));
     const statuses: Record<string, string> = {};
@@ -4457,6 +4473,71 @@ function SectionRobotB2B() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Card Historique Multi-Sources Consolidé (Odoo, Emails, Sheets) */}
+              {(multiSourceHistory.length > 0 || liveOdooItems.length > 0) && (
+                <div className="mb-4 bg-gradient-to-br from-purple-50 via-white to-blue-50 border border-purple-200 rounded-2xl p-4 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-purple-600 text-base">⚡</span>
+                      <span className="text-xs font-black uppercase tracking-wider text-purple-900">
+                        HISTORIQUE CONSOLIDÉ MULTI-SOURCES ({multiSourceHistory.length + liveOdooItems.length} OFFRES ENREGISTRÉES)
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full">
+                      ODOO ERP · EMAILS · SHEETS · B2B
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {/* Live Odoo ERP Results */}
+                    {liveOdooItems.map((od, i) => (
+                      <div key={`live-odoo-${i}`} className="bg-white p-3 rounded-xl border border-purple-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="px-2 py-0.5 rounded text-[9px] font-black bg-purple-100 text-purple-800">🟣 ODOO EN DIRECT</span>
+                            <span className="text-[10px] font-mono text-purple-600 font-bold">{od.stock > 0 ? `${od.stock} en stock` : 'Magasin'}</span>
+                          </div>
+                          <div className="font-mono font-black text-xs text-zinc-950 uppercase">{od.reference}</div>
+                          <div className="text-[10px] text-zinc-600 truncate">{od.designation || od.name}</div>
+                          {od.supplierName && <div className="text-[9px] text-zinc-500 mt-1 font-semibold">Fourn: {od.supplierName}</div>}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-zinc-100 flex justify-between items-end">
+                          <span className="text-[9px] text-zinc-500 uppercase">Prix Achat HT</span>
+                          <span className="font-mono font-black text-purple-900 text-xs">{od.purchasePrice ? `${od.purchasePrice.toFixed(3)} TND` : '-'}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Saved Multi-Source Database Items */}
+                    {multiSourceHistory.slice(0, 6).map((h, i) => (
+                      <div key={`hist-${i}`} className="bg-white p-3 rounded-xl border border-zinc-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black ${
+                              h.source === 'ODOO' ? 'bg-purple-100 text-purple-800' :
+                              h.source === 'EMAIL' ? 'bg-blue-100 text-blue-800' :
+                              h.source === 'GOOGLE_SHEETS' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-800'
+                            }`}>
+                              {h.source === 'ODOO' ? '🟣 ODOO' : h.source === 'EMAIL' ? '📧 EMAIL' : h.source === 'GOOGLE_SHEETS' ? '📊 SHEETS' : '📝 HISTORIQUE'}
+                            </span>
+                            <span className="text-[9px] text-zinc-400 font-mono">{new Date(h.date || h.updatedAt).toLocaleDateString('fr-FR')}</span>
+                          </div>
+                          <div className="font-mono font-black text-xs text-zinc-950 uppercase">{h.reference}</div>
+                          <div className="text-[10px] text-zinc-600 truncate">{h.designation || h.brand || '-'}</div>
+                          <div className="text-[9px] text-zinc-500 font-semibold truncate mt-0.5">{h.supplierName || 'Fournisseur'}</div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-zinc-100 flex justify-between items-end">
+                          <span className="text-[9px] text-zinc-500 uppercase">Dernier Prix</span>
+                          <span className="font-mono font-black text-zinc-900 text-xs">
+                            {h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : h.sellingPrice ? `${h.sellingPrice.toFixed(3)} TND` : '-'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -5486,31 +5567,68 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
   );
 }
 
-// ─── SECTION: HISTORIQUE DES PRIX ET OFFRES DES ARTICLES ──────────────────────
+// ─── SECTION: HISTORIQUE DES PRIX ET OFFRES DES ARTICLES (MULTI-SOURCES) ──────
 function SectionHistoriquePrixArticles() {
   const [histories, setHistories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('ALL');
   const [typeFilter, setTypeFilter] = useState('TOUS');
+  const [sourcesCount, setSourcesCount] = useState<any>({ odoo: 0, email: 0, sheets: 0, b2b: 0, devis: 0 });
 
   // Modals state
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showOdooModal, setShowOdooModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showSheetsModal, setShowSheetsModal] = useState(false);
+
+  // Odoo Sync State
+  const [odooSyncing, setOdooSyncing] = useState(false);
+  const [odooLimit, setOdooLimit] = useState(300);
+  const [odooMessage, setOdooMessage] = useState<string | null>(null);
+
+  // Email Parser State
+  const [emailText, setEmailText] = useState('');
+  const [emailSupplier, setEmailSupplier] = useState('');
+  const [parsedEmail, setParsedEmail] = useState<any | null>(null);
+  const [parsingEmail, setParsingEmail] = useState(false);
+  const [importingEmail, setImportingEmail] = useState(false);
+
+  // Sheets Importer State
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [sheetSupplier, setSheetSupplier] = useState('Google Sheets');
+  const [parsedSheet, setParsedSheet] = useState<any | null>(null);
+  const [parsingSheet, setParsingSheet] = useState(false);
+  const [importingSheet, setImportingSheet] = useState(false);
+
   const [newItem, setNewItem] = useState({
     reference: '',
+    designation: '',
+    brand: '',
     supplierName: '',
     type: 'ADAPTABLE',
     purchasePrice: 0,
-    sellingPrice: 0
+    sellingPrice: 0,
+    discount: 0,
+    stock: 0,
+    source: 'DEVIS_INTERNE',
+    sourceDetails: ''
   });
 
   const fetchHistories = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/historique-prix');
+      const url = sourceFilter && sourceFilter !== 'ALL' 
+        ? `/api/historique-prix?source=${sourceFilter}` 
+        : '/api/historique-prix';
+      const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
         setHistories(data.data || []);
+        if (data.sourcesCount) {
+          setSourcesCount(data.sourcesCount);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -5521,10 +5639,140 @@ function SectionHistoriquePrixArticles() {
 
   useEffect(() => {
     fetchHistories();
-  }, []);
+  }, [sourceFilter]);
+
+  // Sync Odoo ERP
+  const handleSyncOdoo = async () => {
+    setOdooSyncing(true);
+    setOdooMessage(null);
+    try {
+      const res = await fetch('/api/odoo/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: odooLimit })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOdooMessage(`✓ ${data.message}`);
+        fetchHistories();
+      } else {
+        setOdooMessage(`❌ Erreur: ${data.error || "Échec synchronisation Odoo"}`);
+      }
+    } catch (err: any) {
+      setOdooMessage(`❌ Erreur réseau: ${err.message}`);
+    } finally {
+      setOdooSyncing(false);
+    }
+  };
+
+  // Parse Email Text
+  const handleParseEmail = async () => {
+    if (!emailText.trim()) return;
+    setParsingEmail(true);
+    setParsedEmail(null);
+    try {
+      const res = await fetch('/api/email-devis/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: emailText, supplierName: emailSupplier || undefined })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setParsedEmail(data.data);
+      } else {
+        alert(data.error || "Impossible d'analyser le texte de l'email");
+      }
+    } catch (err: any) {
+      alert(`Erreur: ${err.message}`);
+    } finally {
+      setParsingEmail(false);
+    }
+  };
+
+  // Import Parsed Email Items
+  const handleImportEmail = async () => {
+    if (!parsedEmail || !parsedEmail.items || parsedEmail.items.length === 0) return;
+    setImportingEmail(true);
+    try {
+      const res = await fetch('/api/email-devis/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierName: parsedEmail.supplierName || emailSupplier || "Fournisseur Email",
+          quoteNumber: parsedEmail.quoteNumber,
+          date: parsedEmail.date,
+          items: parsedEmail.items
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✓ ${data.message}`);
+        setShowEmailModal(false);
+        setEmailText('');
+        setParsedEmail(null);
+        fetchHistories();
+      } else {
+        alert(data.error || "Erreur lors de l'import");
+      }
+    } catch (err: any) {
+      alert(`Erreur: ${err.message}`);
+    } finally {
+      setImportingEmail(false);
+    }
+  };
+
+  // Preview & Import Google Sheets
+  const handlePreviewSheet = async () => {
+    if (!sheetUrl.trim()) return;
+    setParsingSheet(true);
+    setParsedSheet(null);
+    try {
+      const res = await fetch('/api/sheets/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: sheetUrl, defaultSupplier: sheetSupplier, previewOnly: true })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setParsedSheet(data.data);
+      } else {
+        alert(data.error || "Impossible de lire le Google Sheet");
+      }
+    } catch (err: any) {
+      alert(`Erreur: ${err.message}`);
+    } finally {
+      setParsingSheet(false);
+    }
+  };
+
+  const handleImportSheet = async () => {
+    if (!sheetUrl.trim()) return;
+    setImportingSheet(true);
+    try {
+      const res = await fetch('/api/sheets/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: sheetUrl, defaultSupplier: sheetSupplier, previewOnly: false })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`✓ ${data.message}`);
+        setShowSheetsModal(false);
+        setSheetUrl('');
+        setParsedSheet(null);
+        fetchHistories();
+      } else {
+        alert(data.error || "Erreur lors de l'import");
+      }
+    } catch (err: any) {
+      alert(`Erreur: ${err.message}`);
+    } finally {
+      setImportingSheet(false);
+    }
+  };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Voulez-vous vraiment supprimer cette offre enregistrée de l'historique ?")) return;
+    if (!confirm("Voulez-vous vraiment supprimer cette offre de l'historique ?")) return;
     try {
       const res = await fetch(`/api/historique-prix?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -5564,18 +5812,24 @@ function SectionHistoriquePrixArticles() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          reference: newItem.reference.trim(),
-          supplierName: newItem.supplierName.trim() || 'Fournisseur',
+          reference: newItem.reference.trim().toUpperCase(),
+          designation: newItem.designation.trim(),
+          brand: newItem.brand.trim().toUpperCase(),
+          supplierName: newItem.supplierName.trim() || 'Fournisseur Manuel',
           purchasePrice: parseFloat(String(newItem.purchasePrice)) || 0,
           sellingPrice: parseFloat(String(newItem.sellingPrice)) || 0,
+          discount: parseFloat(String(newItem.discount)) || 0,
+          stock: parseInt(String(newItem.stock), 10) || 0,
           type: newItem.type,
+          source: newItem.source || 'DEVIS_INTERNE',
+          sourceDetails: newItem.sourceDetails || 'Ajout manuel admin',
           isConcessionnaire: newItem.type === 'OEM' || newItem.type === 'PVP'
         })
       });
       const data = await res.json();
       if (data.success) {
         setShowAddModal(false);
-        setNewItem({ reference: '', supplierName: '', type: 'ADAPTABLE', purchasePrice: 0, sellingPrice: 0 });
+        setNewItem({ reference: '', designation: '', brand: '', supplierName: '', type: 'ADAPTABLE', purchasePrice: 0, sellingPrice: 0, discount: 0, stock: 0, source: 'DEVIS_INTERNE', sourceDetails: '' });
         fetchHistories();
       } else {
         alert(data.error || "Erreur lors de l'ajout");
@@ -5588,8 +5842,10 @@ function SectionHistoriquePrixArticles() {
   const filtered = histories.filter(h => {
     const s = search.toLowerCase();
     const matchSearch = h.reference?.toLowerCase().includes(s) ||
+      h.designation?.toLowerCase().includes(s) ||
+      h.brand?.toLowerCase().includes(s) ||
       h.supplierName?.toLowerCase().includes(s) ||
-      h.type?.toLowerCase().includes(s);
+      h.sourceDetails?.toLowerCase().includes(s);
 
     let matchType = true;
     if (typeFilter === 'OEM') matchType = h.type === 'OEM' || h.isConcessionnaire;
@@ -5598,34 +5854,106 @@ function SectionHistoriquePrixArticles() {
     return matchSearch && matchType;
   });
 
+  const getSourceBadge = (source: string) => {
+    switch (source) {
+      case 'ODOO':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-300">🟣 ODOO ERP</span>;
+      case 'EMAIL':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-300">📧 EMAIL DEVIS</span>;
+      case 'GOOGLE_SHEETS':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">📊 GOOGLE SHEETS</span>;
+      case 'B2B_ROBOT':
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">🤖 ROBOT B2B</span>;
+      default:
+        return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-zinc-100 text-zinc-800 border border-zinc-300">📝 DEVIS</span>;
+    }
+  };
+
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+    <div className="space-y-6">
+      {/* Header & Multi-Source Quick Action Buttons */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
         <div>
-          <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-cyan-400" /> HISTORIQUE PRIX ARTICLES & OFFRES
+          <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 flex items-center gap-2">
+            <ClipboardList className="w-6 h-6 text-red-600" /> HISTORIQUE DES PIÈCES & PRIX (MULTI-SOURCES)
           </h2>
-          <p className="text-zinc-500 text-xs uppercase tracking-wider">BANQUE DE DONNÉES DES TARIFS ET OFFRES FOURNISSEURS CONSERVÉS PAR RÉFÉRENCE</p>
+          <p className="text-zinc-500 text-xs uppercase tracking-wider mt-1">
+            BANQUE DE DONNÉES CENTRALISÉE COMBINANT ODOO ERP, DEVIS PAR EMAIL, GOOGLE SHEETS ET LE ROBOT B2B
+          </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-zinc-950 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-cyan-600/20"
-        >
-          <Plus className="w-4 h-4" /> AJOUTER OFFRE ARTICLE
-        </button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowOdooModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
+          >
+            <RefreshCw className="w-4 h-4 text-purple-600" /> SYNCHRO ODOO
+          </button>
+          <button
+            onClick={() => setShowEmailModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
+          >
+            <Mail className="w-4 h-4 text-blue-600" /> IMPORTER DEVIS EMAIL
+          </button>
+          <button
+            onClick={() => setShowSheetsModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" /> GOOGLE SHEETS
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-red-650 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md"
+          >
+            <Plus className="w-4 h-4" /> AJOUTER OFFRE
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-5">
+      {/* Sources Tabs Filter */}
+      <div className="flex flex-wrap gap-2 border-b border-zinc-200 pb-3">
+        {[
+          { id: 'ALL', label: 'TOUTES LES SOURCES', icon: Layers, count: histories.length },
+          { id: 'ODOO', label: 'ODOO ERP', icon: Database, count: sourcesCount.odoo },
+          { id: 'EMAIL', label: 'DEVIS EMAIL', icon: Mail, count: sourcesCount.email },
+          { id: 'GOOGLE_SHEETS', label: 'GOOGLE SHEETS', icon: FileSpreadsheet, count: sourcesCount.sheets },
+          { id: 'B2B_ROBOT', label: 'ROBOT B2B', icon: Package, count: sourcesCount.b2b },
+          { id: 'DEVIS_INTERNE', label: 'DEVIS CLIENTS', icon: FileText, count: sourcesCount.devis }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setSourceFilter(tab.id)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+              sourceFilter === tab.id
+                ? 'bg-zinc-900 text-white shadow-md'
+                : 'bg-white text-zinc-600 hover:bg-zinc-100 border border-zinc-200'
+            }`}
+          >
+            <tab.icon className="w-4 h-4" />
+            <span>{tab.label}</span>
+            <span className={`px-1.5 py-0.2 rounded-md text-[10px] ${sourceFilter === tab.id ? 'bg-zinc-700 text-white' : 'bg-zinc-100 text-zinc-800'}`}>
+              {tab.count || 0}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search & Type Filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input type="text" placeholder="RECHERCHER PAR RÉFÉRENCE ARTICLE, FOURNISSEUR..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="RECHERCHER PAR RÉFÉRENCE, DÉSIGNATION, MARQUE, FOURNISSEUR OU N° DEVIS..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-400 uppercase transition-colors placeholder:text-zinc-400 placeholder:normal-case placeholder:font-normal"
+          />
         </div>
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
-          className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors"
+          className="bg-white text-zinc-950 font-bold text-xs px-4 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-400 cursor-pointer transition-colors"
         >
           <option value="TOUS">TOUS LES TYPES</option>
           <option value="OEM">ORIGINE / OEM / PVP</option>
@@ -5633,46 +5961,76 @@ function SectionHistoriquePrixArticles() {
         </select>
       </div>
 
+      {/* Table of Historic Parts */}
       {loading ? (
-        <div className="text-center py-10 text-zinc-600 font-bold uppercase">CHARGEMENT DE L'HISTORIQUE PRIX...</div>
+        <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-wider flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-zinc-200">
+          <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+          CHARGEMENT DE LA BASE HISTORIQUE CONSOLIDÉE...
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-zinc-600 font-bold uppercase">AUCUNE OFFRE ENREGISTRÉE DANS L'HISTORIQUE</div>
+        <div className="text-center py-16 text-zinc-500 font-bold uppercase bg-white rounded-2xl border border-dashed border-zinc-300 p-8">
+          AUCUNE DONNÉE TROUVÉE POUR LES CRITÈRES SÉLECTIONNÉS
+        </div>
       ) : (
-        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors">
-                  <th className="px-4 py-3">RÉFÉRENCE ARTICLE</th>
-                  <th className="px-4 py-3">TYPE OFFRE</th>
-                  <th className="px-4 py-3">FOURNISSEUR</th>
-                  <th className="px-4 py-3 text-right text-amber-400">PRIX ACHAT (HT)</th>
-                  <th className="px-4 py-3 text-right text-green-400">PRIX VENTE (HT)</th>
-                  <th className="px-4 py-3 text-center">DATE MAJ</th>
-                  <th className="px-4 py-3 text-center">ACTIONS</th>
+                <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
+                  <th className="px-4 py-3.5">SOURCE</th>
+                  <th className="px-4 py-3.5">RÉFÉRENCE & ARTICLE</th>
+                  <th className="px-4 py-3.5">MARQUE / TYPE</th>
+                  <th className="px-4 py-3.5">FOURNISSEUR & DÉTAILS</th>
+                  <th className="px-4 py-3.5 text-right text-purple-700">PRIX ACHAT (HT)</th>
+                  <th className="px-4 py-3.5 text-right text-emerald-700">PRIX VENTE (HT)</th>
+                  <th className="px-4 py-3.5 text-center">STOCK</th>
+                  <th className="px-4 py-3.5 text-center">DATE MAJ</th>
+                  <th className="px-4 py-3.5 text-center">ACTIONS</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-100">
                 {filtered.map(h => (
-                  <tr key={h.id} className="border-b border-zinc-100 hover:bg-white/40 transition">
-                    <td className="px-4 py-3 font-mono font-black text-cyan-400 uppercase text-sm">{h.reference}</td>
+                  <tr key={h.id} className="hover:bg-zinc-50/70 transition">
                     <td className="px-4 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                        h.type === 'OEM' || h.isConcessionnaire ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/30'
-                      }`}>
-                        {h.type === 'OEM' || h.isConcessionnaire ? 'ORIGINE / OEM' : 'ADAPTABLE'}
-                      </span>
+                      {getSourceBadge(h.source)}
                     </td>
-                    <td className="px-4 py-3 font-black text-zinc-950 uppercase">{h.supplierName || h.supplier?.name || 'Inconnu'}</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-200">{h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : '-'}</td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-green-400">{h.sellingPrice ? `${h.sellingPrice.toFixed(3)} TND` : '-'}</td>
-                    <td className="px-4 py-3 text-center text-zinc-600 font-sans text-[11px]">{new Date(h.updatedAt || h.createdAt).toLocaleDateString('fr-FR')}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-mono font-black text-red-650 uppercase text-sm">{h.reference}</div>
+                      <div className="text-zinc-600 text-[11px] truncate max-w-[220px]">{h.designation || '-'}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="font-bold text-zinc-900 uppercase">{h.brand || 'ADAPTABLE'}</span>
+                      <div className="text-[10px] text-zinc-500 uppercase">{h.type || 'ADAPTABLE'}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-black text-zinc-900 uppercase">{h.supplierName || h.supplier?.name || 'Inconnu'}</div>
+                      {h.sourceDetails && (
+                        <div className="text-[10px] text-zinc-500 font-mono">{h.sourceDetails}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-purple-900">
+                      {h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : '-'}
+                      {h.discount > 0 && <span className="text-[10px] text-zinc-500 ml-1">(-{h.discount}%)</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-black text-emerald-700">
+                      {h.sellingPrice ? `${h.sellingPrice.toFixed(3)} TND` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-center font-mono">
+                      {h.stock > 0 ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{h.stock} dispo</span>
+                      ) : (
+                        <span className="text-zinc-400 text-[10px] font-medium">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center text-zinc-500 text-[11px]">
+                      {new Date(h.date || h.updatedAt || h.createdAt).toLocaleDateString('fr-FR')}
+                    </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => setEditingItem(h)} className="p-1.5 text-zinc-500 hover:text-cyan-400 transition" title="Modifier">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button onClick={() => setEditingItem(h)} className="p-1.5 text-zinc-400 hover:text-blue-600 transition" title="Modifier">
                           <Edit3 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(h.id)} className="p-1.5 text-zinc-500 hover:text-red-400 transition" title="Supprimer">
+                        <button onClick={() => handleDelete(h.id)} className="p-1.5 text-zinc-400 hover:text-red-600 transition" title="Supprimer">
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
@@ -5685,31 +6043,233 @@ function SectionHistoriquePrixArticles() {
         </div>
       )}
 
-      {/* Modal Ajout */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-zinc-200 rounded-2xl p-6 max-w-md w-full relative text-left">
-            <button onClick={() => setShowAddModal(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-950">
+      {/* Modal Synchronisation Odoo ERP */}
+      {showOdooModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-lg w-full relative text-left shadow-2xl space-y-4">
+            <button onClick={() => setShowOdooModal(false)} className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900">
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-black text-zinc-950 uppercase tracking-wider mb-4 text-cyan-400">AJOUTER OFFRE HISTORIQUE</h3>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-100 flex items-center justify-center text-purple-700">
+                <Database className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-zinc-950 uppercase tracking-wide">SYNCHRONISATION ODOO ERP</h3>
+                <p className="text-xs text-zinc-500">Base: AUTOP_PRODUCTION · seifeddine.belhessine@autop.tn</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-600 leading-relaxed bg-zinc-50 p-3 rounded-xl border border-zinc-200">
+              Cette action extrait les commandes d'achat fournisseurs récentes (<code className="text-purple-700 font-bold">purchase.order.line</code>), les prix de revient et les stocks magasin (<code className="text-purple-700 font-bold">product.product</code>) directement depuis votre ERP Odoo.
+            </p>
+
+            <div>
+              <label className={labelCls}>NOMBRE MAXIMUM DE LIGNES À EXTRAIRE</label>
+              <select className={inputCls} value={odooLimit} onChange={e => setOdooLimit(parseInt(e.target.value, 10))}>
+                <option value={100}>100 articles / commandes récentes</option>
+                <option value={300}>300 articles / commandes récentes</option>
+                <option value={500}>500 articles / commandes récentes</option>
+                <option value={1000}>1000 articles (Catalogue complet)</option>
+              </select>
+            </div>
+
+            {odooMessage && (
+              <div className={`p-3 rounded-xl text-xs font-bold ${odooMessage.startsWith('✓') ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {odooMessage}
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button onClick={() => setShowOdooModal(false)} className="flex-1 py-3 bg-zinc-100 text-zinc-700 font-bold text-xs uppercase rounded-xl">FERMER</button>
+              <button onClick={handleSyncOdoo} disabled={odooSyncing} className="flex-1 py-3 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                {odooSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {odooSyncing ? "SYNCHRONISATION..." : "LANCER LA SYNCHRO"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Import Devis par Email */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-3xl w-full relative text-left shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowEmailModal(false)} className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900">
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-700">
+                <Mail className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-zinc-950 uppercase tracking-wide">ANALYSE & IMPORT DE DEVIS PAR EMAIL</h3>
+                <p className="text-xs text-zinc-500">Collez le corps du texte ou le tableau du devis reçu par email</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>FOURNISSEUR (DÉTECTION AUTO OU FORCÉ)</label>
+                <input type="text" className={inputCls} placeholder="Ex: FAD, SOCOFA, STEQ..." value={emailSupplier} onChange={e => setEmailSupplier(e.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={handleParseEmail} disabled={parsingEmail || !emailText.trim()} className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 shadow-md disabled:opacity-50">
+                  {parsingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  ANALYSER LE TEXTE
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>TEXTE BRUT OU TABLEAU DEVIS EMAIL</label>
+              <textarea
+                rows={6}
+                className="w-full bg-white text-zinc-950 font-mono text-xs border border-zinc-200 p-3 rounded-xl focus:outline-none focus:border-zinc-400"
+                placeholder={`Collez ici le devis fournisseur...\nExemple:\n1306J5 - Bouchon de radiateur - 8.740 DT\n1440TV - Durite turbo - 45.200 DT x 2 - Remise 15%`}
+                value={emailText}
+                onChange={e => setEmailText(e.target.value)}
+              />
+            </div>
+
+            {/* Aperçu des articles détectés */}
+            {parsedEmail && (
+              <div className="space-y-3 bg-zinc-50 p-4 rounded-2xl border border-zinc-200">
+                <div className="flex justify-between items-center text-xs font-bold text-zinc-700">
+                  <span>Fournisseur identifié : <strong className="text-blue-700 uppercase">{parsedEmail.supplierName}</strong></span>
+                  <span>Articles détectés : <strong className="text-blue-700">{parsedEmail.items?.length || 0}</strong></span>
+                </div>
+
+                {parsedEmail.items && parsedEmail.items.length > 0 ? (
+                  <div className="overflow-x-auto max-h-48">
+                    <table className="w-full text-xs text-left bg-white rounded-xl overflow-hidden border border-zinc-200">
+                      <thead>
+                        <tr className="bg-zinc-100 text-zinc-700 font-bold">
+                          <th className="p-2">RÉFÉRENCE</th>
+                          <th className="p-2">DÉSIGNATION</th>
+                          <th className="p-2 text-right">PRIX HT</th>
+                          <th className="p-2 text-right">REMISE</th>
+                          <th className="p-2 text-right">TOTAL NET</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedEmail.items.map((it: any, idx: number) => (
+                          <tr key={idx} className="border-t border-zinc-100">
+                            <td className="p-2 font-mono font-black text-red-650">{it.reference}</td>
+                            <td className="p-2 truncate max-w-[200px]">{it.designation}</td>
+                            <td className="p-2 text-right font-mono font-bold">{it.unitPrice.toFixed(3)} DT</td>
+                            <td className="p-2 text-right font-mono text-zinc-500">{it.discount > 0 ? `${it.discount}%` : '-'}</td>
+                            <td className="p-2 text-right font-mono font-black text-emerald-700">{it.totalHT.toFixed(3)} DT</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-zinc-500 text-xs text-center py-2">Aucune référence de pièce détectée dans ce texte.</p>
+                )}
+
+                <button onClick={handleImportEmail} disabled={importingEmail || !parsedEmail.items?.length} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                  {importingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  IMPORTER CES {parsedEmail.items?.length || 0} ARTICLES DANS L'HISTORIQUE
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Import Google Sheets */}
+      {showSheetsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-3xl w-full relative text-left shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowSheetsModal(false)} className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900">
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+                <FileSpreadsheet className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-zinc-950 uppercase tracking-wide">IMPORT & SYNCHRONISATION GOOGLE SHEETS</h3>
+                <p className="text-xs text-zinc-500">Lien Google Sheets de stock, arrivages ou tarifs fournisseurs</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className={labelCls}>LIEN DE LA FEUILLE GOOGLE SHEETS</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs.../edit"
+                  value={sheetUrl}
+                  onChange={e => setSheetUrl(e.target.value)}
+                />
+                <p className="text-[10px] text-zinc-500 mt-1">Veillez à ce que le document soit partagé avec « Tous ceux avec le lien » en lecture.</p>
+              </div>
+
+              <div>
+                <label className={labelCls}>NOM DU FOURNISSEUR PAR DÉFAUT</label>
+                <input
+                  type="text"
+                  className={inputCls}
+                  placeholder="Ex: Stock Pneus, Arrivage Socofa..."
+                  value={sheetSupplier}
+                  onChange={e => setSheetSupplier(e.target.value)}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={handlePreviewSheet} disabled={parsingSheet || !sheetUrl.trim()} className="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-900 text-white font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2">
+                  {parsingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                  PRÉVISUALISER LES COLONNES
+                </button>
+              </div>
+
+              {parsedSheet && (
+                <div className="space-y-3 bg-zinc-50 p-4 rounded-2xl border border-zinc-200">
+                  <div className="flex justify-between items-center text-xs font-bold text-zinc-700">
+                    <span>Colonnes détectées : <strong>{parsedSheet.headers?.join(', ')}</strong></span>
+                    <span>Lignes valides : <strong className="text-emerald-700">{parsedSheet.totalRows || 0}</strong></span>
+                  </div>
+
+                  <button onClick={handleImportSheet} disabled={importingSheet || !parsedSheet.items?.length} className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase rounded-xl flex items-center justify-center gap-2 shadow-lg disabled:opacity-50">
+                    {importingSheet ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    SYNCHRONISER ET IMPORTER {parsedSheet.totalRows || 0} LIGNES
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout Manuel */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-md w-full relative text-left shadow-2xl space-y-4">
+            <button onClick={() => setShowAddModal(false)} className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900">
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-base font-black text-zinc-950 uppercase tracking-wide">AJOUTER OFFRE MANUELLE</h3>
             <div className="space-y-3">
               <div>
                 <label className={labelCls}>RÉFÉRENCE ARTICLE *</label>
-                <input type="text" className={inputCls} placeholder="EX: 1440TV" value={newItem.reference} onChange={e => setNewItem({ ...newItem, reference: e.target.value })} />
+                <input type="text" className={inputCls} placeholder="EX: 1306J5" value={newItem.reference} onChange={e => setNewItem({ ...newItem, reference: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>DÉSIGNATION</label>
+                <input type="text" className={inputCls} placeholder="EX: Bouchon radiateur" value={newItem.designation} onChange={e => setNewItem({ ...newItem, designation: e.target.value })} />
               </div>
               <div>
                 <label className={labelCls}>FOURNISSEUR</label>
-                <input type="text" className={inputCls} placeholder="EX: STEQ, CDG, SAGAP" value={newItem.supplierName} onChange={e => setNewItem({ ...newItem, supplierName: e.target.value })} />
+                <input type="text" className={inputCls} placeholder="EX: STEQ, FAD, SOCOFA..." value={newItem.supplierName} onChange={e => setNewItem({ ...newItem, supplierName: e.target.value })} />
               </div>
-              <div>
-                <label className={labelCls}>TYPE D'OFFRE</label>
-                <select className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}>
-                  <option value="ADAPTABLE">ADAPTABLE</option>
-                  <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelCls}>PRIX ACHAT HT (TND)</label>
                   <input type="number" step="0.001" className={inputCls} value={newItem.purchasePrice} onChange={e => setNewItem({ ...newItem, purchasePrice: parseFloat(e.target.value) || 0 })} />
@@ -5719,9 +6279,9 @@ function SectionHistoriquePrixArticles() {
                   <input type="number" step="0.001" className={inputCls} value={newItem.sellingPrice} onChange={e => setNewItem({ ...newItem, sellingPrice: parseFloat(e.target.value) || 0 })} />
                 </div>
               </div>
-              <div className="flex gap-2 pt-3">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 bg-white text-zinc-500 font-black text-xs uppercase rounded-xl">ANNULER</button>
-                <button onClick={handleCreate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-zinc-950 font-black text-xs uppercase rounded-xl">ENREGISTRER</button>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowAddModal(false)} className="flex-1 py-2.5 bg-zinc-100 text-zinc-700 font-bold text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={handleCreate} className="flex-1 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black text-xs uppercase rounded-xl">ENREGISTRER</button>
               </div>
             </div>
           </div>
@@ -5730,29 +6290,26 @@ function SectionHistoriquePrixArticles() {
 
       {/* Modal Edition */}
       {editingItem && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-zinc-200 rounded-2xl p-6 max-w-md w-full relative text-left">
-            <button onClick={() => setEditingItem(null)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-950">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-zinc-200 rounded-3xl p-6 max-w-md w-full relative text-left shadow-2xl space-y-4">
+            <button onClick={() => setEditingItem(null)} className="absolute top-5 right-5 text-zinc-400 hover:text-zinc-900">
               <X className="w-5 h-5" />
             </button>
-            <h3 className="text-base font-black text-zinc-950 uppercase tracking-wider mb-4 text-cyan-400">MODIFIER OFFRE ARTICLE</h3>
+            <h3 className="text-base font-black text-zinc-950 uppercase tracking-wide">MODIFIER OFFRE ARTICLE</h3>
             <div className="space-y-3">
               <div>
                 <label className={labelCls}>RÉFÉRENCE ARTICLE</label>
                 <input type="text" className={inputCls} value={editingItem.reference} onChange={e => setEditingItem({ ...editingItem, reference: e.target.value })} />
               </div>
               <div>
+                <label className={labelCls}>DÉSIGNATION</label>
+                <input type="text" className={inputCls} value={editingItem.designation || ''} onChange={e => setEditingItem({ ...editingItem, designation: e.target.value })} />
+              </div>
+              <div>
                 <label className={labelCls}>FOURNISSEUR</label>
                 <input type="text" className={inputCls} value={editingItem.supplierName || ''} onChange={e => setEditingItem({ ...editingItem, supplierName: e.target.value })} />
               </div>
-              <div>
-                <label className={labelCls}>TYPE D'OFFRE</label>
-                <select className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" value={editingItem.type} onChange={e => setEditingItem({ ...editingItem, type: e.target.value })}>
-                  <option value="ADAPTABLE">ADAPTABLE</option>
-                  <option value="OEM">ORIGINE / CONCESSIONNAIRE</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={labelCls}>PRIX ACHAT HT (TND)</label>
                   <input type="number" step="0.001" className={inputCls} value={editingItem.purchasePrice || 0} onChange={e => setEditingItem({ ...editingItem, purchasePrice: parseFloat(e.target.value) || 0 })} />
@@ -5762,9 +6319,9 @@ function SectionHistoriquePrixArticles() {
                   <input type="number" step="0.001" className={inputCls} value={editingItem.sellingPrice || 0} onChange={e => setEditingItem({ ...editingItem, sellingPrice: parseFloat(e.target.value) || 0 })} />
                 </div>
               </div>
-              <div className="flex gap-2 pt-3">
-                <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 bg-white text-zinc-500 font-black text-xs uppercase rounded-xl">ANNULER</button>
-                <button onClick={handleUpdate} className="flex-1 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-zinc-950 font-black text-xs uppercase rounded-xl">SAUVEGARDER</button>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 bg-zinc-100 text-zinc-700 font-bold text-xs uppercase rounded-xl">ANNULER</button>
+                <button onClick={handleUpdate} className="flex-1 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black text-xs uppercase rounded-xl">SAUVEGARDER</button>
               </div>
             </div>
           </div>
