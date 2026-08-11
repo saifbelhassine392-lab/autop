@@ -457,7 +457,7 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     let token = supplierCookies[supplierId] || "";
 
-    if (!token) {
+    const loginFAD = async () => {
       const loginUrl = `https://fadpro.tn:8095/fad/auth/login?custNo=${encodeURIComponent(b2bLogin)}&password=${encodeURIComponent(b2bPassword)}`;
       const loginRes = await robustFetch(loginUrl, {
         method: "POST",
@@ -469,9 +469,17 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
       });
       if (loginRes.ok) {
         const loginData = await loginRes.json().catch(() => null);
-        token = loginData?.token || loginData?.jwt || loginData?.accessToken || "";
-        if (token) supplierCookies[supplierId] = token;
+        const newToken = loginData?.token || loginData?.jwt || loginData?.accessToken || "";
+        if (newToken) {
+          supplierCookies[supplierId] = newToken;
+          return newToken;
+        }
       }
+      return "";
+    };
+
+    if (!token) {
+      token = await loginFAD();
     }
 
     if (!token) {
@@ -481,45 +489,62 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
     const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
-    for (const refKey of refsToTest) {
-      try {
-        const searchUrl = `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(refKey)}`;
-        const searchRes = await robustFetch(searchUrl, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "X-CUSTOM-ORIGIN": "https://fadpro.tn",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Accept": "application/json, text/plain, */*"
-          }
-        });
+    const fetchFADRef = async (refKey: string, activeToken: string) => {
+      const searchUrl = `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(refKey)}`;
+      let searchRes = await robustFetch(searchUrl, {
+        headers: {
+          "Authorization": `Bearer ${activeToken}`,
+          "X-CUSTOM-ORIGIN": "https://fadpro.tn",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          "Accept": "application/json, text/plain, */*"
+        }
+      });
 
-        if (searchRes.ok) {
-          const rawData = await searchRes.json().catch(() => null);
-          if (Array.isArray(rawData) && rawData.length > 0) {
-            for (const i of rawData) {
-              const itemRef = String(i.refFour || i.refOem || i.reference || refKey).trim();
-              const stockNum = parseInt(String(i.dispoEnStock || i.stock || i.quantite || 0), 10) || 0;
-              const isDispo = String(i.dispo).toUpperCase() === "S" || stockNum > 0;
-              const isArrivage = String(i.dispo).toUpperCase() === "A";
-              const price = parseFloat(String(i.prix || i.prixHT || i.unitPrice || 0).replace(",", ".")) || 0;
-              const brand = (i.itemNomFpur || i.marque || i.four || "FAD").toUpperCase().trim();
-
-              items.push({
-                name: itemRef,
-                brand,
-                designation: i.designation || `Article ${itemRef}`,
-                description: i.designation || `Article ${itemRef}`,
-                price,
-                discount: parseFloat(String(i.remise || i.discount || 0).replace(",", ".")) || 0,
-                availability: isDispo ? (stockNum > 0 ? `Disponible (${stockNum} en stock)` : "Disponible en Stock") : isArrivage ? "En Arrivage" : "Sur Commande",
-                rawStock: stockNum || (isDispo ? 1 : 0),
-                available: isDispo || price > 0,
-                matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
-              });
+      if (searchRes.status === 401 || searchRes.status === 403) {
+        const freshToken = await loginFAD();
+        if (freshToken) {
+          token = freshToken;
+          searchRes = await robustFetch(searchUrl, {
+            headers: {
+              "Authorization": `Bearer ${freshToken}`,
+              "X-CUSTOM-ORIGIN": "https://fadpro.tn",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+              "Accept": "application/json, text/plain, */*"
             }
+          });
+        }
+      }
+
+      if (searchRes.ok) {
+        const rawData = await searchRes.json().catch(() => null);
+        if (Array.isArray(rawData) && rawData.length > 0) {
+          for (const i of rawData) {
+            const itemRef = String(i.refFour || i.refOem || i.reference || refKey).trim();
+            const stockNum = parseInt(String(i.dispoEnStock || i.stock || i.quantite || 0), 10) || 0;
+            const isDispo = String(i.dispo).toUpperCase() === "S" || stockNum > 0;
+            const isArrivage = String(i.dispo).toUpperCase() === "A";
+            const price = parseFloat(String(i.prix || i.prixHT || i.unitPrice || 0).replace(",", ".")) || 0;
+            const brand = (i.itemNomFpur || i.marque || i.four || "FAD").toUpperCase().trim();
+
+            items.push({
+              name: itemRef,
+              brand,
+              designation: i.designation || `Article ${itemRef}`,
+              description: i.designation || `Article ${itemRef}`,
+              price,
+              discount: parseFloat(String(i.remise || i.discount || 0).replace(",", ".")) || 0,
+              availability: isDispo ? (stockNum > 0 ? `Disponible (${stockNum} en stock)` : "Disponible en Stock") : isArrivage ? "En Arrivage" : "Sur Commande",
+              rawStock: stockNum || (isDispo ? 1 : 0),
+              available: isDispo || price > 0,
+              matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
+            });
           }
         }
-      } catch {}
+      }
+    };
+
+    for (const refKey of refsToTest) {
+      await fetchFADRef(refKey, token);
     }
 
     const list = dedupeB2BItems(items);
