@@ -574,38 +574,45 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
       } catch {}
     }
 
+    const loginMosaique = async () => {
+      try {
+        const r1 = await robustFetch(`${baseUrl}/auth`, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
+        });
+        const initCookie = r1.headers.get("set-cookie") || "";
+        const matchSess = initCookie.match(/PHPSESSID=[^;]+/i);
+        let curCookie = matchSess ? matchSess[0] : "";
+
+        const loginParams = new URLSearchParams({
+          login: b2bLogin,
+          pass: b2bPassword
+        });
+
+        const r2 = await robustFetch(`${baseUrl}/auth`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": curCookie,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": `${baseUrl}/auth`
+          },
+          body: loginParams.toString()
+        });
+
+        const loginCookie = r2.headers.get("set-cookie") || curCookie;
+        const matchSess2 = loginCookie.match(/PHPSESSID=[^;]+/i);
+        const activeCookie = matchSess2 ? matchSess2[0] : curCookie;
+        if (activeCookie) {
+          supplierCookies[supplierId] = activeCookie;
+          return activeCookie;
+        }
+      } catch {}
+      return "";
+    };
+
     let cookie = supplierCookies[supplierId] || "";
-
     if (!cookie) {
-      // Step 1: GET initial session cookie
-      const r1 = await robustFetch(`${baseUrl}/auth`, {
-        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-      });
-      const initCookie = r1.headers.get("set-cookie") || "";
-      const matchSess = initCookie.match(/PHPSESSID=[^;]+/i);
-      if (matchSess) cookie = matchSess[0];
-
-      // Step 2: POST login with form params login & pass
-      const loginParams = new URLSearchParams({
-        login: b2bLogin,
-        pass: b2bPassword
-      });
-
-      const r2 = await robustFetch(`${baseUrl}/auth`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookie,
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Referer": `${baseUrl}/auth`
-        },
-        body: loginParams.toString()
-      });
-
-      const loginCookie = r2.headers.get("set-cookie") || "";
-      const matchSess2 = loginCookie.match(/PHPSESSID=[^;]+/i);
-      if (matchSess2) cookie = matchSess2[0];
-      if (cookie) supplierCookies[supplierId] = cookie;
+      cookie = await loginMosaique();
     }
 
     // Step 3: Search using multi-reference equivalents from dictionary
@@ -618,7 +625,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
           jsonDataApiTransfert: JSON.stringify({ ref: refKey, reference: refKey })
         });
 
-        const rSearch = await robustFetch(`${baseUrl}/auth?api=getArticlebyref&lu=1`, {
+        let rSearch = await robustFetch(`${baseUrl}/auth?api=getArticlebyref&lu=1`, {
           method: "POST",
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -629,50 +636,67 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
           body: searchParams.toString()
         });
 
-        if (rSearch.ok) {
-          const resJson = await rSearch.json().catch(() => null);
-          if (resJson) {
-            // 1. Master article
-            const master = resJson.master;
-            if (master && master.id_article) {
-              const stock = parseInt(master.stockTotal || master.stock || master.qty || 0) || 0;
-              const price = parseFloat(master.prix || master.prix_u_ht || master.prixVente || 0) || 0;
-              const refName = master.reference || master.ref || refKey;
+        let resJson = await rSearch.json().catch(() => null);
+        // If session expired (e.g. redirected or master is null without reason)
+        if (!rSearch.ok || (resJson && typeof resJson === "string" && resJson.includes("connexion"))) {
+          const freshCookie = await loginMosaique();
+          if (freshCookie) {
+            cookie = freshCookie;
+            rSearch = await robustFetch(`${baseUrl}/auth?api=getArticlebyref&lu=1`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Cookie": freshCookie,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: searchParams.toString()
+            });
+            resJson = await rSearch.json().catch(() => null);
+          }
+        }
 
-              items.push({
-                name: refName,
-                brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'ORIGINE').toUpperCase().trim(),
-                designation: master.titre || `Article ${refName}`,
-                price,
-                discount: parseFloat(master.remise || master.discount || 0) || 0,
-                availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
-                rawStock: stock,
-                available: stock > 0 || price > 0,
-                matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
-              });
-            }
+        if (resJson) {
+          // 1. Master article
+          const master = resJson.master;
+          if (master && master.id_article) {
+            const stock = parseInt(master.stockTotal || master.stock || master.qty || 0) || 0;
+            const price = parseFloat(master.prix || master.prix_u_ht || master.prixVente || 0) || 0;
+            const refName = master.reference || master.ref || refKey;
 
-            // 2. Extra nested articles or equivalents in response
-            const extraLists = [resJson.articles, resJson.equivalences, resJson.equivalents, resJson.tab_articles, resJson.lignes, resJson.data];
-            for (const extraList of extraLists) {
-              if (Array.isArray(extraList)) {
-                for (const art of extraList) {
-                  if (art && (art.id_article || art.reference || art.ref)) {
-                    const st = parseInt(art.stockTotal || art.stock || art.qty || 0) || 0;
-                    const pr = parseFloat(art.prix || art.prix_u_ht || art.prixVente || 0) || 0;
-                    const rn = art.reference || art.ref || refKey;
-                    items.push({
-                      name: rn,
-                      brand: (art.titre_marque || art.marque || art.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
-                      designation: art.titre || `Article ${rn}`,
-                      price: pr,
-                      discount: parseFloat(art.remise || art.discount || 0) || 0,
-                      availability: st > 0 ? `Disponible (${st} en stock)` : "Sur Commande / Hors Stock",
-                      rawStock: st,
-                      available: st > 0 || pr > 0,
-                      matchType: normalizeRef(rn) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
-                    });
-                  }
+            items.push({
+              name: refName,
+              brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'ORIGINE').toUpperCase().trim(),
+              designation: master.titre || `Article ${refName}`,
+              price,
+              discount: parseFloat(master.remise || master.discount || 0) || 0,
+              availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
+              rawStock: stock,
+              available: stock > 0 || price > 0,
+              matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
+            });
+          }
+
+          // 2. Extra nested articles or equivalents in response
+          const extraLists = [resJson.articles, resJson.equivalences, resJson.equivalents, resJson.tab_articles, resJson.lignes, resJson.data];
+          for (const extraList of extraLists) {
+            if (Array.isArray(extraList)) {
+              for (const art of extraList) {
+                if (art && (art.id_article || art.reference || art.ref)) {
+                  const st = parseInt(art.stockTotal || art.stock || art.qty || 0) || 0;
+                  const pr = parseFloat(art.prix || art.prix_u_ht || art.prixVente || 0) || 0;
+                  const rn = art.reference || art.ref || refKey;
+                  items.push({
+                    name: rn,
+                    brand: (art.titre_marque || art.marque || art.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
+                    designation: art.titre || `Article ${rn}`,
+                    price: pr,
+                    discount: parseFloat(art.remise || art.discount || 0) || 0,
+                    availability: st > 0 ? `Disponible (${st} en stock)` : "Sur Commande / Hors Stock",
+                    rawStock: st,
+                    available: st > 0 || pr > 0,
+                    matchType: normalizeRef(rn) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
+                  });
                 }
               }
             }
