@@ -5587,6 +5587,8 @@ function SectionHistoriquePrixArticles() {
   const [odooSyncing, setOdooSyncing] = useState(false);
   const [odooLimit, setOdooLimit] = useState(300);
   const [odooMessage, setOdooMessage] = useState<string | null>(null);
+  const [brandFilter, setBrandFilter] = useState('TOUTES');
+  const [sparePartsOnly, setSparePartsOnly] = useState(true);
 
   // Email Parser State
   const [emailText, setEmailText] = useState('');
@@ -5629,6 +5631,31 @@ function SectionHistoriquePrixArticles() {
       setLoadingOdooHistory(false);
     }
   };
+
+  // Helper pour détecter si un article est un consommable ou non-pièce
+  const checkIsConsumable = (text: string = '') => {
+    const t = text.toUpperCase();
+    const exclude = [
+      "MAIN D'OEUVRE", "MAIN DOEUVRE", "PEINTURE", "VERNIS", "MASTIC", "DILUANT", "DURCISSEUR", 
+      "PAPIER ABRASIF", "PREPARATION", "LAVAGE", "NETTOYAGE", "NETTOYANT", "DEPOSE POSE", 
+      "CALE A PONCER", "PONCEUSE", "PRODUIT DE LUSTRAGE", "BASE A EFFET", "APPRET", "IMPRESSION",
+      "MATERIEL", "ACCESOIRES PEINTURE", "CONSOMMABLE", "FOURNITURE", "CHIFFON", "MASQUAGE", "SCOTCH"
+    ];
+    return exclude.some(k => t.includes(k));
+  };
+
+  // Liste dynamique des marques disponibles
+  const availableBrands = useMemo(() => {
+    const brandsSet = new Set<string>([
+      'PEUGEOT', 'CITROËN', 'RENAULT', 'VOLKSWAGEN', 'AUDI', 'MERCEDES-BENZ', 'BMW', 'FIAT', 'FORD', 'HYUNDAI', 'KIA', 'TOYOTA', 'MAHINDRA', 'ISUZU', 'SOCOFA', 'VALEO', 'BOSCH', 'CANSU'
+    ]);
+    histories.forEach(h => {
+      if (h.brand && h.brand.trim() && h.brand !== 'ORIGINE / ADAPTABLE' && h.brand !== 'ODOO' && h.brand !== 'ADAPTABLE') {
+        brandsSet.add(h.brand.trim().toUpperCase());
+      }
+    });
+    return Array.from(brandsSet).sort();
+  }, [histories]);
 
   const [newItem, setNewItem] = useState({
     reference: '',
@@ -5726,9 +5753,7 @@ function SectionHistoriquePrixArticles() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          supplierName: parsedEmail.supplierName || emailSupplier || "Fournisseur Email",
-          quoteNumber: parsedEmail.quoteNumber,
-          date: parsedEmail.date,
+          supplierName: parsedEmail.supplierName || 'Fournisseur Email',
           items: parsedEmail.items
         })
       });
@@ -5817,9 +5842,18 @@ function SectionHistoriquePrixArticles() {
     if (!editingItem) return;
     try {
       const res = await fetch('/api/historique-prix', {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingItem)
+        body: JSON.stringify({
+          id: editingItem.id,
+          reference: editingItem.reference.trim().toUpperCase(),
+          designation: editingItem.designation,
+          supplierName: editingItem.supplierName,
+          purchasePrice: parseFloat(String(editingItem.purchasePrice)) || 0,
+          sellingPrice: parseFloat(String(editingItem.sellingPrice)) || 0,
+          discount: parseFloat(String(editingItem.discount)) || 0,
+          stock: parseInt(String(editingItem.stock), 10) || 0
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -5868,13 +5902,31 @@ function SectionHistoriquePrixArticles() {
   };
 
   const filtered = histories.filter(h => {
+    // 1. Filtrage exclusif Pièces de rechange (exclut consommables / MO)
+    if (sparePartsOnly) {
+      if (checkIsConsumable(`${h.designation || ''} ${h.reference || ''}`)) {
+        return false;
+      }
+    }
+
+    // 2. Filtre Marque
+    if (brandFilter !== 'TOUTES') {
+      const bUpper = brandFilter.toUpperCase();
+      const bMatch = (h.brand || '').toUpperCase() === bUpper ||
+        (h.designation || '').toUpperCase().includes(bUpper) ||
+        (h.reference || '').toUpperCase().includes(bUpper);
+      if (!bMatch) return false;
+    }
+
+    // 3. Recherche texte
     const s = search.toLowerCase();
-    const matchSearch = h.reference?.toLowerCase().includes(s) ||
+    const matchSearch = !s || h.reference?.toLowerCase().includes(s) ||
       h.designation?.toLowerCase().includes(s) ||
       h.brand?.toLowerCase().includes(s) ||
       h.supplierName?.toLowerCase().includes(s) ||
       h.sourceDetails?.toLowerCase().includes(s);
 
+    // 4. Filtre Type
     let matchType = true;
     if (typeFilter === 'OEM') matchType = h.type === 'OEM' || h.isConcessionnaire;
     else if (typeFilter === 'ADAPTABLE') matchType = h.type === 'ADAPTABLE' && !h.isConcessionnaire;
@@ -5903,25 +5955,25 @@ function SectionHistoriquePrixArticles() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm">
         <div>
           <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 flex items-center gap-2">
-            <ClipboardList className="w-6 h-6 text-red-600" /> HISTORIQUE DES PIÈCES & PRIX (MULTI-SOURCES)
+            <ClipboardList className="w-6 h-6 text-purple-700" /> HISTORIQUE & PRIX ARTICLES (INTÉGRATION ODOO)
           </h2>
           <p className="text-zinc-500 text-xs uppercase tracking-wider mt-1">
-            BANQUE DE DONNÉES CENTRALISÉE COMBINANT ODOO ERP, DEVIS PAR EMAIL, GOOGLE SHEETS ET LE ROBOT B2B
+            CONSULTATION CENTRALISÉE : PRIX ACHAT, PRIX VENTE ET PRIX DEVIS ODOO PAR ARTICLE ET PAR MARQUE
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowOdooModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
+            className="flex items-center gap-2 px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-md"
           >
-            <RefreshCw className="w-4 h-4 text-purple-600" /> SYNCHRO ODOO
+            <RefreshCw className="w-4 h-4" /> SYNCHRO ODOO ERP
           </button>
           <button
             onClick={() => setShowEmailModal(true)}
             className="flex items-center gap-2 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-black uppercase tracking-wider transition shadow-sm"
           >
-            <Mail className="w-4 h-4 text-blue-600" /> IMPORTER DEVIS EMAIL
+            <Mail className="w-4 h-4 text-blue-600" /> DEVIS EMAIL
           </button>
           <button
             onClick={() => setShowSheetsModal(true)}
@@ -5973,10 +6025,10 @@ function SectionHistoriquePrixArticles() {
             <span className="p-2 rounded-xl bg-purple-500/20 text-purple-300 font-bold">🟣</span>
             <div>
               <h3 className="font-black text-sm uppercase tracking-wider text-white">
-                HISTORIQUE D'ACHAT PAR ARTICLE (LOGS ODOO ERP EN DIRECT)
+                HISTORIQUE D'ACHAT, VENTE & DEVIS PAR ARTICLE (ODOO ERP)
               </h3>
               <p className="text-purple-200 text-xs">
-                Saisissez une référence pour extraire instantanément le dernier prix d'achat, fournisseur, date et évolution
+                Saisissez une référence pour extraire instantanément le dernier prix d'achat, prix de vente et montant devis Odoo
               </p>
             </div>
           </div>
@@ -6018,6 +6070,63 @@ function SectionHistoriquePrixArticles() {
         </div>
       </div>
 
+      {/* ═══ BARRE DE FILTRES : PIÈCES DE RECHANGE UNIQUEMENT & MARQUES ═══ */}
+      <div className="bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+          {/* Toggle Filtrage Exclusif Pièces de Rechange */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSparePartsOnly(!sparePartsOnly)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition ${
+                sparePartsOnly
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              <span>🚗 PIÈCES DE RECHANGE UNIQUEMENT</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] ${sparePartsOnly ? 'bg-emerald-800 text-white' : 'bg-zinc-300 text-zinc-700'}`}>
+                {sparePartsOnly ? 'ACTIF (SANS CONSOMMABLES)' : 'INACTIF'}
+              </span>
+            </button>
+          </div>
+
+          {/* Filtre Marque (Dropdown) */}
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <span className="text-xs font-black uppercase text-zinc-500 whitespace-nowrap">MARQUE :</span>
+            <select
+              value={brandFilter}
+              onChange={e => setBrandFilter(e.target.value)}
+              className="bg-white text-zinc-950 font-black text-xs px-4 h-10 rounded-xl border border-zinc-300 focus:outline-none focus:border-purple-500 cursor-pointer transition-colors uppercase w-full md:w-56"
+            >
+              <option value="TOUTES">TOUTES LES MARQUES ({histories.length})</option>
+              {availableBrands.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Sélecteur Rapide par Marques Populaires (Pills) */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-black uppercase text-zinc-400 mr-1">MARQUES RAPIDES :</span>
+          {['TOUTES', 'PEUGEOT', 'CITROËN', 'RENAULT', 'VOLKSWAGEN', 'AUDI', 'FIAT', 'FORD', 'HYUNDAI', 'MAHINDRA', 'ISUZU'].map(b => (
+            <button
+              key={b}
+              type="button"
+              onClick={() => setBrandFilter(b)}
+              className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase transition border ${
+                brandFilter === b
+                  ? 'bg-purple-900 text-white border-purple-900 shadow-sm'
+                  : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
+              }`}
+            >
+              {b}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Search & Type Filters */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
@@ -6041,98 +6150,112 @@ function SectionHistoriquePrixArticles() {
         </select>
       </div>
 
-      {/* Table of Historic Parts */}
+      {/* Table of Historic Parts with the 3 Prices */}
       {loading ? (
         <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-wider flex flex-col items-center justify-center gap-3 bg-white rounded-2xl border border-zinc-200">
-          <Loader2 className="w-8 h-8 animate-spin text-red-600" />
-          CHARGEMENT DE LA BASE HISTORIQUE CONSOLIDÉE...
+          <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+          CHARGEMENT DE LA BASE DES PIÈCES DE RECHANGE ODOO...
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-zinc-500 font-bold uppercase bg-white rounded-2xl border border-dashed border-zinc-300 p-8">
-          AUCUNE DONNÉE TROUVÉE POUR LES CRITÈRES SÉLECTIONNÉS
+        <div className="text-center py-16 text-zinc-500 font-bold uppercase bg-white rounded-2xl border border-dashed border-zinc-300 p-8 space-y-2">
+          <p className="text-base font-black text-zinc-900">AUCUNE PIÈCE DE RECHANGE TROUVÉE POUR LES CRITÈRES SÉLECTIONNÉS</p>
+          <p className="text-xs text-zinc-500">Essayez de désactiver le filtre de marque ou de relancer la synchronisation Odoo.</p>
         </div>
       ) : (
         <div className="bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead>
-                <tr className="bg-zinc-50 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
+                <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-800 font-black text-[11px] uppercase tracking-wider">
                   <th className="px-4 py-3.5">SOURCE</th>
                   <th className="px-4 py-3.5">RÉFÉRENCE & ARTICLE</th>
                   <th className="px-4 py-3.5">MARQUE / TYPE</th>
                   <th className="px-4 py-3.5">FOURNISSEUR & DÉTAILS</th>
-                  <th className="px-4 py-3.5 text-right text-purple-700">PRIX ACHAT (HT)</th>
-                  <th className="px-4 py-3.5 text-right text-emerald-700">PRIX VENTE (HT)</th>
+                  <th className="px-4 py-3.5 text-right text-purple-900 bg-purple-50/50">💰 PRIX ACHAT (HT)</th>
+                  <th className="px-4 py-3.5 text-right text-emerald-900 bg-emerald-50/50">🏷️ PRIX VENTE (HT)</th>
+                  <th className="px-4 py-3.5 text-right text-indigo-900 bg-indigo-50/50">📋 PRIX DEVIS ODOO (HT)</th>
                   <th className="px-4 py-3.5 text-center">STOCK</th>
-                  <th className="px-4 py-3.5 text-center">DATE MAJ</th>
                   <th className="px-4 py-3.5 text-center">ACTIONS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
-                {filtered.map(h => (
-                  <tr key={h.id} className="hover:bg-zinc-50/70 transition">
-                    <td className="px-4 py-3">
-                      {getSourceBadge(h.source)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => fetchOdooPurchaseHistory(h.reference)}
-                          className="font-mono font-black text-purple-900 hover:text-purple-600 hover:underline uppercase text-sm"
-                          title="Cliquer pour voir l'historique d'achat Odoo"
-                        >
-                          {h.reference}
-                        </button>
-                      </div>
-                      <div className="text-zinc-600 text-[11px] truncate max-w-[220px]">{h.designation || '-'}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="font-bold text-zinc-900 uppercase">{h.brand || 'ADAPTABLE'}</span>
-                      <div className="text-[10px] text-zinc-500 uppercase">{h.type || 'ADAPTABLE'}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-black text-zinc-900 uppercase">{h.supplierName || h.supplier?.name || 'Inconnu'}</div>
-                      {h.sourceDetails && (
-                        <div className="text-[10px] text-zinc-500 font-mono">{h.sourceDetails}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-zinc-950">
-                      {h.purchasePrice ? `${h.purchasePrice.toFixed(3)} TND` : '-'}
-                      {h.discount > 0 && <span className="text-[10px] text-zinc-500 ml-1">(-{h.discount}%)</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-black text-emerald-700">
-                      {h.sellingPrice ? `${h.sellingPrice.toFixed(3)} TND` : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-center font-mono">
-                      {h.stock > 0 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">{h.stock} dispo</span>
-                      ) : (
-                        <span className="text-zinc-400 text-[10px] font-medium">-</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center text-zinc-500 text-[11px]">
-                      {new Date(h.date || h.updatedAt || h.createdAt).toLocaleDateString('fr-FR')}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          onClick={() => fetchOdooPurchaseHistory(h.reference)}
-                          className="p-1.5 text-purple-700 hover:bg-purple-50 rounded-lg transition"
-                          title="Historique d'achat Odoo"
-                        >
-                          <Database className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setEditingItem(h)} className="p-1.5 text-zinc-400 hover:text-blue-600 transition" title="Modifier">
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(h.id)} className="p-1.5 text-zinc-400 hover:text-red-600 transition" title="Supprimer">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filtered.map(h => {
+                  const quotePrice = h.discount && h.discount > 0 ? h.discount : 0;
+                  const hasQuoteInfo = quotePrice > 0 || (h.sourceDetails && h.sourceDetails.includes('Devis Odoo'));
+
+                  return (
+                    <tr key={h.id} className="hover:bg-zinc-50/70 transition">
+                      <td className="px-4 py-3">
+                        {getSourceBadge(h.source)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => fetchOdooPurchaseHistory(h.reference)}
+                            className="font-mono font-black text-purple-900 hover:text-purple-600 hover:underline uppercase text-sm"
+                            title="Cliquer pour voir l'historique complet Odoo"
+                          >
+                            {h.reference}
+                          </button>
+                        </div>
+                        <div className="text-zinc-600 text-[11px] truncate max-w-[220px]">{h.designation || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="font-black text-zinc-950 uppercase">{h.brand || 'ADAPTABLE'}</span>
+                        <div className="text-[10px] text-zinc-500 uppercase">{h.type || 'ADAPTABLE'}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="font-black text-zinc-900 uppercase truncate max-w-[150px]">{h.supplierName || h.supplier?.name || 'Inconnu'}</div>
+                        {h.sourceDetails && (
+                          <div className="text-[10px] text-zinc-500 font-mono truncate max-w-[180px]">{h.sourceDetails}</div>
+                        )}
+                      </td>
+                      {/* Prix 1 : Dernier Prix d'Achat HT (Noir et Gros Gras) */}
+                      <td className="px-4 py-3 text-right font-mono font-black text-zinc-950 text-sm bg-purple-50/20">
+                        {h.purchasePrice && h.purchasePrice > 0 ? `${h.purchasePrice.toFixed(3)} TND` : '-'}
+                      </td>
+                      {/* Prix 2 : Dernier Prix de Vente HT (Noir et Gros Gras) */}
+                      <td className="px-4 py-3 text-right font-mono font-black text-zinc-950 text-sm bg-emerald-50/20">
+                        {h.sellingPrice && h.sellingPrice > 0 ? `${h.sellingPrice.toFixed(3)} TND` : '-'}
+                      </td>
+                      {/* Prix 3 : Prix Devis Odoo HT (Violet / Noir et Gros Gras) */}
+                      <td className="px-4 py-3 text-right font-mono font-black text-purple-950 text-sm bg-indigo-50/20">
+                        {quotePrice > 0 ? (
+                          <span className="text-purple-950 font-black font-mono">{quotePrice.toFixed(3)} TND</span>
+                        ) : hasQuoteInfo ? (
+                          <span className="text-purple-700 text-[11px] font-bold">Voir Devis Odoo</span>
+                        ) : (
+                          <span className="text-zinc-400 text-xs">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center font-mono">
+                        {h.stock && h.stock > 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300">{h.stock} dispo</span>
+                        ) : (
+                          <span className="text-zinc-400 text-[10px] font-medium">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => fetchOdooPurchaseHistory(h.reference)}
+                            className="p-1.5 text-purple-700 hover:bg-purple-100 rounded-lg transition"
+                            title="Consulter les 3 prix et logs Odoo"
+                          >
+                            <Database className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditingItem(h)} className="p-1.5 text-zinc-400 hover:text-blue-600 transition" title="Modifier">
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(h.id)} className="p-1.5 text-zinc-400 hover:text-red-600 transition" title="Supprimer">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

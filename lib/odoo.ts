@@ -240,90 +240,124 @@ export async function searchOdooByReference(query: string): Promise<OdooPriceRes
   }
 }
 
+export function detectAutoBrand(name: string = '', ref: string = '', categName: string = ''): string {
+  const text = `${name} ${ref} ${categName}`.toUpperCase();
+  
+  if (text.includes('PEUGEOT') || text.includes('PGT') || text.includes('206') || text.includes('207') || text.includes('208') || text.includes('301') || text.includes('307') || text.includes('308') || text.includes('407') || text.includes('508') || text.includes('3008') || text.includes('2008') || text.includes('PARTNER')) return 'PEUGEOT';
+  if (text.includes('CITROEN') || text.includes('CITROËN') || text.includes('BERLINGO') || text.includes('C3') || text.includes('C4') || text.includes('C5') || text.includes('DS3') || text.includes('DS4') || text.includes('NEMO') || text.includes('JUMPY')) return 'CITROËN';
+  if (text.includes('RENAULT') || text.includes('CLIO') || text.includes('MEGANE') || text.includes('MÉGANE') || text.includes('KANGOO') || text.includes('SYMBOL') || text.includes('FLUENCE') || text.includes('KADJAR') || text.includes('CAPTUR') || text.includes('DUSTER') || text.includes('LOGAN') || text.includes('SANDERO')) return 'RENAULT';
+  if (text.includes('VOLKSWAGEN') || text.includes('VW') || text.includes('GOLF') || text.includes('POLO') || text.includes('PASSAT') || text.includes('TIGUAN') || text.includes('CADDY') || text.includes('TOURAN') || text.includes('JETTA') || text.includes('AMAROK')) return 'VOLKSWAGEN';
+  if (text.includes('AUDI') || text.includes('A1') || text.includes('A3') || text.includes('A4') || text.includes('A6') || text.includes('Q3') || text.includes('Q5') || text.includes('Q7')) return 'AUDI';
+  if (text.includes('MERCEDES') || text.includes('BENZ') || text.includes('W204') || text.includes('W205') || text.includes('W212') || text.includes('SPRINTER') || text.includes('VITO') || text.includes('CLASSE A') || text.includes('CLASSE C')) return 'MERCEDES-BENZ';
+  if (text.includes('BMW') || text.includes('E46') || text.includes('E90') || text.includes('F30') || text.includes('X1') || text.includes('X3') || text.includes('X5') || text.includes('SERIE 3') || text.includes('SERIE 5')) return 'BMW';
+  if (text.includes('FIAT') || text.includes('PUNTO') || text.includes('GRANDE PUNTO') || text.includes('PANDA') || text.includes('FIORINO') || text.includes('DOBLO') || text.includes('DUCATO') || text.includes('TIPO') || text.includes('500')) return 'FIAT';
+  if (text.includes('FORD') || text.includes('FIESTA') || text.includes('FOCUS') || text.includes('MONDEO') || text.includes('TRANSIT') || text.includes('RANGER') || text.includes('KUGA') || text.includes('ECOSPORT')) return 'FORD';
+  if (text.includes('HYUNDAI') || text.includes('I10') || text.includes('I20') || text.includes('I30') || text.includes('ACCENT') || text.includes('TUCSON') || text.includes('SANTA FE') || text.includes('CRETA') || text.includes('ELANTRA')) return 'HYUNDAI';
+  if (text.includes('KIA') || text.includes('RIO') || text.includes('PICANTO') || text.includes('SPORTAGE') || text.includes('CERATO') || text.includes('CEED') || text.includes('SORENTO')) return 'KIA';
+  if (text.includes('TOYOTA') || text.includes('YARIS') || text.includes('COROLLA') || text.includes('HILUX') || text.includes('RAV4') || text.includes('AURIS') || text.includes('PRADO')) return 'TOYOTA';
+  if (text.includes('NISSAN') || text.includes('QASHQAI') || text.includes('MICRA') || text.includes('JUKE') || text.includes('NAVARA') || text.includes('X-TRAIL') || text.includes('SUNNY')) return 'NISSAN';
+  if (text.includes('SEAT') || text.includes('IBIZA') || text.includes('LEON') || text.includes('ARONA') || text.includes('ATECA')) return 'SEAT';
+  if (text.includes('SKODA') || text.includes('OCTAVIA') || text.includes('FABIA') || text.includes('SUPERB') || text.includes('KODIAQ')) return 'SKODA';
+  if (text.includes('MAHINDRA') || text.includes('KUV') || text.includes('XUV') || text.includes('SCORPIO')) return 'MAHINDRA';
+  if (text.includes('ISUZU') || text.includes('D-MAX') || text.includes('DMAX')) return 'ISUZU';
+  if (text.includes('OPEL') || text.includes('CORSA') || text.includes('ASTRA') || text.includes('INSIGNIA') || text.includes('MOKKA')) return 'OPEL';
+  if (text.includes('DACIA') || text.includes('LOGAN') || text.includes('SANDERO') || text.includes('DUSTER') || text.includes('DOKKER')) return 'DACIA';
+  if (text.includes('CHEVROLET') || text.includes('AVEO') || text.includes('CRUZE') || text.includes('SPARK') || text.includes('OPTRA')) return 'CHEVROLET';
+  if (text.includes('SUZUKI') || text.includes('SWIFT') || text.includes('CELERIO') || text.includes('BALENO') || text.includes('VITARA')) return 'SUZUKI';
+  if (text.includes('MITSUBISHI') || text.includes('L200') || text.includes('PAJERO') || text.includes('LANCER')) return 'MITSUBISHI';
+  if (text.includes('JEEP') || text.includes('RENEGADE') || text.includes('CHEROKEE') || text.includes('COMPASS')) return 'JEEP';
+  if (text.includes('VALEO')) return 'VALEO';
+  if (text.includes('BOSCH')) return 'BOSCH';
+  if (text.includes('CANSU')) return 'CANSU';
+  if (text.includes('SOCOFA')) return 'SOCOFA';
+  if (text.includes('STEQ')) return 'STEQ';
+  
+  return 'ORIGINE / ADAPTABLE';
+}
+
+export function isConsumableOrNonPart(name: string = '', categName: string = ''): boolean {
+  const text = `${name} ${categName}`.toUpperCase();
+  const excludeKeywords = [
+    "MAIN D'OEUVRE", "MAIN DOEUVRE", "PEINTURE", "VERNIS", "MASTIC", "DILUANT", "DURCISSEUR", 
+    "PAPIER ABRASIF", "PREPARATION", "LAVAGE", "NETTOYAGE", "NETTOYANT", "DEPOSE POSE", 
+    "CALE A PONCER", "PONCEUSE", "PRODUIT DE LUSTRAGE", "BASE A EFFET", "APPRET", "IMPRESSION",
+    "MATERIEL", "ACCESOIRES PEINTURE", "CONSOMMABLE", "FOURNITURE", "CHIFFON", "MASQUAGE", "SCOTCH"
+  ];
+  return excludeKeywords.some(kw => text.includes(kw));
+}
+
 /**
  * Synchronisation globale des articles et prix depuis Odoo vers AUTOP
+ * Filtre exclusivement les pièces de rechange et calcule les 3 prix (Achat, Vente, Devis)
  */
-export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: number; updated: number; errors: number }> {
+export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: number; updated: number; errors: number; totalSpareParts: number }> {
   const { prisma } = await import('@/lib/prisma');
   
   let imported = 0;
   let updated = 0;
   let errors = 0;
+  let totalSpareParts = 0;
 
   try {
     console.log(`[Odoo Sync] Début synchronisation Odoo (limite: ${limit})...`);
 
-    // 1. Récupération des dernières lignes de commande d'achat
-    const poLines = await callOdooKw("purchase.order.line", "search_read", [[]], {
-      fields: ["name", "product_id", "price_unit", "product_qty", "partner_id", "date_order", "order_id"],
-      limit,
-      order: "date_order desc"
+    // 1. Récupération des devis clients Odoo récents (pour extraire le Prix Devis)
+    const soLines = await callOdooKw("sale.order.line", "search_read", [
+      [["state", "in", ["sent", "draft", "sale", "done"]]]
+    ], {
+      fields: ["name", "product_id", "price_unit", "product_uom_qty", "order_id", "order_partner_id", "create_date", "state"],
+      limit: 1000,
+      order: "create_date desc"
     }).catch(() => []);
 
-    if (Array.isArray(poLines)) {
-      for (const line of poLines) {
-        try {
-          const rawName = String(line.name || (Array.isArray(line.product_id) ? line.product_id[1] : "")).trim();
-          const bracketMatch = rawName.match(/\[([A-Za-z0-9\-_.]+)\]/);
-          const ref = bracketMatch ? bracketMatch[1].toUpperCase() : rawName.split(" ")[0].toUpperCase();
-          
-          if (!ref || ref.length < 2) continue;
-
-          const price = parseFloat(line.price_unit) || 0;
-          const qty = parseInt(line.product_qty || 0, 10) || 0;
-          const supplierName = Array.isArray(line.partner_id) ? line.partner_id[1] : "Fournisseur Odoo";
-          const orderRef = Array.isArray(line.order_id) ? line.order_id[1] : undefined;
-
-          // Upsert dans PartPriceHistory
-          const existing = await prisma.partPriceHistory.findFirst({
-            where: {
-              reference: ref,
-              source: "ODOO",
-              supplierName: supplierName
-            }
-          });
-
-          if (existing) {
-            await prisma.partPriceHistory.update({
-              where: { id: existing.id },
-              data: {
-                purchasePrice: price,
-                sellingPrice: price * 1.25,
-                stock: qty,
-                designation: rawName,
-                sourceDetails: orderRef ? `Odoo PO: ${orderRef}` : "Odoo Achat",
-                date: line.date_order ? new Date(line.date_order) : new Date(),
-                updatedAt: new Date()
-              }
-            });
-            updated++;
-          } else {
-            await prisma.partPriceHistory.create({
-              data: {
-                reference: ref,
-                designation: rawName,
-                brand: "ODOO",
-                type: "ADAPTABLE",
-                purchasePrice: price,
-                sellingPrice: price * 1.25,
-                stock: qty,
-                supplierName: supplierName,
-                source: "ODOO",
-                sourceDetails: orderRef ? `Odoo PO: ${orderRef}` : "Odoo Achat",
-                date: line.date_order ? new Date(line.date_order) : new Date()
-              }
-            });
-            imported++;
-          }
-        } catch {
-          errors++;
+    // Indexation des devis par référence
+    const quoteMap: Record<string, any> = {};
+    if (Array.isArray(soLines)) {
+      for (const so of soLines) {
+        const rawName = String(so.name || (Array.isArray(so.product_id) ? so.product_id[1] : "")).trim();
+        const bracketMatch = rawName.match(/\[([A-Za-z0-9\-_.]+)\]/);
+        const ref = bracketMatch ? bracketMatch[1].toUpperCase() : rawName.split(" ")[0].toUpperCase();
+        if (ref && ref.length >= 2 && !quoteMap[ref]) {
+          quoteMap[ref] = {
+            quotePrice: parseFloat(so.price_unit) || 0,
+            orderNumber: Array.isArray(so.order_id) ? so.order_id[1] : `SO-${so.id}`,
+            clientName: Array.isArray(so.order_partner_id) ? so.order_partner_id[1] : 'Client Devis',
+            state: so.state === 'sent' ? 'Devis Envoyé' : so.state === 'draft' ? 'Devis Brouillon' : 'Vente',
+            date: so.create_date ? new Date(so.create_date).toLocaleDateString('fr-FR') : ''
+          };
         }
       }
     }
 
-    // 2. Récupération des articles standards Odoo
-    const products = await callOdooKw("product.product", "search_read", [[["default_code", "!=", false]]], {
-      fields: ["name", "default_code", "standard_price", "list_price", "qty_available"],
+    // 2. Récupération des dernières lignes de commande d'achat (pour Prix Achat & Fournisseur)
+    const poLines = await callOdooKw("purchase.order.line", "search_read", [[]], {
+      fields: ["name", "product_id", "price_unit", "product_qty", "partner_id", "date_order", "order_id"],
+      limit: 1000,
+      order: "date_order desc"
+    }).catch(() => []);
+
+    const poMap: Record<string, any> = {};
+    if (Array.isArray(poLines)) {
+      for (const po of poLines) {
+        const rawName = String(po.name || (Array.isArray(po.product_id) ? po.product_id[1] : "")).trim();
+        const bracketMatch = rawName.match(/\[([A-Za-z0-9\-_.]+)\]/);
+        const ref = bracketMatch ? bracketMatch[1].toUpperCase() : rawName.split(" ")[0].toUpperCase();
+        if (ref && ref.length >= 2 && !poMap[ref]) {
+          poMap[ref] = {
+            purchasePrice: parseFloat(po.price_unit) || 0,
+            supplierName: Array.isArray(po.partner_id) ? po.partner_id[1] : 'Fournisseur Odoo',
+            orderNumber: Array.isArray(po.order_id) ? po.order_id[1] : `PO-${po.id}`,
+            date: po.date_order ? new Date(po.date_order) : new Date()
+          };
+        }
+      }
+    }
+
+    // 3. Récupération des articles stockables Odoo
+    const products = await callOdooKw("product.product", "search_read", [
+      [["default_code", "!=", false], ["type", "=", "product"]]
+    ], {
+      fields: ["name", "default_code", "standard_price", "list_price", "qty_available", "categ_id", "type"],
       limit,
       order: "write_date desc"
     }).catch(() => []);
@@ -332,17 +366,37 @@ export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: 
       for (const p of products) {
         try {
           const ref = String(p.default_code || "").trim().toUpperCase();
-          if (!ref) continue;
+          if (!ref || ref.length < 2) continue;
 
-          const costPrice = parseFloat(p.standard_price) || 0;
-          const sellPrice = parseFloat(p.list_price) || (costPrice * 1.25);
+          const categName = Array.isArray(p.categ_id) ? p.categ_id[1] : '';
+
+          // ⚠️ FILTRAGE EXCLUSIF PIÈCES DE RECHANGE (EXCLURE CONSOMMABLES & MO)
+          if (isConsumableOrNonPart(p.name, categName)) {
+            continue;
+          }
+
+          totalSpareParts++;
+          const brand = detectAutoBrand(p.name, ref, categName);
+
+          const relatedPo = poMap[ref];
+          const relatedQuote = quoteMap[ref];
+
+          const purchasePrice = relatedPo ? relatedPo.purchasePrice : (parseFloat(p.standard_price) || 0);
+          const sellingPrice = (parseFloat(p.list_price) > 1 ? parseFloat(p.list_price) : (purchasePrice > 0 ? purchasePrice * 1.30 : 0));
+          const quotePrice = relatedQuote?.quotePrice || 0;
           const stock = parseInt(p.qty_available || 0, 10) || 0;
+          const supplierName = relatedPo?.supplierName || "Stock Odoo AUTOP";
+
+          // Construction des détails de sources avec info Devis Odoo si existant
+          let sourceDetails = relatedPo ? `Odoo PO: ${relatedPo.orderNumber}` : "Odoo Catalogue Stock";
+          if (relatedQuote && quotePrice > 0) {
+            sourceDetails += ` | Devis Odoo: ${relatedQuote.orderNumber} (${quotePrice.toFixed(3)} DT)`;
+          }
 
           const existing = await prisma.partPriceHistory.findFirst({
             where: {
               reference: ref,
-              source: "ODOO",
-              supplierName: "Stock Odoo AUTOP"
+              source: "ODOO"
             }
           });
 
@@ -350,11 +404,15 @@ export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: 
             await prisma.partPriceHistory.update({
               where: { id: existing.id },
               data: {
-                purchasePrice: costPrice,
-                sellingPrice: sellPrice,
+                purchasePrice,
+                sellingPrice,
+                discount: quotePrice > 0 ? quotePrice : 0, // Utilise discount pour stocker le Prix Devis Odoo
                 stock,
                 designation: p.name,
-                sourceDetails: "Odoo Catalogue Stock",
+                brand,
+                type: brand !== 'ORIGINE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
+                supplierName,
+                sourceDetails,
                 updatedAt: new Date()
               }
             });
@@ -364,14 +422,16 @@ export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: 
               data: {
                 reference: ref,
                 designation: p.name,
-                brand: "ODOO",
-                type: "ADAPTABLE",
-                purchasePrice: costPrice,
-                sellingPrice: sellPrice,
+                brand,
+                type: brand !== 'ORIGINE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
+                purchasePrice,
+                sellingPrice,
+                discount: quotePrice > 0 ? quotePrice : 0, // Prix Devis Odoo
                 stock,
-                supplierName: "Stock Odoo AUTOP",
+                supplierName,
                 source: "ODOO",
-                sourceDetails: "Odoo Catalogue Stock"
+                sourceDetails,
+                date: relatedPo?.date || new Date()
               }
             });
             imported++;
@@ -382,8 +442,8 @@ export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: 
       }
     }
 
-    console.log(`[Odoo Sync] Terminé : ${imported} ajoutés, ${updated} mis à jour, ${errors} erreurs.`);
-    return { imported, updated, errors };
+    console.log(`[Odoo Sync] Terminé : ${totalSpareParts} pièces de rechange traitées (${imported} créées, ${updated} mises à jour).`);
+    return { imported, updated, errors, totalSpareParts };
   } catch (err: any) {
     console.error("[Odoo Sync] Erreur générale:", err.message);
     throw err;
