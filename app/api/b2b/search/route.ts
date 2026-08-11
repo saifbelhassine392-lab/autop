@@ -635,8 +635,8 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
         });
 
         let resJson = await rSearch.json().catch(() => null);
-        // If session expired (e.g. redirected or master is null without reason)
-        if (!rSearch.ok || (resJson && typeof resJson === "string" && resJson.includes("connexion"))) {
+        // If session expired or master is null, immediately re-authenticate and retry
+        if (!rSearch.ok || !resJson || !resJson.master || (typeof resJson === "string" && resJson.includes("connexion"))) {
           const freshCookie = await loginMosaique();
           if (freshCookie) {
             cookie = freshCookie;
@@ -649,7 +649,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
                 "X-Requested-With": "XMLHttpRequest"
               },
               body: searchParams.toString()
-            });
+            }, 5000);
             resJson = await rSearch.json().catch(() => null);
           }
         }
