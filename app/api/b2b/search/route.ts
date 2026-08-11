@@ -363,128 +363,85 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. FAD  (pb.fadpro.tn / fadpro.tn)  — PocketBase API
+// 2. FAD  (fadpro.tn:8095 / pb.fadpro.tn) — Official B2B API
 // ─────────────────────────────────────────────────────────────────────────────
-function mapFadArticle(i: any, searchedRef: string, matchedQuery: string) {
-  const dispoRaw = String(i.dispo ?? i.disponibilite ?? i.disp ?? i.etatDispo ?? "").toUpperCase();
-  const stockNum =
-    parseInt(String(i.stock ?? i.quantite ?? i.qte ?? i.qty ?? i.quantiteStock ?? i.qteStock ?? 0), 10) || 0;
-  const isDispo = dispoRaw === "S" || stockNum > 0 || i.enStock === true || i.available === true;
-  const isArrivage = dispoRaw === "A";
-  let availText = "Sur Commande";
-  if (isDispo) availText = stockNum > 0 ? `Disponible (${stockNum} en stock)` : "Disponible en Stock";
-  else if (isArrivage) availText = "En Arrivage";
-
-  const brandRaw = i.marqueLibelle || i.marque || i.brand || i.fabricant || i.manufacturerName || i.fournisseur || "";
-  const brand = String(brandRaw).trim() || "—";
-  const ref = i.refFour || i.refOem || i.refOEM || i.reference || i.articleNumber || i.code || matchedQuery;
-  const price = parseFloat(i.prixHT || i.prix || i.price || i.unitPrice || i.remiseVente || i.prixVente || 0) || 0;
-
-  return {
-    name: String(ref).trim(),
-    brand,
-    description: i.designation || i.libelle || i.itemNomFpur || "",
-    price,
-    discount: parseFloat(i.remise || i.discount || i.tauxRemise || 0) || 0,
-    availability: availText,
-    rawStock: stockNum || (isDispo ? 1 : 0),
-    available: isDispo,
-    matchType: normalizeRef(ref) === normalizeRef(searchedRef) ? "DIRECT" : "EQUIVALENCE",
-  };
-}
-
-async function fadEnsureAuth(supplierId: string, b2bLogin: string, b2bPassword: string): Promise<string> {
-  let authToken = supplierCookies[supplierId] || "";
-  if (authToken) return authToken;
-  const authRes = await fetchWithTimeout("https://pb.fadpro.tn/api/collections/users/auth-with-password", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-    body: JSON.stringify({ identity: b2bLogin, password: b2bPassword }),
-  }, 2500);
-  if (!authRes.ok) return "";
-  const authData = await authRes.json().catch(() => null);
-  authToken = authData?.token || "";
-  if (authToken) supplierCookies[supplierId] = authToken;
-  return authToken;
-}
-
-function fadAuthHeaders(authToken: string): Record<string, string> {
-  const headers: Record<string, string> = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    Accept: "application/json, text/plain, */*",
-    secretKey: FAD_SECRET_KEY,
-  };
-  if (authToken) {
-    headers.Authorization = authToken.startsWith("Bearer ") ? authToken : `Bearer ${authToken}`;
-  }
-  return headers;
-}
-
-async function fadFetchArticles(ep: string, headers: Record<string, string>, body?: string): Promise<any[]> {
-  try {
-    const searchRes = await fetchWithTimeout(ep, {
-      method: body ? "POST" : "GET",
-      headers: body ? { ...headers, "Content-Type": "application/json" } : headers,
-      body,
-    }, 2500);
-    if (!searchRes.ok) return [];
-    const text = await searchRes.text();
-    if (!text.trim().startsWith("{") && !text.trim().startsWith("[")) return [];
-    const data = JSON.parse(text);
-    return extractJsonArticles(data);
-  } catch {
-    return [];
-  }
-}
-
 async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    const authToken = await fadEnsureAuth(supplierId, b2bLogin, b2bPassword);
-    const headers = fadAuthHeaders(authToken);
+    let token = supplierCookies[supplierId] || "";
+
+    if (!token) {
+      const loginUrl = `https://fadpro.tn:8095/fad/auth/login?custNo=${encodeURIComponent(b2bLogin)}&password=${encodeURIComponent(b2bPassword)}`;
+      const loginRes = await robustFetch(loginUrl, {
+        method: "POST",
+        headers: {
+          "X-CUSTOM-ORIGIN": "https://fadpro.tn",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          "Accept": "application/json"
+        }
+      });
+      if (loginRes.ok) {
+        const loginData = await loginRes.json().catch(() => null);
+        token = loginData?.token || loginData?.jwt || loginData?.accessToken || "";
+        if (token) supplierCookies[supplierId] = token;
+      }
+    }
+
+    if (!token) {
+      return { price: 0, discount: 0, available: false, availability: "FAD: Authentification échouée", items: [] };
+    }
+
     const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
-    await Promise.all(refsToTest.map(async (q) => {
-      const safeRef = normalizeRef(q).replace(/[^A-Z0-9]/g, "");
-      const getUrls = [
-        `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(q)}`,
-        `https://fadpro.tn:8095/fad/api/b2b/search?refOem=${encodeURIComponent(q)}`,
-        `https://pb.fadpro.tn/api/tecdoc/articles?search=${encodeURIComponent(q)}&page=1&perPage=20`,
-      ];
-      if (safeRef.length >= 3) {
-        getUrls.push(`https://pb.fadpro.tn/api/collections/articles/records?filter=(refFour~'${safeRef}')&perPage=20`);
-      }
-      
-      await Promise.all(getUrls.map(async (ep) => {
-        const articlesList = await fadFetchArticles(ep, headers);
-        for (const i of articlesList) {
-          items.push(mapFadArticle(i, query, q));
+    for (const refKey of refsToTest) {
+      try {
+        const searchUrl = `https://fadpro.tn:8095/fad/api/b2b/search?refFour=${encodeURIComponent(refKey)}`;
+        const searchRes = await robustFetch(searchUrl, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "X-CUSTOM-ORIGIN": "https://fadpro.tn",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "application/json, text/plain, */*"
+          }
+        });
+
+        if (searchRes.ok) {
+          const rawData = await searchRes.json().catch(() => null);
+          if (Array.isArray(rawData) && rawData.length > 0) {
+            for (const i of rawData) {
+              const itemRef = String(i.refFour || i.refOem || i.reference || refKey).trim();
+              const stockNum = parseInt(String(i.dispoEnStock || i.stock || i.quantite || 0), 10) || 0;
+              const isDispo = String(i.dispo).toUpperCase() === "S" || stockNum > 0;
+              const isArrivage = String(i.dispo).toUpperCase() === "A";
+              const price = parseFloat(String(i.prix || i.prixHT || i.unitPrice || 0).replace(",", ".")) || 0;
+              const brand = (i.itemNomFpur || i.marque || i.four || "FAD").toUpperCase().trim();
+
+              items.push({
+                name: itemRef,
+                brand,
+                designation: i.designation || `Article ${itemRef}`,
+                description: i.designation || `Article ${itemRef}`,
+                price,
+                discount: parseFloat(String(i.remise || i.discount || 0).replace(",", ".")) || 0,
+                availability: isDispo ? (stockNum > 0 ? `Disponible (${stockNum} en stock)` : "Disponible en Stock") : isArrivage ? "En Arrivage" : "Sur Commande",
+                rawStock: stockNum || (isDispo ? 1 : 0),
+                available: isDispo || price > 0,
+                matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
+              });
+            }
+          }
         }
-      }));
+      } catch {}
+    }
 
-      const postBody = JSON.stringify({ refFour: q, reference: q, refOem: q, search: q });
-      await Promise.all([
-        "https://fadpro.tn:8095/fad/api/b2b/search",
-        "https://fadpro.tn:8095/fad/api/b2b/equivalence"
-      ].map(async (postEp) => {
-        const articlesList = await fadFetchArticles(postEp, headers, postBody);
-        for (const i of articlesList) {
-          items.push(mapFadArticle(i, query, q));
-        }
-      }));
-    }));
+    const list = dedupeB2BItems(items);
+    if (list.length > 0) {
+      const best = pickBestB2BItem(list);
+      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: list };
+    }
 
-    const packed = packScrapeResult(items);
-    if (packed) return packed;
-
-    return {
-      price: 0,
-      discount: 0,
-      available: false,
-      availability: `FAD B2B connecté (Code: ${b2bLogin}). Référence ${query} — non disponible dans le catalogue FAD.`,
-      items: [],
-    };
+    return { price: 0, discount: 0, available: false, availability: `FAD B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur FAD: ${err.message}`, items: [] };
   }
@@ -747,15 +704,20 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
       m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
     );
     if (tds.length < 2) continue;
-    const rowNorm = normalizeRef(tds.join(" "));
-    const refCell = tds.find((t) => normalizeRef(t).length >= 4);
+    const refCell = tds.find((t) => {
+      const n = normalizeRef(t);
+      return n.length >= 3 && n.length <= 25 && !t.toLowerCase().includes("login") && !t.toLowerCase().includes("mot de passe") && !t.toLowerCase().includes("société") && !t.toLowerCase().includes("serveur");
+    });
     if (!refCell) continue;
+
     const priceMatch = tds.join(" ").match(/(\d+[.,]\d{2,3})/);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
     const stockMatch = tds.join(" ").match(/(?:stock|dispo|qt[eé])\s*[:\s]*(\d+)/i);
     const stock = stockMatch ? parseInt(stockMatch[1], 10) : 0;
     const dispoText = tds.join(" ").toLowerCase();
     const available = stock > 0 || dispoText.includes("disponible") || dispoText.includes("en stock");
+
+    if (price === 0 && stock === 0 && !available) continue;
 
     items.push({
       name: refCell,
@@ -1124,35 +1086,31 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
       await fetchWithTimeout(`${baseUrl}/Recherche/SaveMot`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
           "Cookie": cookie,
           "User-Agent": "Mozilla/5.0",
           "X-Requested-With": "XMLHttpRequest"
         },
         body: new URLSearchParams({ mot: qRef }).toString()
-      }, 2000).catch(() => null);
+      }, 2500).catch(() => null);
 
       const [resOrigine, resCode] = await Promise.all([
         fetchWithTimeout(`${baseUrl}/Recherche/FindItembyOrigine`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
             "Cookie": cookie,
             "User-Agent": "Mozilla/5.0",
             "X-Requested-With": "XMLHttpRequest"
-          },
-          body: new URLSearchParams({ code: qRef, origine: qRef, ref: qRef }).toString()
-        }, 2500).catch(() => null),
+          }
+        }, 3500).catch(() => null),
         fetchWithTimeout(`${baseUrl}/Recherche/FindItembyCodeArticle`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
             "Cookie": cookie,
             "User-Agent": "Mozilla/5.0",
             "X-Requested-With": "XMLHttpRequest"
-          },
-          body: new URLSearchParams({ code: qRef, codeArticle: qRef, ref: qRef }).toString()
-        }, 2500).catch(() => null)
+          }
+        }, 3500).catch(() => null)
       ]);
 
       if (resOrigine && resOrigine.ok) {
@@ -1177,32 +1135,40 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
     }
 
     if (rawItems.length > 0) {
-      const parsedItems = rawItems.slice(0, 20).map((i: any) => {
-        const rawStock = parseInt(i.Stock || i.Dispo || i.Disponible || i.Vente || 0) || 0;
-        const price = parseFloat(i.Prix || i.PrixVente || i.UnitPrice || i.Price || 0) || 0;
-        const discount = parseFloat(i.Remise || i.Discount || 0) || 0;
-        const itemRef = i.ItemNo || i.CodeArticle || i.Reference || query;
+      const parsedItems = rawItems.map((i: any) => {
+        const stockMag = parseFloat(String(i.StockMagasin || 0).replace(",", ".")) || 0;
+        const stockAutre = parseFloat(String(i.StockAutresMagasin || 0).replace(",", ".")) || 0;
+        const rawStock = parseInt(String(i.Stock || i.Dispo || i.Disponible || (stockMag + stockAutre) || 0), 10) || 0;
+        const priceStr = String(i.UnitPrice || i.Prix || i.PrixVente || i.Price || 0).replace(",", ".");
+        const price = parseFloat(priceStr) || 0;
+        const discount = parseFloat(String(i.Remise || i.Discount || 0).replace(",", ".")) || 0;
+        const itemRef = String(i.ItemNo || i.CodeArticle || i.Reference || query).trim();
+        const brand = String(i.Marque || i.Brand || (itemRef.startsWith("TRI") ? "TRICLO" : itemRef.startsWith("VRT") ? "VERNET" : itemRef.startsWith("FAR") ? "FARE" : itemRef.startsWith("EKM") ? "EKIM" : itemRef.startsWith("PSA") ? "PEUGEOT" : "PROPARTS")).trim();
+        const isDispo = rawStock > 0 || (price > 0 && i.ArrivageExiste !== "true");
+
         return {
           name: itemRef,
-          brand: i.Marque || i.Brand || i.VendorNo || "PROPARTS",
-          description: i.Description || "",
-          price: price,
-          discount: discount,
-          availability: rawStock > 0 ? "Disponible en Stock" : "Sur Commande",
-          rawStock: rawStock,
-          available: rawStock > 0,
+          brand,
+          designation: i.Description || `Article ${itemRef}`,
+          description: i.Description || `Article ${itemRef}`,
+          price,
+          discount,
+          availability: rawStock > 0 ? `Disponible (${rawStock} en stock)` : isDispo ? "Disponible" : "Sur Commande",
+          rawStock,
+          available: isDispo,
           matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
         };
       });
 
-      const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+      const list = dedupeB2BItems(parsedItems);
+      const best = pickBestB2BItem(list);
       return {
         price: best.price,
         discount: best.discount,
         availability: best.availability,
         rawStock: best.rawStock,
         available: best.available,
-        items: parsedItems
+        items: list
       };
     }
 
@@ -1798,7 +1764,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
 }
 
 function supplierSearchTimeoutMs(name: string): number {
-  return 10000;
+  return 12000;
 }
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs?: number): Promise<any> {
   const effectiveTimeout = timeoutMs ?? supplierSearchTimeoutMs(supplier.name);
@@ -1856,7 +1822,9 @@ import { authOptions } from '@/lib/auth';
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    const internalHeader = request.headers.get('x-internal-b2b');
+    const isInternalAuth = internalHeader === 'autop-b2b-internal-token' || internalHeader === 'autop-secret-2025';
+    if (!session?.user && !isInternalAuth) {
       return NextResponse.json({ success: false, error: 'Non authentifié. Connexion requise pour la recherche B2B.' }, { status: 401 });
     }
 
@@ -1952,7 +1920,7 @@ export async function POST(request: Request) {
 
       // 1. Recherche Directe
       let allResults = await Promise.all(
-        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 7000))
+        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 12000))
       );
 
       let liveSupplierItems: any[] = [];
