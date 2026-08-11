@@ -4569,40 +4569,48 @@ function SectionRobotB2B() {
                       const itemDesig = item.designation || item.description || `Article ${itemRef}`;
 
                       return (
-                        <div key={idx} className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${cat === 'DISPONIBLE' ? 'bg-white border-green-500/40 shadow-sm' : cat === 'ARRIVAGE' ? 'bg-blue-950/20 border-blue-500/30' : 'bg-white border-zinc-200'}`}>
+                        <div key={idx} className={`p-4 rounded-2xl border flex flex-col justify-between transition-all shadow-sm ${cat === 'DISPONIBLE' ? 'bg-white border-green-500/50 ring-1 ring-green-500/20' : cat === 'ARRIVAGE' ? 'bg-blue-50/50 border-blue-300' : 'bg-white border-zinc-200'}`}>
                           <div>
-                            <div className="flex flex-wrap justify-between items-center gap-1.5 mb-2">
-                              <span className="text-xs font-black text-cyan-700 uppercase bg-cyan-50 border border-cyan-200 px-2.5 py-1 rounded-md">
+                            <div className="flex flex-wrap justify-between items-center gap-1.5 mb-2.5">
+                              <span className="text-xs font-black text-cyan-800 uppercase bg-cyan-100/70 border border-cyan-300 px-2.5 py-1 rounded-lg">
                                 🏢 {item.supplierName || item.fournisseur || 'FOURNISSEUR B2B'}
                               </span>
                               <div className="flex items-center gap-1">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border uppercase ${isEquiv ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'}`}>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border uppercase ${isEquiv ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'}`}>
                                   {isEquiv ? '🔄 ÉQUIVALENCE' : '🎯 DIRECTE'}
                                 </span>
-                                <span className={`text-xs font-black px-2.5 py-1 rounded-md border ${badgeStyle}`}>
+                                <span className={`text-xs font-black px-2.5 py-1 rounded-lg border ${badgeStyle}`}>
                                   {badgeText}
                                 </span>
                               </div>
                             </div>
-                            <div className="font-black text-zinc-950 text-base mb-1">
-                              {item.brand ? `MARQUE : ${item.brand.toUpperCase()}` : 'MARQUE NON SPÉCIFIÉE'}
+                            <div className="font-black text-zinc-950 text-sm sm:text-base mb-1">
+                              {item.brand ? `MARQUE : ${item.brand.toUpperCase()}` : 'MARQUE : ADAPTABLE'}
                             </div>
-                            {item.description && (
-                              <div className="text-xs text-slate-300 font-semibold mb-1">
-                                {item.description}
+                            {itemDesig && (
+                              <div className="text-xs text-zinc-700 font-semibold mb-1.5 line-clamp-2">
+                                {itemDesig}
                               </div>
                             )}
-                            <div className="text-xs text-slate-300 font-mono mb-3">
-                              REF : <span className="font-bold text-amber-400">{item.name}</span>
+                            <div className="text-xs text-zinc-900 font-mono mb-3 flex items-center gap-1">
+                              <span className="text-zinc-500 font-normal">REF :</span>
+                              <span className="font-black text-zinc-950 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded text-xs">{itemRef}</span>
                             </div>
                           </div>
-                          <div className="flex justify-between items-center pt-3 border-t border-zinc-200">
-                            <span className="text-xs font-bold text-zinc-500">
-                              REMISE : <span className="text-cyan-400">{item.discount || 0}%</span>
+                          <div className="flex justify-between items-center pt-3 border-t border-zinc-100">
+                            <span className="text-xs font-bold text-zinc-600">
+                              REMISE : <span className="text-cyan-700 font-black">{discountPct > 0 ? `${discountPct}%` : '0%'}</span>
                             </span>
-                            <span className="font-black text-lg text-emerald-400">
-                              {item.price > 0 ? `${item.price.toFixed(3)} TND HT` : '—'}
-                            </span>
+                            <div className="text-right">
+                              <div className="font-black text-lg text-emerald-700">
+                                {priceHT > 0 ? `${priceHT.toFixed(3)} TND HT` : 'PRIX SUR DEMANDE'}
+                              </div>
+                              {discountPct > 0 && netPriceHT > 0 && (
+                                <div className="text-[10px] text-zinc-500 font-bold">
+                                  Net : {netPriceHT.toFixed(3)} TND HT
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );

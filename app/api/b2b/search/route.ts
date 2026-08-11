@@ -135,7 +135,23 @@ function buildSupplierSearchRefs(query: string): string[] {
     
     // Normalisation standard (majuscules, sans espaces/tirets/points/slashs)
     const clean = t.replace(/[\s\-_.\/]+/g, "").toUpperCase();
-    if (clean.length >= 2) seen.add(clean);
+    if (clean.length >= 2) {
+      seen.add(clean);
+
+      // Variantes avec tirets ou points (ex: 86511-K6500, 1306.J5, 1306-J5)
+      if (/^\d{5}[A-Z0-9]{5}$/.test(clean)) {
+        seen.add(`${clean.slice(0, 5)}-${clean.slice(5)}`);
+        seen.add(`${clean.slice(0, 5)} ${clean.slice(5)}`);
+      }
+      if (/^\d{4}[A-Z0-9]{2}$/.test(clean)) {
+        seen.add(`${clean.slice(0, 4)}.${clean.slice(4)}`);
+        seen.add(`${clean.slice(0, 4)}-${clean.slice(4)}`);
+        seen.add(`${clean.slice(0, 4)} ${clean.slice(4)}`);
+      }
+      if (/^[A-Z0-9]{3}\d{6,}$/.test(clean)) {
+        seen.add(`${clean.slice(0, 3)}-${clean.slice(3)}`);
+      }
+    }
 
     const n = normalizeRef(t);
     if (n.length >= 2 && n !== t) seen.add(n);
@@ -145,7 +161,7 @@ function buildSupplierSearchRefs(query: string): string[] {
     if (u !== t) seen.add(u);
 
     // Variantes de préfixes tunisiens connus (ex: CAN1306J5 <-> 1306J5)
-    const prefixes = ['CAN', 'MTC', 'VRT', 'VLR', 'VAL', 'BOS', 'LUK', 'INA', 'FAD', 'STQ', 'OE', 'SKF', 'PUR', 'FIL'];
+    const prefixes = ['CAN', 'MTC', 'VRT', 'VLR', 'VAL', 'BOS', 'LUK', 'INA', 'FAD', 'STQ', 'OE', 'SKF', 'PUR', 'FIL', 'VAI'];
     for (const p of prefixes) {
       if (clean.startsWith(p) && clean.length > p.length + 2) {
         seen.add(clean.slice(p.length));
@@ -579,30 +595,27 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
         }, 4000);
         const initCookie = r1.headers.get("set-cookie") || "";
         const matchSess = initCookie.match(/PHPSESSID=[^;]+/i);
-        let curCookie = matchSess ? matchSess[0] : "";
+        const curCookie = matchSess ? matchSess[0] : "";
 
-        const loginParams = new URLSearchParams({
-          login: b2bLogin,
-          pass: b2bPassword
-        });
+        if (curCookie) {
+          const loginParams = new URLSearchParams({
+            login: b2bLogin,
+            pass: b2bPassword
+          });
 
-        const r2 = await robustFetch(`${baseUrl}/auth`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Cookie": curCookie,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Referer": `${baseUrl}/auth`
-          },
-          body: loginParams.toString()
-        }, 4000);
+          await robustFetch(`${baseUrl}/auth`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Cookie": curCookie,
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              "Referer": `${baseUrl}/auth`
+            },
+            body: loginParams.toString()
+          }, 4000);
 
-        const loginCookie = r2.headers.get("set-cookie") || curCookie;
-        const matchSess2 = loginCookie.match(/PHPSESSID=[^;]+/i);
-        const activeCookie = matchSess2 ? matchSess2[0] : curCookie;
-        if (activeCookie) {
-          supplierCookies[supplierId] = activeCookie;
-          return activeCookie;
+          supplierCookies[supplierId] = curCookie;
+          return curCookie;
         }
       } catch {}
       return "";
@@ -617,7 +630,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
     const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
-    await Promise.all(refsToTest.slice(0, 4).map(async (refKey) => {
+    await Promise.all(refsToTest.slice(0, 5).map(async (refKey) => {
       try {
         const searchParams = new URLSearchParams({
           jsonDataApiTransfert: JSON.stringify({ ref: refKey, reference: refKey })
@@ -632,11 +645,11 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
             "X-Requested-With": "XMLHttpRequest"
           },
           body: searchParams.toString()
-        });
+        }, 5000);
 
         let resJson = await rSearch.json().catch(() => null);
         // If session expired or master is null, immediately re-authenticate and retry
-        if (!rSearch.ok || !resJson || !resJson.master || (typeof resJson === "string" && resJson.includes("connexion"))) {
+        if (!rSearch.ok || !resJson || (!resJson.master && !resJson.articles) || (typeof resJson === "string" && resJson.includes("connexion"))) {
           const freshCookie = await loginMosaique();
           if (freshCookie) {
             cookie = freshCookie;
@@ -657,20 +670,24 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
         if (resJson) {
           // 1. Master article
           const master = resJson.master;
-          if (master && master.id_article) {
+          if (master && (master.id_article || master.titre)) {
             const stock = parseInt(master.stockTotal || master.stock || master.qty || 0) || 0;
-            const price = parseFloat(master.prix || master.prix_u_ht || master.prixVente || 0) || 0;
+            const priceHT = parseFloat(master.prix_u_ht || master.prix || master.prixVente || 0) || 0;
+            const priceTTC = parseFloat(master.prix || master.prixTTC || 0) || priceHT;
+            const finalPrice = priceHT > 0 ? priceHT : priceTTC;
             const refName = master.reference || master.ref || refKey;
 
             items.push({
               name: refName,
-              brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'ORIGINE').toUpperCase().trim(),
+              brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'ADAPTABLE').toUpperCase().trim(),
               designation: master.titre || `Article ${refName}`,
-              price,
+              description: master.titre || `Article ${refName}`,
+              price: finalPrice,
+              prixHT: finalPrice,
               discount: parseFloat(master.remise || master.discount || 0) || 0,
               availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
               rawStock: stock,
-              available: stock > 0 || price > 0,
+              available: stock > 0 || finalPrice > 0,
               matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
             });
           }
@@ -680,19 +697,23 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
           for (const extraList of extraLists) {
             if (Array.isArray(extraList)) {
               for (const art of extraList) {
-                if (art && (art.id_article || art.reference || art.ref)) {
+                if (art && (art.id_article || art.reference || art.ref || art.titre)) {
                   const st = parseInt(art.stockTotal || art.stock || art.qty || 0) || 0;
-                  const pr = parseFloat(art.prix || art.prix_u_ht || art.prixVente || 0) || 0;
+                  const prHT = parseFloat(art.prix_u_ht || art.prix || art.prixVente || 0) || 0;
+                  const prTTC = parseFloat(art.prix || art.prixTTC || 0) || prHT;
+                  const finalPr = prHT > 0 ? prHT : prTTC;
                   const rn = art.reference || art.ref || refKey;
                   items.push({
                     name: rn,
                     brand: (art.titre_marque || art.marque || art.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
                     designation: art.titre || `Article ${rn}`,
-                    price: pr,
+                    description: art.titre || `Article ${rn}`,
+                    price: finalPr,
+                    prixHT: finalPr,
                     discount: parseFloat(art.remise || art.discount || 0) || 0,
                     availability: st > 0 ? `Disponible (${st} en stock)` : "Sur Commande / Hors Stock",
                     rawStock: st,
-                    available: st > 0 || pr > 0,
+                    available: st > 0 || finalPr > 0,
                     matchType: normalizeRef(rn) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
                   });
                 }
@@ -1183,10 +1204,13 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
 
     if (!cookie) {
       // Step 1: GET Login page for verification token & session cookie
-      const r1 = await fetch(`${baseUrl}/Home/Login`, {
+      const r1 = await fetchWithTimeout(`${baseUrl}/Home/Login`, {
         headers: { "User-Agent": "Mozilla/5.0" }
-      });
-      const html1 = await r1.text();
+      }, 4000).catch(() => null);
+      if (!r1 || !r1.ok) {
+        return { price: 0, discount: 0, available: false, availability: `PROPARTS B2B non accessible`, items: [] };
+      }
+      const html1 = await r1.text().catch(() => "");
       const tokenMatch = html1.match(/name="__RequestVerificationToken"\s+type="hidden"\s+value="([^"]+)"/);
       const token = tokenMatch ? tokenMatch[1] : "";
       const setCookie = r1.headers.get("set-cookie") || "";
@@ -1198,7 +1222,7 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
         __RequestVerificationToken: token
       });
 
-      const r2 = await fetch(`${baseUrl}/Home/Login`, {
+      const r2 = await fetchWithTimeout(`${baseUrl}/Home/Login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
@@ -1207,9 +1231,9 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
         },
         body: body.toString(),
         redirect: "manual"
-      });
+      }, 4000).catch(() => null);
 
-      cookie = r2.headers.get("set-cookie") || setCookie;
+      cookie = r2?.headers?.get("set-cookie") || setCookie;
       if (cookie) supplierCookies[supplierId] = cookie;
     }
 
@@ -2032,7 +2056,12 @@ import { authOptions } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    let session: any = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Ignore outside request context error
+    }
     const internalHeader = request.headers.get('x-internal-b2b');
     const isInternalAuth = internalHeader === 'autop-b2b-internal-token' || internalHeader === 'autop-secret-2025';
     if (!session?.user && !isInternalAuth) {
@@ -2104,8 +2133,8 @@ export async function POST(request: Request) {
       const preparedSuppliers = suppliers.map(s => {
         let l = s.b2bLogin?.trim();
         let p = s.b2bPassword?.trim();
+        const supUpper = (s.name || '').toUpperCase();
         if (!l) {
-          const supUpper = (s.name || '').toUpperCase();
           if (supUpper.includes('FAD')) l = '3905';
           else if (supUpper.includes('STEQ')) l = 'CL0016035';
           else if (supUpper.includes('CDG')) l = '4112329';
@@ -2122,6 +2151,7 @@ export async function POST(request: Request) {
         }
         if (!p) {
           if (l === '3905') p = '7S@5512g';
+          else if (supUpper.includes('SOCOFA')) p = '98774525';
           else p = 'password123';
         }
         return { ...s, b2bLogin: l, b2bPassword: p };
@@ -2129,17 +2159,40 @@ export async function POST(request: Request) {
 
       console.log(`[B2B Search] Recherche pour "${searchQuery}" sur ${preparedSuppliers.length} fournisseurs B2B...`);
 
-      // 1. Recherche Directe
-      let allResults = await Promise.all(
-        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 12000))
+      // 1. Recherche Directe en parallèle sur les 14 fournisseurs avec timeout de 22s
+      const settledResults = await Promise.allSettled(
+        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 22000))
       );
 
+      let allResults: any[] = [];
       let liveSupplierItems: any[] = [];
-      allResults.forEach(r => { if (r.items && Array.isArray(r.items)) liveSupplierItems.push(...r.items); });
+
+      settledResults.forEach((res, idx) => {
+        const s = preparedSuppliers[idx];
+        if (res.status === 'fulfilled') {
+          allResults.push(res.value);
+          if (res.value?.items && Array.isArray(res.value.items)) {
+            liveSupplierItems.push(...res.value.items);
+          }
+        } else {
+          allResults.push({
+            supplierId: s.id,
+            supplierName: s.name,
+            price: 0,
+            discount: 0,
+            available: false,
+            stock: 0,
+            statusCode: 'ERROR',
+            statusReason: `⚠️ Erreur: ${res.reason?.message || String(res.reason)}`,
+            availability: `Erreur: ${res.reason?.message || String(res.reason)}`,
+            items: []
+          });
+        }
+      });
 
       // 2. MOTEUR DE REPLI AUTOMATIQUE (Fallback Engine 5 étapes)
       // Si aucun article DISPONIBLE n'est trouvé, on lance la recherche en repli structurée
-      const hasAvailable = liveSupplierItems.some(i => i.available || i.rawStock > 0);
+      const hasAvailable = liveSupplierItems.some(i => i.available || i.rawStock > 0 || (i.price > 0 && i.matchType === 'DIRECT'));
       let fallbackResult: FallbackResult | null = null;
 
       if (!hasAvailable && searchQuery.length >= 3) {
@@ -2252,16 +2305,16 @@ export async function POST(request: Request) {
       });
 
       // Sélection prioritaire du meilleur prix fournisseur réel en stock ou en arrivage
-      const realLiveItems = combinedItems.filter(i => !i.isFallback && i.price > 0);
+      const realLiveItems = combinedItems.filter(i => !i.isFallback && (i.price > 0 || i.prixHT > 0));
       const availableLiveItem = realLiveItems.find(i => i.available || i.rawStock > 0 || i.availability?.includes('Stock') || i.availability?.includes('Arrivage'));
-      const bestItem = availableLiveItem || realLiveItems[0] || combinedItems.find(i => i.price > 0) || combinedItems[0];
+      const bestItem = availableLiveItem || realLiveItems.sort((a, b) => ((a.price || a.prixHT || 0) - (b.price || b.prixHT || 0)))[0] || combinedItems.find(i => (i.price || 0) > 0) || combinedItems[0];
 
       searchResult = {
         isMultiSupplier: true,
-        price: bestItem ? bestItem.price : 0,
+        price: bestItem ? (bestItem.price || bestItem.prixHT || 0) : 0,
         discount: bestItem ? bestItem.discount : 0,
         available: bestItem ? (bestItem.available || Boolean(bestItem.rawStock > 0)) : false,
-        stock: bestItem ? bestItem.rawStock : 0,
+        stock: bestItem ? (bestItem.rawStock || bestItem.stock || 0) : 0,
         availability: bestItem ? (bestItem.availability || (bestItem.available ? 'Disponible' : 'Sur Commande')) : 'Résultats extraits des fournisseurs',
         items: combinedItems,
         suppliersBreakdown: allResults,
@@ -2286,9 +2339,34 @@ export async function POST(request: Request) {
         console.warn("[B2B Search] Supplier find error:", dbErr);
       }
       if (!supplier) return NextResponse.json({ success: false, error: "Fournisseur introuvable" }, { status: 404 });
-      if (!supplier.b2bLogin) supplier.b2bLogin = 'AUTOP';
-      if (!supplier.b2bPassword) supplier.b2bPassword = 'password123';
-      searchResult = await searchSingleSupplierWithTimeout(supplier, searchQuery, 10000);
+      
+      let l = supplier.b2bLogin?.trim();
+      let p = supplier.b2bPassword?.trim();
+      const supUpper = (supplier.name || '').toUpperCase();
+      if (!l) {
+        if (supUpper.includes('FAD')) l = '3905';
+        else if (supUpper.includes('STEQ')) l = 'CL0016035';
+        else if (supUpper.includes('CDG')) l = '4112329';
+        else if (supUpper.includes('SAGAP')) l = 'ibrahim.ayadi@autop.tn';
+        else if (supUpper.includes('AAP')) l = '410138';
+        else if (supUpper.includes('PROPARTS')) l = 'C0667';
+        else if (supUpper.includes('ITALCAR')) l = 'SSE01';
+        else if (supUpper.includes('CARGROS')) l = 'DPE00114';
+        else if (supUpper.includes('ALPHA FORD')) l = 'AUTOP/STE DE SERVICE AUTOMOBILE';
+        else if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) l = 'services-automobile@gmail.com';
+        else if (supUpper.includes('SOPIC')) l = 'amine@autop.tn';
+        else if (supUpper.includes('SOCOFA')) l = 'Amine.benomrane@autop.tn';
+        else l = 'AUTOP';
+      }
+      if (!p) {
+        if (l === '3905') p = '7S@5512g';
+        else if (supUpper.includes('SOCOFA')) p = '98774525';
+        else p = 'password123';
+      }
+      supplier.b2bLogin = l;
+      supplier.b2bPassword = p;
+
+      searchResult = await searchSingleSupplierWithTimeout(supplier, searchQuery, 22000);
     }
 
     if (searchResult?.error) {
