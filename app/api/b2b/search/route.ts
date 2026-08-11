@@ -1291,86 +1291,163 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. SOCOFA GROS  (espacepro.socofagros.com)
+// 9. SOCOFA GROS  (espacepro.socofagros.com -> api.server.socofagros.com/ecommerce)
 // ─────────────────────────────────────────────────────────────────────────────
 async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    
-    // First try the Mosaique Auto portal engine for SOCOFA
-    const mosaiqueRes = await scrapeMosaiqueAuto(supplierId, query, b2bLogin, b2bPassword, "https://espacepro.socofagros.com");
-    if (mosaiqueRes && mosaiqueRes.items && mosaiqueRes.items.length > 0) {
-      return mosaiqueRes;
-    }
-
-    // Fallback: Try REST API endpoints
+    const apiBase = "https://api.server.socofagros.com/ecommerce/";
     let token = supplierCookies[supplierId] || "";
-    if (!token) {
-      const endpoints = [
-        "https://backend.extra.socofagros.com/api/auth/login",
-        "https://backend.extra.socofagros.com/api/login",
-        "https://espacepro.socofagros.com/api/auth/login"
-      ];
-      for (const ep of endpoints) {
-        try {
-          const loginRes = await robustFetch(ep, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-            body: JSON.stringify({ email: b2bLogin, username: b2bLogin, password: b2bPassword }),
-          });
-          if (loginRes.ok) {
-            const d = await loginRes.json().catch(() => null);
-            token = d?.token || d?.access_token || d?.data?.token || "";
-            if (token) break;
-          }
-        } catch {}
-      }
-      if (token) supplierCookies[supplierId] = token;
-    }
 
-    const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
-    const refsToTest = buildSupplierSearchRefs(query);
-    const items: any[] = [];
-
-    await Promise.all(refsToTest.map(async (q) => {
+    const loginSOCOFA = async () => {
       try {
-        const searchRes = await robustFetch(`https://backend.extra.socofagros.com/api/articles/search?ref=${encodeURIComponent(q)}`, {
-          headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
-        }, 2500).catch(() => null);
-        if (searchRes && searchRes.ok) {
-          const text = await searchRes.text().catch(() => "");
-          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-            const data = JSON.parse(text);
-            const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-            articles.forEach((i: any) => {
-              const stock = parseInt(i.stock || i.qty || 0) || 0;
-              const price = parseFloat(i.price || i.prix || 0) || 0;
-              items.push({
-                name: i.reference || i.ref || i.code || q,
-                brand: i.brand || i.marque || "SOCOFA",
-                designation: i.designation || i.description || `Article ${i.reference || q}`,
-                price,
-                discount: parseFloat(i.discount || 0) || 0,
-                availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande",
-                rawStock: stock,
-                available: stock > 0 || price > 0,
-                matchType: normalizeRef(i.reference || q) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
-              });
-            });
+        const loginRes = await robustFetch(`${apiBase}auth/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+          },
+          body: JSON.stringify({ email: b2bLogin, username: b2bLogin, password: b2bPassword })
+        });
+        if (loginRes.ok) {
+          const d = await loginRes.json().catch(() => null);
+          const newToken = d?.token || "";
+          if (newToken) {
+            supplierCookies[supplierId] = newToken;
+            return newToken;
           }
         }
       } catch {}
-    }));
+      return "";
+    };
+
+    if (!token) {
+      token = await loginSOCOFA();
+    }
+
+    if (!token) {
+      return { price: 0, discount: 0, available: false, availability: "SOCOFA: Authentification échouée", items: [] };
+    }
+
+    const refsToTest = buildSupplierSearchRefs(query);
+    const items: any[] = [];
+
+    const searchRefOnSOCOFA = async (refKey: string, activeToken: string) => {
+      const payload = {
+        fts: {
+          searchphrase: refKey,
+          searchapproximation: "SIMILAR7",
+          searchapproximationlevel: 1,
+          id_famille: "1",
+          withoems: true,
+          oemssuggest: true,
+          hasImage: false,
+          inStock: false
+        },
+        where: []
+      };
+
+      const endpoints = [
+        `${apiBase}fulttextsearchlist/oem?table=ARTICLE&action=VIEW_LIST&offset=0&limit=50`,
+        `${apiBase}fulttextsearchlist?table=ARTICLE&action=VIEW_LIST&offset=0&limit=50`
+      ];
+
+      for (const ep of endpoints) {
+        try {
+          let res = await robustFetch(ep, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${activeToken}`,
+              "token": activeToken,
+              "x-auth-token": activeToken,
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.status === 401 || res.status === 403) {
+            const fresh = await loginSOCOFA();
+            if (fresh) {
+              token = fresh;
+              res = await robustFetch(ep, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${fresh}`,
+                  "token": fresh,
+                  "x-auth-token": fresh,
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                },
+                body: JSON.stringify(payload)
+              });
+            }
+          }
+
+          if (res.ok) {
+            const data = await res.json().catch(() => null);
+            const rawList = Array.isArray(data) ? data : (data?.data || data?.items || []);
+            if (Array.isArray(rawList)) {
+              for (const art of rawList) {
+                const itemRef = String(art.CODE || art.CODE_BARRE || art.FNSKU || refKey).trim();
+                const brand = String(art.ATTR1 || art.ATTR4 || "SOCOFA").toUpperCase().trim();
+                const desig = art.NOM || art.HIGHLIGHT_TEXT || `Article ${itemRef}`;
+                const price = parseFloat(art.PV_HT || art.PV_TTC || 0) || 0;
+                const isDispo = art.DISPOS === true || art.DISPOS === "true" || (art.QTE_MIN && art.QTE_MIN > 0) || price > 0;
+                const stock = art.DISPOS === true ? 5 : (art.QTE_MIN || 1);
+
+                items.push({
+                  name: itemRef,
+                  brand,
+                  designation: desig,
+                  description: desig,
+                  price,
+                  discount: 0,
+                  availability: isDispo ? "Disponible en Stock" : "Sur Commande",
+                  rawStock: stock,
+                  available: isDispo,
+                  matchType: normalizeRef(itemRef) === normalizeRef(query) || String(art.HIGHLIGHT_OEM || '').toUpperCase().includes(normalizeRef(query)) ? "DIRECT" : "EQUIVALENCE"
+                });
+              }
+            }
+          }
+        } catch {}
+      }
+    };
+
+    for (const refKey of refsToTest) {
+      await searchRefOnSOCOFA(refKey, token);
+      if (items.length >= 10) break;
+    }
 
     const list = dedupeB2BItems(items);
     if (list.length > 0) {
       const best = pickBestB2BItem(list);
-      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: list };
+      return {
+        price: best.price,
+        discount: best.discount,
+        availability: best.availability,
+        rawStock: best.rawStock,
+        available: best.available,
+        items: list
+      };
     }
 
-    return { price: 0, discount: 0, available: false, availability: `SOCOFA B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+    return {
+      price: 0,
+      discount: 0,
+      available: false,
+      availability: `SOCOFA B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`,
+      items: []
+    };
   } catch (err: any) {
-    return { price: 0, discount: 0, available: false, availability: `Erreur SOCOFA: ${err.message}`, items: [] };
+    return {
+      price: 0,
+      discount: 0,
+      available: false,
+      availability: `Erreur SOCOFA: ${err.message}`,
+      items: []
+    };
   }
 }
 
