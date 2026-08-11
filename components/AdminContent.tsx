@@ -4129,87 +4129,70 @@ function SectionRobotB2B() {
       });
     };
 
-    await Promise.all(targetSuppliers.map(async (s: any) => {
-      try {
-        const res = await fetch('/api/b2b/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supplierId: s.id, query: cleanQuery })
-        });
-        const data = await res.json();
-        if (data.success && data.data) {
-          const items = data.data.items || [];
-          const hasItems = items.length > 0;
-          const code = data.data.statusCode;
-          if (hasItems) statuses[s.id] = 'found';
-          else if (code === 'ERROR' || code === 'TIMEOUT') statuses[s.id] = 'error';
-          else if (data.data.availability) statuses[s.id] = 'info';
-          else statuses[s.id] = 'empty';
-          setSupplierStatuses({ ...statuses });
-          allBreakdown.push({ ...data.data, supplierName: s.name, supplierId: s.id });
-          if (hasItems) {
-            const taggedItems = items.map((it: any) => ({ ...it, supplierName: s.name }));
-            allItems.push(...taggedItems);
-          }
-          // Real-time streaming update to UI as each supplier returns
-          syncState();
-        } else {
-          statuses[s.id] = 'error';
-          setSupplierStatuses({ ...statuses });
-          allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: data.error || 'Non trouvé', available: false, price: 0, discount: 0 });
-          syncState();
-        }
-      } catch {
-        statuses[s.id] = 'error';
-        setSupplierStatuses({ ...statuses });
-        allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: 'Erreur réseau', available: false, price: 0, discount: 0 });
-        syncState();
-      }
-    }));
+    try {
+      const res = await fetch('/api/b2b/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierIds: targetSuppliers.map((s: any) => s.id),
+          query: cleanQuery
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const d = data.data;
+        const breakdown = d.suppliersBreakdown || [];
 
-    syncState();
-
-    // Si aucun stock direct, déclencher le moteur de repli via l'appel ALL
-    const hasStockAfterFirstPass = allItems.some(i => i.available || (i.rawStock || 0) > 0 || i.price > 0);
-    if (!hasStockAfterFirstPass && cleanQuery.length >= 3) {
-      console.log('[Robot B2B] Pas de stock direct. Appel moteur de repli (ALL)...');
-      try {
-        const fallbackRes = await fetch('/api/b2b/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supplierId: 'ALL', query: cleanQuery })
-        });
-        const fallbackJson = await fallbackRes.json();
-        if (fallbackJson.success && fallbackJson.data) {
-          const fd = fallbackJson.data;
-
-          // Mettre à jour les données de repli dans l'UI
-          if (fd.fallbackStats?.triggered) {
-            setFallbackData({
-              logs: fd.fallbackLogs || [],
-              stats: fd.fallbackStats || { triggered: false },
-              summary: fd.fallbackSummary || ''
-            });
-            setShowFallbackLog(false);
+        breakdown.forEach((bd: any) => {
+          const supId = bd.supplierId;
+          const supItems = bd.items || [];
+          if (supItems.length > 0) {
+            statuses[supId] = 'found';
+          } else if (bd.statusCode === 'ERROR' || bd.statusCode === 'TIMEOUT') {
+            statuses[supId] = 'error';
           } else {
-            setFallbackData(null);
+            statuses[supId] = 'info';
           }
+        });
 
-          // Ajouter les articles trouvés par le moteur de repli
-          const fallbackItems = (fd.items || []).filter((it: any) =>
-            it.matchType === 'FALLBACK' && (it.price > 0 || it.available)
-          );
-          if (fallbackItems.length > 0) {
-            fallbackItems.forEach((it: any) => allItems.push(it));
-            // Mise à jour de l'état avec les nouveaux articles
-            syncState();
-          }
+        // Set missing target suppliers to info
+        targetSuppliers.forEach((s: any) => {
+          if (!statuses[s.id]) statuses[s.id] = 'info';
+        });
+
+        setSupplierStatuses({ ...statuses });
+
+        if (d.fallbackStats?.triggered) {
+          setFallbackData({
+            logs: d.fallbackLogs || [],
+            stats: d.fallbackStats || { triggered: false },
+            summary: d.fallbackSummary || ''
+          });
+          setShowFallbackLog(false);
+        } else {
+          setFallbackData(null);
         }
-      } catch (e) {
-        console.warn('[Robot B2B] Erreur lors de l\'appel moteur de repli:', e);
+
+        setResult({
+          success: true,
+          isMulti: true,
+          data: d
+        });
+      } else {
+        targetSuppliers.forEach((s: any) => { statuses[s.id] = 'error'; });
+        setSupplierStatuses({ ...statuses });
+        setResult({
+          success: false,
+          error: data.error || 'Erreur lors de la recherche multi-fournisseurs'
+        });
       }
-    } else {
-      setFallbackData(null);
+    } catch (e: any) {
+      targetSuppliers.forEach((s: any) => { statuses[s.id] = 'error'; });
+      setSupplierStatuses({ ...statuses });
+      setResult({
+        success: false,
+        error: `Erreur réseau: ${e.message || String(e)}`
+      });
     }
 
     setLoading(false);

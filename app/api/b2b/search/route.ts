@@ -1098,8 +1098,11 @@ async function scrapeITALCAR(supplierId: string, query: string, b2bLogin: string
       // Step 1: GET login page for CSRF token
       const r1 = await robustFetch(`${baseUrl}/Account/Login`, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-      });
-      const html1 = await r1.text();
+      }, 2500).catch(() => null);
+      if (!r1 || !r1.ok) {
+        return { price: 0, discount: 0, available: false, availability: "Portail ITALCAR non accessible", items: [] };
+      }
+      const html1 = await r1.text().catch(() => "");
       const csrf = html1.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/)?.[1] || "";
       const initCookie = r1.headers.get("set-cookie") || "";
 
@@ -1112,8 +1115,8 @@ async function scrapeITALCAR(supplierId: string, query: string, b2bLogin: string
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         },
         body: new URLSearchParams({ Name: b2bLogin, Password: b2bPassword, __RequestVerificationToken: csrf }).toString()
-      });
-      const setCookies = r2.headers.get("set-cookie") || initCookie;
+      }, 2500).catch(() => null);
+      const setCookies = r2?.headers?.get("set-cookie") || initCookie;
       cookie = setCookies.split(',').map(c => c.split(';')[0].trim()).join('; ');
       if (cookie) supplierCookies[supplierId] = cookie;
     }
@@ -2120,10 +2123,15 @@ export async function POST(request: Request) {
     const { searchDictionaryAndEquivalents, getEquivalentsForRef } = await import('@/lib/equivalentsDictionary');
     let searchResult: any = null;
 
-    if (supplierId === 'ALL' || supplierId === 'TOUS') {
+    const rawSupplierIds = body.supplierIds;
+    if (supplierId === 'ALL' || supplierId === 'TOUS' || (Array.isArray(rawSupplierIds) && rawSupplierIds.length > 0)) {
       let suppliers: any[] = [];
       try {
-        suppliers = await prisma.supplier.findMany({ where: { isActive: true } });
+        if (Array.isArray(rawSupplierIds) && rawSupplierIds.length > 0) {
+          suppliers = await prisma.supplier.findMany({ where: { id: { in: rawSupplierIds }, isActive: true } });
+        } else {
+          suppliers = await prisma.supplier.findMany({ where: { isActive: true } });
+        }
       } catch (dbErr) {
         console.warn("[B2B Search] Prisma error loading suppliers:", dbErr);
         suppliers = [];
