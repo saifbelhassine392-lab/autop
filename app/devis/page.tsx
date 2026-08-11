@@ -286,6 +286,17 @@ export default function DevisPage() {
     document.body.removeChild(link);
   };
 
+  const [submittedSummary, setSubmittedSummary] = useState<{
+    id: string;
+    clientName: string;
+    clientEmail: string;
+    brand: string;
+    model: string;
+    vin: string;
+    remarks: string;
+    items: any[];
+  } | null>(null);
+
   const handleWhatsAppShare = (phoneNumber: string, quoteId: string) => {
     // Télécharge automatiquement le format choisi en local
     if (selectedFormat === 'pdf') {
@@ -294,6 +305,10 @@ export default function DevisPage() {
       downloadExcel(quoteId);
     }
 
+    const itemsSummary = (submittedSummary?.items || items).map((it, idx) => 
+      `  • *${it.reference || 'RÉF. NON SPÉCIFIÉE'}* : ${it.designation || 'Article'} (x${it.quantity})`
+    ).join('\n');
+
     const text = `🚗 *NOUVELLE DEMANDE DE DEVIS - AUTOP TUNISIE*
 🆔 *Référence:* #DEVIS-${quoteId.slice(-6).toUpperCase()}
 👤 *Client:* ${clientName} (${clientEmail})
@@ -301,7 +316,10 @@ export default function DevisPage() {
 🆔 *VIN (Châssis):* ${vin || 'Non renseigné'}
 📝 *Remarques:* ${remarks || 'Aucune'}
 
-📎 _Le document de devis au format ${selectedFormat.toUpperCase()} a été téléchargé sur votre appareil. Veuillez le joindre à cette discussion._`;
+📦 *LISTE DES PIÈCES DEMANDÉES :*
+${itemsSummary}
+
+📎 _Le document de devis (${selectedFormat.toUpperCase()}) a été généré et téléchargé._`;
 
     window.open(`https://wa.me/216${phoneNumber}?text=${encodeURIComponent(text)}`, "_blank");
   };
@@ -326,6 +344,12 @@ export default function DevisPage() {
         fileName = `Devis_AUTOP_${Date.now()}.csv`;
       }
 
+      const formattedItems = items.map(i => ({ 
+        reference: i.reference, 
+        designation: `${i.designation} ${i.brandPreference && i.brandPreference !== 'Indifférent' ? `(${i.brandPreference})` : ''}`.trim(), 
+        quantity: Number(i.quantity) 
+      }));
+
       const payload = {
         clientName,
         clientEmail,
@@ -335,11 +359,7 @@ export default function DevisPage() {
         remarks,
         photo: photoBase64,
         photoName: photoName,
-        items: items.map(i => ({ 
-          reference: i.reference, 
-          designation: `${i.designation} ${i.brandPreference && i.brandPreference !== 'Indifférent' ? `(${i.brandPreference})` : ''}`.trim(), 
-          quantity: Number(i.quantity) 
-        })),
+        items: formattedItems,
         chassisPhoto: chassisPhotoBase64,
         chassisPhotoName: chassisPhotoName,
         fileBase64,
@@ -357,6 +377,16 @@ export default function DevisPage() {
 
       const data = await res.json();
       setSubmittedQuoteId(data.id);
+      setSubmittedSummary({
+        id: data.id,
+        clientName,
+        clientEmail,
+        brand,
+        model,
+        vin,
+        remarks,
+        items: formattedItems
+      });
 
     } catch (err) {
       console.error(err);
@@ -479,22 +509,61 @@ export default function DevisPage() {
     setChassisPhotoBase64(null);
     setChassisPhotoName('');
     setSubmittedQuoteId(null);
+    setSubmittedSummary(null);
   };
 
   if (submittedQuoteId) {
+    const summaryItems = submittedSummary?.items || items;
+    const refDisplay = `#DEVIS-${submittedQuoteId.slice(-6).toUpperCase()}`;
+
     return (
-      <div className="max-w-xl mx-auto p-6 bg-slate-950/60 backdrop-blur-md min-h-screen text-slate-100 flex items-center justify-center">
-        <div className="neon-border-glow bg-slate-900/60 backdrop-blur-sm/80 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl w-full backdrop-blur-md">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
-          <h2 className="text-2xl font-black text-white mb-2">Demande Confirmée !</h2>
-          <p className="text-sm text-slate-400 mb-6">
-            Votre demande a été enregistrée. L'e-mail de confirmation a été transmis à l'adresse administrateur (**saifbelhassine392@gmail.com**).
+      <div className="max-w-2xl mx-auto p-4 sm:p-6 bg-slate-950 min-h-screen text-slate-100 flex items-center justify-center">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 text-center shadow-2xl w-full">
+          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-3 animate-bounce" />
+          <div className="inline-block bg-green-950/80 border border-green-500/30 text-green-400 font-mono font-black text-xs px-3 py-1 rounded-full mb-3">
+            {refDisplay}
+          </div>
+          <h2 className="text-2xl font-black text-white mb-2">DEMANDE CONFIRMÉE !</h2>
+          <p className="text-xs sm:text-sm text-slate-400 mb-6">
+            Votre demande a été enregistrée et transmise par e-mail en direct à l'administrateur (<strong className="text-white">saifbelhassine392@gmail.com</strong>).
           </p>
 
-          <div className="space-y-3 mb-8">
+          {/* Récapitulatif Visuel des Pièces Demandées */}
+          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-left mb-6 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
+                🚗 {submittedSummary?.brand || brand} {submittedSummary?.model || model} {submittedSummary?.vin && `· VIN: ${submittedSummary.vin}`}
+              </span>
+              <span className="text-[10px] font-bold text-red-400 bg-red-950/50 border border-red-800/40 px-2 py-0.5 rounded-full">
+                {summaryItems.length} PIÈCE(S)
+              </span>
+            </div>
+
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {summaryItems.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between bg-slate-900/90 px-3 py-2 rounded-xl border border-slate-800/80 text-xs">
+                  <div className="flex flex-col">
+                    <span className="font-mono font-black text-red-400">{item.reference || 'SANS RÉFÉRENCE'}</span>
+                    <span className="text-slate-300 text-[11px]">{item.designation || 'Pièce de rechange'}</span>
+                  </div>
+                  <span className="font-mono font-black text-white bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+                    x{item.quantity}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {submittedSummary?.remarks && (
+              <div className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800">
+                Note client : "{submittedSummary.remarks}"
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2.5 mb-6">
             <button
               onClick={() => downloadPDF(submittedQuoteId)}
-              className="chrome-gloss w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-blue-650 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
             >
               <FileText className="w-4 h-4" />
               Télécharger le devis en format PDF
@@ -502,7 +571,7 @@ export default function DevisPage() {
 
             <button
               onClick={() => downloadExcel(submittedQuoteId)}
-              className="chrome-gloss w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
             >
               <FileSpreadsheet className="w-4 h-4" />
               Télécharger le devis en format Excel (.csv)
@@ -510,19 +579,28 @@ export default function DevisPage() {
 
             <button
               onClick={() => handleWhatsAppShare('98774525', submittedQuoteId)}
-              className="chrome-gloss w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
             >
               <MessageCircle className="w-4 h-4" />
-              Envoyer par WhatsApp (Comptoir 98 774 525)
+              Transmettre les pièces par WhatsApp (Comptoir 98 774 525)
             </button>
 
             <button
               onClick={() => handleWhatsAppShare('95576525', submittedQuoteId)}
-              className="chrome-gloss w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
             >
               <MessageCircle className="w-4 h-4" />
-              Envoyer par WhatsApp (Comptoir 95 576 525)
+              Transmettre les pièces par WhatsApp (Comptoir 95 576 525)
             </button>
+
+            <a
+              href={`mailto:saifbelhassine392@gmail.com?subject=${encodeURIComponent(`Demande de Devis ${refDisplay} - ${clientName}`)}&body=${encodeURIComponent(
+                `Bonjour,\n\nVoici le détail de ma demande de devis (${refDisplay}) :\n\nClient: ${clientName} (${clientEmail})\nVéhicule: ${brand} ${model}\nVIN: ${vin || 'N/A'}\n\nPièces demandées :\n${summaryItems.map((it, idx) => `${idx + 1}. ${it.reference || 'N/A'} - ${it.designation} (x${it.quantity})`).join('\n')}\n\nMerci d'avance.`
+              )}`}
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold uppercase tracking-wider rounded-xl text-xs transition-all border border-slate-700"
+            >
+              ✉️ Ouvrir dans Gmail / Client Mail
+            </a>
           </div>
 
           <button

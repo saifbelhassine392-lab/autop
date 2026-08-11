@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { sendEmailViaOdoo } from './odoo';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 're_placeholder_key');
 
@@ -16,7 +17,7 @@ interface EmailOptions {
 export const ADMIN_NOTIFICATION_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'saifbelhassine392@gmail.com';
 
 export async function sendEmail({ to, subject, html, from, attachments }: EmailOptions) {
-  // Nettoyage et validation stricte des pièces jointes : l'email ne contient de pièce jointe QUE si un fichier valide est fourni
+  // Nettoyage et validation stricte des pièces jointes
   const validAttachments = Array.isArray(attachments)
     ? attachments.filter((att) => {
         if (!att || !att.filename) return false;
@@ -29,32 +30,45 @@ export async function sendEmail({ to, subject, html, from, attachments }: EmailO
 
   const finalAttachments = validAttachments.length > 0 ? validAttachments : undefined;
 
-  if (!process.env.RESEND_API_KEY) {
-    console.warn('RESEND_API_KEY non configure - Email simule');
-    console.log('📧 Email simule:', { to, subject, attachmentsCount: finalAttachments?.length || 0 });
-    return { id: 'simulated', success: true };
+  // 1. Essai via Resend si clé d'API valide configurée
+  if (process.env.RESEND_API_KEY && !process.env.RESEND_API_KEY.includes('placeholder')) {
+    try {
+      const emailPayload: any = {
+        from: from || process.env.EMAIL_FROM || 'AUTOP <onboarding@resend.dev>',
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html,
+      };
+
+      if (finalAttachments && finalAttachments.length > 0) {
+        emailPayload.attachments = finalAttachments;
+      }
+
+      const { data, error } = await resend.emails.send(emailPayload);
+      if (!error && data?.id) {
+        console.log('[Resend] E-mail transmis avec succès:', data.id);
+        return { id: data.id, success: true, provider: 'resend' };
+      }
+      console.warn('[Resend] Échec envoi, basculement vers le serveur Odoo ERP:', error?.message);
+    } catch (resendErr: any) {
+      console.warn('[Resend] Erreur, basculement vers le serveur Odoo ERP:', resendErr.message);
+    }
   }
 
+  // 2. Transport Prioritaire / Fallback Garanti : Serveur de Messagerie Odoo ERP (autop-soft.autop.tn)
   try {
-    const emailPayload: any = {
-      from: from || process.env.EMAIL_FROM || 'AUTOP <contact@autop.tn>',
-      to: Array.isArray(to) ? to : [to],
+    const odooResult = await sendEmailViaOdoo({
+      to,
       subject,
       html,
-    };
-
-    if (finalAttachments && finalAttachments.length > 0) {
-      emailPayload.attachments = finalAttachments;
-    }
-
-    const { data, error } = await resend.emails.send(emailPayload);
-    if (error) {
-      throw new Error(error.message);
-    }
-    return { id: data?.id || 'unknown', success: true };
-  } catch (error) {
-    console.error('Erreur envoi email:', error);
-    throw error;
+      from: from || 'seifeddine.belhessine@autop.tn',
+      attachments: finalAttachments
+    });
+    console.log(`✅ [Email AUTOP] E-mail réel envoyé via Odoo (ID: ${odooResult.id}) à destination de :`, to);
+    return { id: odooResult.id, success: true, provider: 'odoo' };
+  } catch (odooErr: any) {
+    console.error('❌ [Email AUTOP] Erreur fatale transmission email:', odooErr.message);
+    return { id: 'error', success: false, error: odooErr.message };
   }
 }
 

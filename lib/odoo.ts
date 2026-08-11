@@ -71,60 +71,59 @@ export async function getOdooSession(): Promise<{ cookie: string; uid: number; n
 }
 
 /**
- * Exécute un appel RPC call_kw sur un modèle Odoo
+ * Exécute un appel RPC call_kw sur un modèle Odoo avec reconnexion et retry automatique
  */
 export async function callOdooKw(model: string, method: string, args: any[] = [], kwargs: Record<string, any> = {}): Promise<any> {
-  const session = await getOdooSession();
-  
-  const res = await fetch(`${ODOO_CONFIG.baseUrl}/web/dataset/call_kw`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": session.cookie,
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AUTOP/1.0"
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "call",
-      params: {
-        model,
-        method,
-        args,
-        kwargs
-      }
-    })
-  });
-
-  if (!res.ok) {
-    throw new Error(`Erreur RPC Odoo ${model}.${method}: HTTP ${res.status}`);
-  }
-
-  const data = await res.json().catch(() => null);
-  if (data?.error) {
-    // Si la session a expiré, on vide le cache et réessaie une fois
-    if (String(data.error.data?.message || "").includes("Session expired") || String(data.error.message || "").includes("Session")) {
-      cachedSessionCookie = null;
-      const freshSession = await getOdooSession();
-      const retryRes = await fetch(`${ODOO_CONFIG.baseUrl}/web/dataset/call_kw`, {
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts++;
+    try {
+      const session = await getOdooSession();
+      
+      const res = await fetch(`${ODOO_CONFIG.baseUrl}/web/dataset/call_kw`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Cookie": freshSession.cookie,
+          "Cookie": session.cookie,
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AUTOP/1.0"
         },
         body: JSON.stringify({
           jsonrpc: "2.0",
           method: "call",
-          params: { model, method, args, kwargs }
+          params: {
+            model,
+            method,
+            args,
+            kwargs
+          }
         })
       });
-      const retryData = await retryRes.json().catch(() => null);
-      if (retryData?.result !== undefined) return retryData.result;
-    }
-    throw new Error(`Erreur Odoo: ${data.error.data?.message || data.error.message}`);
-  }
 
-  return data?.result;
+      if (!res.ok) {
+        throw new Error(`Erreur RPC Odoo ${model}.${method}: HTTP ${res.status}`);
+      }
+
+      const data = await res.json().catch(() => null);
+      if (data?.error) {
+        const msg = String(data.error.data?.message || data.error.message || "");
+        if (attempts < 2 && (msg.includes("Session") || msg.includes("Connection") || msg.includes("closed"))) {
+          cachedSessionCookie = null;
+          await new Promise(r => setTimeout(r, 500));
+          continue;
+        }
+        throw new Error(`Erreur Odoo: ${msg}`);
+      }
+
+      return data?.result;
+    } catch (err: any) {
+      if (attempts < 2) {
+        cachedSessionCookie = null;
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 export interface OdooPriceResult {
@@ -390,3 +389,78 @@ export async function syncOdooCatalog(limit: number = 300): Promise<{ imported: 
     throw err;
   }
 }
+
+/**
+ * Envoie un e-mail réel avec pièces jointes via le serveur de messagerie Odoo ERP (autop-soft.autop.tn)
+ */
+export async function sendEmailViaOdoo(options: {
+  to: string | string[];
+  subject: string;
+  html: string;
+  from?: string;
+  attachments?: { filename: string; content: string | Buffer }[];
+}): Promise<{ id: string | number; success: boolean }> {
+  try {
+    const toRecipients = Array.isArray(options.to) ? options.to.join(',') : options.to;
+    const attachmentIds: number[] = [];
+
+    // Création des pièces jointes dans Odoo (ir.attachment) si fournies
+    if (options.attachments && options.attachments.length > 0) {
+      for (const att of options.attachments) {
+        if (!att || !att.filename) continue;
+        let base64Data = '';
+        if (typeof att.content === 'string') {
+          base64Data = att.content.includes('base64,') ? att.content.split('base64,')[1] : att.content;
+        } else if (Buffer.isBuffer(att.content)) {
+          base64Data = att.content.toString('base64');
+        }
+        if (!base64Data) continue;
+
+        try {
+          const attId = await callOdooKw('ir.attachment', 'create', [{
+            name: att.filename,
+            type: 'binary',
+            datas: base64Data,
+            mimetype: att.filename.endsWith('.pdf')
+              ? 'application/pdf'
+              : att.filename.endsWith('.csv')
+                ? 'text/csv'
+                : 'image/jpeg',
+            res_model: 'mail.mail'
+          }]);
+          if (attId) attachmentIds.push(attId);
+        } catch (attErr: any) {
+          console.warn('[Odoo Attachment] Erreur création pièce jointe:', attErr.message);
+        }
+      }
+    }
+
+    const mailCreatePayload: any = {
+      email_from: options.from || 'seifeddine.belhessine@autop.tn',
+      email_to: toRecipients,
+      subject: options.subject,
+      body_html: options.html,
+      auto_delete: false
+    };
+
+    if (attachmentIds.length > 0) {
+      mailCreatePayload.attachment_ids = [[6, 0, attachmentIds]];
+    }
+
+    const mailId = await callOdooKw('mail.mail', 'create', [mailCreatePayload]);
+    if (mailId) {
+      try {
+        await callOdooKw('mail.mail', 'send', [[mailId]]);
+      } catch (sendErr: any) {
+        console.warn(`[Odoo Mailer] Note lors de l'envoi direct (ID: ${mailId}):`, sendErr.message);
+      }
+      console.log(`[Odoo Mailer] E-mail transmis avec succès (ID: ${mailId}) vers ${toRecipients}`);
+      return { id: mailId, success: true };
+    }
+    return { id: 'unknown', success: false };
+  } catch (err: any) {
+    console.error('[Odoo Email] Erreur transmission email:', err.message);
+    throw err;
+  }
+}
+

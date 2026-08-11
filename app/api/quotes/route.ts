@@ -77,9 +77,15 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Envoi automatique de l'e-mail de confirmation au client ET au service comptoir
+    // Envoi automatique de l'e-mail réel de confirmation au client ET à l'administrateur
     try {
-      const itemsListText = (items || []).map((item: any) => `<li>${item.designation} (Réf: ${item.reference || 'N/A'}) x ${item.quantity}</li>`).join('');
+      const itemsRowsHtml = (items || []).map((item: any, idx: number) => `
+        <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+          <td style="padding: 10px 12px; font-weight: bold; font-family: monospace; color: #dc2626;">${item.reference || 'N/A'}</td>
+          <td style="padding: 10px 12px; color: #1e293b;">${item.designation || 'Pièce détachée'}</td>
+          <td style="padding: 10px 12px; text-align: center; font-weight: bold; color: #0f172a;">${item.quantity || 1}</td>
+        </tr>
+      `).join('');
       
       const attachments: any[] = [];
       if (fileBase64 && fileName) {
@@ -104,34 +110,69 @@ export async function POST(req: NextRequest) {
       }
 
       const hasAttachments = attachments.length > 0;
+      const refFormatted = `#DEVIS-${newQuote.id.slice(-6).toUpperCase()}`;
 
       await sendEmail({
         to: [clientEmail, ADMIN_NOTIFICATION_EMAIL],
-        subject: `Confirmation de votre demande de devis AUTOP - #${newQuote.id.slice(-6).toUpperCase()}`,
+        subject: `🚗 [AUTOP] Demande de Devis ${refFormatted} - ${brand} ${model} (${(items || []).length} pièce(s))`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-            <div style="text-align: center; border-bottom: 2px solid #dc2626; padding-bottom: 10px;">
-              <h2 style="color: #dc2626; margin: 0;">AUTOP TUNISIE</h2>
-              <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">Demande de devis enregistrée</p>
+          <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
+            <div style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #ffffff; padding: 20px 24px;">
+              <h2 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">AUTOP TUNISIE</h2>
+              <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Comptoir de Distribution de Pièces de Rechange — Charguia 2</p>
+              <div style="margin-top: 12px; display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">
+                RÉFÉRENCE : ${refFormatted}
+              </div>
             </div>
-            <p>Bonjour <strong>${clientName}</strong>,</p>
-            <p>Nous vous confirmons la bonne réception de votre demande de devis pour le véhicule <strong>${brand} ${model}</strong>.</p>
-            ${vin ? `<p><strong>Numéro VIN (Châssis) :</strong> <code style="background: #f4f4f5; padding: 2px 6px; border-radius: 4px;">${vin}</code></p>` : ''}
-            ${remarks ? `<p><strong>Remarques :</strong> ${remarks}</p>` : ''}
-            <h3 style="color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">Pièces demandées :</h3>
-            <ul>
-              ${itemsListText}
-            </ul>
-            ${hasAttachments ? `<p style="color: #0369a1; font-weight: bold;">📎 Le document ou fichier téléchargé a été joint à cet e-mail (${attachments.length} fichier(s)).</p>` : `<p style="color: #64748b; font-style: italic;">(Aucun fichier joint par le client pour cette demande)</p>`}
-            <p>Notre équipe commerciale étudie actuellement votre demande et reviendra vers vous très rapidement avec nos meilleures propositions de tarifs.</p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;" />
-            <p style="font-size: 11px; color: #94a3b8; text-align: center;">AUTOP Tunisie - Pièces de rechange neuves de qualité.</p>
+
+            <div style="padding: 24px;">
+              <p style="font-size: 15px; margin-top: 0;">Bonjour <strong>${clientName}</strong>,</p>
+              <p style="color: #475569; line-height: 1.5;">
+                Nous vous confirmons la bonne réception de votre demande de devis pour le véhicule <strong>${brand} ${model}</strong>.
+              </p>
+
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin: 18px 0; font-size: 13px;">
+                <div style="margin-bottom: 6px;"><strong>👤 Client :</strong> ${clientName} (${clientEmail})</div>
+                <div style="margin-bottom: 6px;"><strong>🚗 Véhicule :</strong> ${brand} ${model}</div>
+                ${vin ? `<div style="margin-bottom: 6px;"><strong>🆔 Châssis (VIN) :</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${vin}</code></div>` : ''}
+                ${remarks ? `<div><strong>📝 Remarques :</strong> ${remarks}</div>` : ''}
+              </div>
+
+              <h3 style="color: #dc2626; border-bottom: 2px solid #fee2e2; padding-bottom: 8px; margin: 24px 0 12px 0; font-size: 15px;">
+                📦 LISTE DES PIÈCES DEMANDÉES (${(items || []).length}) :
+              </h3>
+
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <thead>
+                  <tr style="background: #1e293b; color: #ffffff; text-align: left;">
+                    <th style="padding: 10px 12px;">RÉFÉRENCE</th>
+                    <th style="padding: 10px 12px;">DÉSIGNATION</th>
+                    <th style="padding: 10px 12px; text-align: center;">QTÉ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsRowsHtml}
+                </tbody>
+              </table>
+
+              ${hasAttachments ? `<p style="color: #0369a1; font-weight: bold; background: #e0f2fe; padding: 10px 14px; border-radius: 6px; font-size: 12px;">📎 Fichiers joints à cet e-mail : ${attachments.length} document(s) / photo(s).</p>` : ''}
+
+              <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; line-height: 1.6;">
+                Notre équipe commerciale traite votre demande en temps réel.<br/>
+                Pour toute question urgente, contactez notre comptoir :<br/>
+                📞 <strong>+216 98 774 525</strong> / <strong>+216 95 576 525</strong>
+              </div>
+            </div>
+
+            <div style="background: #0f172a; color: #94a3b8; padding: 14px; text-align: center; font-size: 11px;">
+              AUTOP Tunisie · Pièces de rechange neuves & certifiées · Charguia 2, Tunis
+            </div>
           </div>
         `,
         attachments: hasAttachments ? attachments : undefined
       });
-    } catch (mailError) {
-      console.error('Email confirmation send failed:', mailError);
+    } catch (mailError: any) {
+      console.error('Email confirmation send failed:', mailError?.message || mailError);
     }
 
     return NextResponse.json(newQuote, { status: 201 });
