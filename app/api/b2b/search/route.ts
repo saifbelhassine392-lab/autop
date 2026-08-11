@@ -123,20 +123,36 @@ function extractJsonArticles(data: unknown): any[] {
 
 /** Références à tester : saisie, normalisée, OE et toutes équivalences Aftermarket du dictionnaire.
  * Recherche BIDIRECTIONNELLE : OE→equivalents ET equivalent→OE→tous les autres equivalents.
- * Limite portée à 10 refs pour maximiser les chances de trouver en stock.
+ * Supprime les espaces, tirets, points, slashs pour correspondre aux bases fournisseurs.
  */
 function buildSupplierSearchRefs(query: string): string[] {
   const seen = new Set<string>();
   const add = (raw: string) => {
     if (!raw) return;
     const t = raw.trim();
-    if (!t || t.length < 3) return;
+    if (!t || t.length < 2) return;
     seen.add(t);
+    
+    // Normalisation standard (majuscules, sans espaces/tirets/points/slashs)
+    const clean = t.replace(/[\s\-_.\/]+/g, "").toUpperCase();
+    if (clean.length >= 2) seen.add(clean);
+
     const n = normalizeRef(t);
-    if (n.length >= 3 && n !== t) seen.add(n);
-    // Also add uppercase version
+    if (n.length >= 2 && n !== t) seen.add(n);
+
+    // Version majuscule
     const u = t.toUpperCase();
     if (u !== t) seen.add(u);
+
+    // Variantes de préfixes tunisiens connus (ex: CAN1306J5 <-> 1306J5)
+    const prefixes = ['CAN', 'MTC', 'VRT', 'VLR', 'VAL', 'BOS', 'LUK', 'INA', 'FAD', 'STQ', 'OE', 'SKF', 'PUR', 'FIL'];
+    for (const p of prefixes) {
+      if (clean.startsWith(p) && clean.length > p.length + 2) {
+        seen.add(clean.slice(p.length));
+      } else if (!clean.startsWith(p) && clean.length >= 4) {
+        seen.add(p + clean);
+      }
+    }
   };
 
   add(query);
@@ -155,22 +171,24 @@ function buildSupplierSearchRefs(query: string): string[] {
   }
 
   // 3. Recherche inverse : si la query est une ref d'équivalent, trouver l'OE et ses autres équivalents
-  const { DICTIONARY_DB } = require('@/lib/equivalentsDictionary');
-  const qNorm = normalizeRef(query);
-  for (const [, entry] of Object.entries(DICTIONARY_DB as Record<string, any>)) {
-    const isEqMatch = (entry.equivalents || []).some((eq: any) =>
-      normalizeRef(eq.reference || '') === qNorm ||
-      (eq.reference || '').toUpperCase() === query.toUpperCase()
-    );
-    if (isEqMatch) {
-      add(entry.oeReference);
-      for (const eq of (entry.equivalents || [])) {
-        if (eq && eq.reference) add(eq.reference);
+  try {
+    const { DICTIONARY_DB } = require('@/lib/equivalentsDictionary');
+    const qNorm = normalizeRef(query);
+    for (const [, entry] of Object.entries(DICTIONARY_DB as Record<string, any>)) {
+      const isEqMatch = (entry.equivalents || []).some((eq: any) =>
+        normalizeRef(eq.reference || '') === qNorm ||
+        (eq.reference || '').toUpperCase() === query.toUpperCase()
+      );
+      if (isEqMatch) {
+        add(entry.oeReference);
+        for (const eq of (entry.equivalents || [])) {
+          if (eq && eq.reference) add(eq.reference);
+        }
       }
     }
-  }
+  } catch {}
 
-  return Array.from(seen).slice(0, 10);
+  return Array.from(seen).slice(0, 15);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -544,25 +562,51 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
 
         if (rSearch.ok) {
           const resJson = await rSearch.json().catch(() => null);
-          const master = resJson?.master;
-          if (master && master.id_article) {
-            const stock = parseInt(master.stockTotal || 0) || 0;
-            const price = parseFloat(master.prix || master.prix_u_ht || 0) || 0;
-            const refName = master.reference || master.ref || refKey;
+          if (resJson) {
+            // 1. Master article
+            const master = resJson.master;
+            if (master && master.id_article) {
+              const stock = parseInt(master.stockTotal || master.stock || master.qty || 0) || 0;
+              const price = parseFloat(master.prix || master.prix_u_ht || master.prixVente || 0) || 0;
+              const refName = master.reference || master.ref || refKey;
 
-            items.push({
-              name: refName,
-              brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
-              designation: master.titre || `Article ${refName}`,
-              price,
-              discount: 0,
-              availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
-              rawStock: stock,
-              available: stock > 0 || price > 0,
-              matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
-            });
+              items.push({
+                name: refName,
+                brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'ORIGINE').toUpperCase().trim(),
+                designation: master.titre || `Article ${refName}`,
+                price,
+                discount: parseFloat(master.remise || master.discount || 0) || 0,
+                availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
+                rawStock: stock,
+                available: stock > 0 || price > 0,
+                matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
+              });
+            }
 
-            if (stock > 0) break;
+            // 2. Extra nested articles or equivalents in response
+            const extraLists = [resJson.articles, resJson.equivalences, resJson.equivalents, resJson.tab_articles, resJson.lignes, resJson.data];
+            for (const extraList of extraLists) {
+              if (Array.isArray(extraList)) {
+                for (const art of extraList) {
+                  if (art && (art.id_article || art.reference || art.ref)) {
+                    const st = parseInt(art.stockTotal || art.stock || art.qty || 0) || 0;
+                    const pr = parseFloat(art.prix || art.prix_u_ht || art.prixVente || 0) || 0;
+                    const rn = art.reference || art.ref || refKey;
+                    items.push({
+                      name: rn,
+                      brand: (art.titre_marque || art.marque || art.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
+                      designation: art.titre || `Article ${rn}`,
+                      price: pr,
+                      discount: parseFloat(art.remise || art.discount || 0) || 0,
+                      availability: st > 0 ? `Disponible (${st} en stock)` : "Sur Commande / Hors Stock",
+                      rawStock: st,
+                      available: st > 0 || pr > 0,
+                      matchType: normalizeRef(rn) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
+                    });
+                  }
+                }
+              }
+            }
           }
         }
       } catch {}
@@ -935,80 +979,94 @@ async function scrapeITALCAR(supplierId: string, query: string, b2bLogin: string
 
     if (!cookie) {
       // Step 1: GET login page for CSRF token
-      const r1 = await fetch(`${baseUrl}/Account/Login`, {
-        headers: { "User-Agent": "Mozilla/5.0" }
+      const r1 = await robustFetch(`${baseUrl}/Account/Login`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
       });
       const html1 = await r1.text();
       const csrf = html1.match(/name="__RequestVerificationToken"[^>]*value="([^"]+)"/)?.[1] || "";
       const initCookie = r1.headers.get("set-cookie") || "";
 
-      // Step 2: POST login — field is "Name" (not Username)
-      const r2 = await fetch(`${baseUrl}/Account/Login`, {
+      // Step 2: POST login — field is "Name"
+      const r2 = await robustFetch(`${baseUrl}/Account/Login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           "Cookie": initCookie,
-          "User-Agent": "Mozilla/5.0"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         },
-        body: new URLSearchParams({ Name: b2bLogin, Password: b2bPassword, __RequestVerificationToken: csrf }).toString(),
-        redirect: "manual",
+        body: new URLSearchParams({ Name: b2bLogin, Password: b2bPassword, __RequestVerificationToken: csrf }).toString()
       });
-      const sessRaw = r2.headers.get("set-cookie") || "";
-      const sessMatch = sessRaw.match(/ASP\.NET_SessionId=[^;]+/);
-      if (sessMatch) {
-        cookie = sessMatch[0];
-        supplierCookies[supplierId] = cookie;
-      }
+      const setCookies = r2.headers.get("set-cookie") || initCookie;
+      cookie = setCookies.split(',').map(c => c.split(';')[0].trim()).join('; ');
+      if (cookie) supplierCookies[supplierId] = cookie;
     }
 
     if (!cookie) {
       return { price: 0, discount: 0, available: false, availability: "ITALCAR: Authentification échouée", items: [] };
     }
 
-    // Step 3: Search using PROPARTS-style controllers (same ASP.NET MVC pattern)
+    // Step 3: Search using Kendo Grid EditingPopup_Read on /ItemPRs
+    const refsToTest = buildSupplierSearchRefs(query);
     const results: any[] = [];
-    const searchEndpoints = [
-      { url: `${baseUrl}/Recherche/FindItembyOrigine`, body: { code: query, origine: query } },
-      { url: `${baseUrl}/Recherche/FindItembyCodeArticle`, body: { code: query, codeArticle: query } },
-      { url: `${baseUrl}/Article/Search`, body: { q: query, ref: query } },
-    ];
 
-    for (const ep of searchEndpoints) {
+    for (const refKey of refsToTest) {
       try {
-        const r = await fetch(ep.url, {
+        const postBody = new URLSearchParams({
+          sort: "",
+          page: "1",
+          pageSize: "50",
+          group: "",
+          filter: `No~contains~'${refKey}'~or~Description~contains~'${refKey}'`
+        });
+
+        const r = await robustFetch(`${baseUrl}/ItemPRs/EditingPopup_Read`, {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "Cookie": cookie,
-            "User-Agent": "Mozilla/5.0",
-            "X-Requested-With": "XMLHttpRequest"
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Referer": `${baseUrl}/ItemPRs`
           },
-          body: new URLSearchParams(ep.body as any).toString()
+          body: postBody.toString()
         });
+
         if (r.ok) {
-          const data = await r.json().catch(() => null);
-          if (Array.isArray(data) && data.length > 0) {
-            results.push(...data);
+          const text = await r.text();
+          if (text.trim().startsWith("{")) {
+            const data = JSON.parse(text);
+            if (Array.isArray(data.Data) && data.Data.length > 0) {
+              results.push(...data.Data);
+            }
           }
         }
       } catch {}
     }
 
     if (results.length > 0) {
-      const parsedItems = results.slice(0, 20).map((i: any) => {
-        const rawStock = parseInt(i.Stock || i.Dispo || i.Disponible || i.qty || 0) || 0;
-        const price = parseFloat(i.Prix || i.Price || i.prix || i.UnitPrice || 0) || 0;
+      const parsedItems = results.map((i: any) => {
+        const rawStock = parseInt(String(i.Stock || i.Dispo || i.Disponible || i.Qte || 0)) || 0;
+        const isAvail = (i.Stock && !String(i.Stock).toLowerCase().includes("non")) || rawStock > 0;
+        const price = parseFloat(i.PrixUnitaire || i.Prix || i.Price || 0) || 0;
+        const itemRef = i.No || i.ItemNo || i.CodeArticle || i.Reference || query;
         return {
-          name: i.ItemNo || i.CodeArticle || i.Reference || i.ref || query,
-          brand: i.Marque || i.Brand || i.marque || "ITALCAR",
-          description: i.Description || i.Designation || "",
-          price, discount: parseFloat(i.Remise || i.Discount || 0) || 0,
-          availability: rawStock > 0 ? "Disponible en Stock" : "Sur Commande",
-          rawStock, available: rawStock > 0
+          name: itemRef,
+          brand: (i.Marque || i.Brand || "FIAT / ITALCAR").toUpperCase().trim(),
+          description: i.Description || `Article ${itemRef}`,
+          designation: i.Description || `Article ${itemRef}`,
+          price,
+          discount: parseFloat(i.Remise || i.Discount || 0) || 0,
+          availability: isAvail ? (rawStock > 0 ? `Disponible (${rawStock} en stock)` : "Disponible en Stock") : "Sur Commande",
+          rawStock: rawStock || (isAvail ? 1 : 0),
+          available: isAvail || price > 0,
+          matchType: normalizeRef(itemRef) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
         };
       });
-      const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+
+      const list = dedupeB2BItems(parsedItems);
+      const best = pickBestB2BItem(list);
+      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: list };
     }
 
     return { price: 0, discount: 0, available: false, availability: `ITALCAR B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
@@ -1160,49 +1218,45 @@ async function scrapePROPARTS(supplierId: string, query: string, b2bLogin: strin
 async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    
+    // First try the Mosaique Auto portal engine for SOCOFA
+    const mosaiqueRes = await scrapeMosaiqueAuto(supplierId, query, b2bLogin, b2bPassword, "https://espacepro.socofagros.com");
+    if (mosaiqueRes && mosaiqueRes.items && mosaiqueRes.items.length > 0) {
+      return mosaiqueRes;
+    }
+
+    // Fallback: Try REST API endpoints
     let token = supplierCookies[supplierId] || "";
     if (!token) {
-      const loginRes = await fetch("https://espacepro.socofagros.com/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-        body: JSON.stringify({ email: b2bLogin, password: b2bPassword }),
-      });
-      if (loginRes.ok) {
-        const text = await loginRes.text();
-        if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-          try {
-            const d = JSON.parse(text);
+      const endpoints = [
+        "https://backend.extra.socofagros.com/api/auth/login",
+        "https://backend.extra.socofagros.com/api/login",
+        "https://espacepro.socofagros.com/api/auth/login"
+      ];
+      for (const ep of endpoints) {
+        try {
+          const loginRes = await robustFetch(ep, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
+            body: JSON.stringify({ email: b2bLogin, username: b2bLogin, password: b2bPassword }),
+          });
+          if (loginRes.ok) {
+            const d = await loginRes.json().catch(() => null);
             token = d?.token || d?.access_token || d?.data?.token || "";
-          } catch {}
-        }
-      }
-      if (!token) {
-        // Try form login at /auth
-        const formRes = await fetch("https://espacepro.socofagros.com/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-          body: JSON.stringify({ username: b2bLogin, email: b2bLogin, password: b2bPassword }),
-          redirect: "manual",
-        });
-        if (formRes.ok) {
-          const fd = await formRes.json().catch(() => null);
-          token = fd?.token || fd?.access_token || "";
-        }
-        if (!token) {
-          const c = formRes.headers.get("set-cookie") || "";
-          const m = c.match(/(?:session|auth|PHPSESSID|token)[^;]+/i);
-          if (m) token = m[0];
-        }
+            if (token) break;
+          }
+        } catch {}
       }
       if (token) supplierCookies[supplierId] = token;
     }
+
     const authHdr: Record<string, string> = token && !token.includes("=") ? { "Authorization": `Bearer ${token}` } : { "Cookie": token };
     const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
     await Promise.all(refsToTest.map(async (q) => {
       try {
-        const searchRes = await fetchWithTimeout(`https://espacepro.socofagros.com/api/products?search=${encodeURIComponent(q)}`, {
+        const searchRes = await robustFetch(`https://backend.extra.socofagros.com/api/articles/search?ref=${encodeURIComponent(q)}`, {
           headers: { "User-Agent": "Mozilla/5.0", ...authHdr }
         }, 2500).catch(() => null);
         if (searchRes && searchRes.ok) {
@@ -1216,11 +1270,12 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
               items.push({
                 name: i.reference || i.ref || i.code || q,
                 brand: i.brand || i.marque || "SOCOFA",
+                designation: i.designation || i.description || `Article ${i.reference || q}`,
                 price,
                 discount: parseFloat(i.discount || 0) || 0,
-                availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
+                availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande",
                 rawStock: stock,
-                available: stock > 0,
+                available: stock > 0 || price > 0,
                 matchType: normalizeRef(i.reference || q) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
               });
             });
@@ -1229,8 +1284,12 @@ async function scrapeSOCOFA(supplierId: string, query: string, b2bLogin: string,
       } catch {}
     }));
 
-    const packed = packScrapeResult(items);
-    if (packed) return packed;
+    const list = dedupeB2BItems(items);
+    if (list.length > 0) {
+      const best = pickBestB2BItem(list);
+      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: list };
+    }
+
     return { price: 0, discount: 0, available: false, availability: `SOCOFA B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur SOCOFA: ${err.message}`, items: [] };
@@ -1319,41 +1378,83 @@ async function scrapeAFRICA(supplierId: string, query: string, b2bLogin: string,
 async function scrapeALPHAFORD(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const baseUrl = "https://commandes.alphafordpro.tn";
     let cookie = supplierCookies[supplierId] || "";
+
     if (!cookie) {
-      const loginParams = new URLSearchParams({ username: b2bLogin, password: b2bPassword });
-      const loginRes = await fetch("https://commandes.alphafordpro.tn/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-        body: loginParams.toString(), redirect: "manual",
+      // Step 1: GET root page for ASP.NET ViewState & validation tokens
+      const alphaInit = await robustFetch(`${baseUrl}/`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
       });
-      const c = loginRes.headers.get("set-cookie") || "";
-      const m = c.match(/(?:PHPSESSID|session|auth)[^;]+/i);
-      if (m) cookie = m[0];
+      const alphaHtml = await alphaInit.text();
+      const initCookies = alphaInit.headers.get("set-cookie") || "";
+      const vs = alphaHtml.match(/name="__VIEWSTATE"\s+id="__VIEWSTATE"\s+value="([^"]*)"/)?.[1] || "";
+      const vsg = alphaHtml.match(/name="__VIEWSTATEGENERATOR"\s+id="__VIEWSTATEGENERATOR"\s+value="([^"]*)"/)?.[1] || "";
+      const ev = alphaHtml.match(/name="__EVENTVALIDATION"\s+id="__EVENTVALIDATION"\s+value="([^"]*)"/)?.[1] || "";
+
+      // Step 2: POST login
+      const params = new URLSearchParams({
+        "__VIEWSTATE": vs,
+        "__VIEWSTATEGENERATOR": vsg,
+        "__EVENTVALIDATION": ev,
+        "ctl00$cphl$Login1$Login1$UserName": b2bLogin,
+        "ctl00$cphl$Login1$Login1$Password": b2bPassword,
+        "ctl00$cphl$Login1$Login1$LoginButton": "Connexion"
+      });
+
+      const loginRes = await robustFetch(`${baseUrl}/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "Cookie": initCookies, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        body: params.toString()
+      });
+
+      const setCookies = loginRes.headers.get("set-cookie") || initCookies;
+      cookie = setCookies.split(',').map(c => c.split(';')[0].trim()).join('; ');
       if (cookie) supplierCookies[supplierId] = cookie;
     }
-    const searchRes = await fetch(`https://commandes.alphafordpro.tn/search?q=${encodeURIComponent(query)}`, {
-      headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0" }
-    });
-    if (searchRes.ok) {
-      const data = await searchRes.json().catch(() => null);
-      if (data) {
-        const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
-        if (articles.length > 0) {
-          const parsedItems = articles.slice(0, 20).map((i: any) => ({
-            name: i.reference || i.ref || query,
-            brand: i.brand || i.marque || "FORD",
-            price: parseFloat(i.price || i.prix || 0) || 0,
-            discount: parseFloat(i.discount || 0) || 0,
-            availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-            rawStock: parseInt(i.stock || i.qty || 0),
-            available: parseInt(i.stock || i.qty || 0) > 0
-          }));
-          const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-          return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+
+    const refsToTest = buildSupplierSearchRefs(query);
+    const items: any[] = [];
+
+    for (const refKey of refsToTest) {
+      try {
+        const searchRes = await robustFetch(`${baseUrl}/DefaultBusqueda.aspx?q=${encodeURIComponent(refKey)}&ref=${encodeURIComponent(refKey)}`, {
+          headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
+        });
+        if (searchRes.ok) {
+          const text = await searchRes.text();
+          if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+            try {
+              const data = JSON.parse(text);
+              const articles = Array.isArray(data) ? data : (data?.data || data?.items || []);
+              for (const i of articles) {
+                const stock = parseInt(i.stock || i.qty || 0) || 0;
+                const price = parseFloat(i.price || i.prix || 0) || 0;
+                const rName = i.reference || i.ref || refKey;
+                items.push({
+                  name: rName,
+                  brand: (i.brand || i.marque || "FORD").toUpperCase().trim(),
+                  designation: i.designation || i.description || `Article ${rName}`,
+                  price,
+                  discount: parseFloat(i.discount || 0) || 0,
+                  availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande",
+                  rawStock: stock,
+                  available: stock > 0 || price > 0,
+                  matchType: normalizeRef(rName) === normalizeRef(query) ? "DIRECT" : "EQUIVALENCE"
+                });
+              }
+            } catch {}
+          }
         }
-      }
+      } catch {}
     }
+
+    const list = dedupeB2BItems(items);
+    if (list.length > 0) {
+      const best = pickBestB2BItem(list);
+      return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: list };
+    }
+
     return { price: 0, discount: 0, available: false, availability: `ALPHA FORD B2B actif (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur ALPHA FORD: ${err.message}`, items: [] };
