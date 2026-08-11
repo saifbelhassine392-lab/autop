@@ -5901,6 +5901,73 @@ function SectionHistoriquePrixArticles() {
     }
   };
 
+  // Matching intelligent et multi-constructeurs de la marque
+  const matchBrandFilter = (h: any, selBrand: string) => {
+    if (selBrand === 'TOUTES') return true;
+    const sel = selBrand.toUpperCase().trim();
+    const b = (h.brand || '').toUpperCase().trim();
+    const d = (h.designation || '').toUpperCase().trim();
+    const r = (h.reference || '').toUpperCase().trim();
+    const allText = `${b} ${d} ${r}`;
+
+    if (b.includes(sel) || d.includes(sel) || r.includes(sel)) return true;
+
+    if (sel === 'PEUGEOT' || sel === 'CITROËN' || sel === 'CITROEN') {
+      if (b.includes('PEUGEOT') || b.includes('CITRO') || b.includes('PSA')) return true;
+      if (allText.includes('BERLINGO') || allText.includes('PARTNER') || allText.includes('C3') || allText.includes('C4') || allText.includes('C5') || allText.includes('206') || allText.includes('207') || allText.includes('208') || allText.includes('301') || allText.includes('307') || allText.includes('308') || allText.includes('3008') || allText.includes('2008') || allText.includes('NEMO') || allText.includes('JUMPY') || allText.includes('EXPERT') || allText.includes('PGT')) return true;
+      if (/^(96\d{8}|98\d{8}|16\d{8}|97\d{8})/.test(r)) return true;
+      if (/^\d{4}[A-Z0-9]{2}$/.test(r) && !r.startsWith('05P')) return true;
+    }
+
+    if (sel === 'VOLKSWAGEN' || sel === 'VW' || sel === 'AUDI' || sel === 'SEAT' || sel === 'SKODA') {
+      if (b.includes('VOLKSWAGEN') || b.includes('VW') || b.includes('AUDI') || b.includes('SEAT') || b.includes('SKODA')) return true;
+      if (allText.includes('POLO') || allText.includes('GOLF') || allText.includes('PASSAT') || allText.includes('CADDY') || allText.includes('TIGUAN') || allText.includes('TOURAN') || allText.includes('A1') || allText.includes('A3') || allText.includes('A4') || allText.includes('A6') || allText.includes('Q3') || allText.includes('Q5') || allText.includes('IBIZA') || allText.includes('LEON') || allText.includes('OCTAVIA')) return true;
+      if (/^(6Q|1K|5K|04C|03L|03G|06A|038|5Q|7N|6R|2K|3C|8K|8V|4F|1J|6J|8X|1T|7M|7P)/.test(r)) return true;
+    }
+
+    if (sel === 'RENAULT' || sel === 'DACIA') {
+      if (b.includes('RENAULT') || b.includes('DACIA')) return true;
+      if (allText.includes('CLIO') || allText.includes('MEGANE') || allText.includes('MÉGANE') || allText.includes('SYMBOL') || allText.includes('KANGOO') || allText.includes('FLUENCE') || allText.includes('KADJAR') || allText.includes('CAPTUR') || allText.includes('DUSTER') || allText.includes('LOGAN') || allText.includes('SANDERO')) return true;
+      if (/^(77|82|60|63)\d+/.test(r) || /^[0-9A-Z]{9,11}R$/.test(r)) return true;
+    }
+
+    if (sel === 'HYUNDAI' || sel === 'KIA') {
+      if (b.includes('HYUNDAI') || b.includes('KIA')) return true;
+      if (allText.includes('I10') || allText.includes('I20') || allText.includes('I30') || allText.includes('ACCENT') || allText.includes('TUCSON') || allText.includes('SANTA FE') || allText.includes('CRETA') || allText.includes('RIO') || allText.includes('PICANTO') || allText.includes('SPORTAGE') || allText.includes('CERATO')) return true;
+      if (/^\d{5}[A-Z0-9]{5}$/.test(r) || /^\d{5}[A-Z]\d{4}$/.test(r)) return true;
+    }
+
+    if (sel === 'MAHINDRA') {
+      if (b.includes('MAHINDRA') || allText.includes('KUV') || allText.includes('XUV') || allText.includes('SCORPIO') || /^(0102|0108|0119|0114|0116|0303|0304|0311|0313|0401)/.test(r)) return true;
+    }
+
+    if (sel === 'FIAT') {
+      if (b.includes('FIAT') || allText.includes('DOBLO') || allText.includes('PUNTO') || allText.includes('PANDA') || allText.includes('FIORINO') || allText.includes('DUCATO') || allText.includes('TIPO') || allText.includes('500')) return true;
+    }
+
+    if (sel === 'FORD') {
+      if (b.includes('FORD') || allText.includes('FIESTA') || allText.includes('FOCUS') || allText.includes('RANGER') || allText.includes('TRANSIT') || /^\d{7}$/.test(r)) return true;
+    }
+
+    if (sel === 'TOYOTA') {
+      if (b.includes('TOYOTA') || allText.includes('YARIS') || allText.includes('COROLLA') || allText.includes('HILUX') || allText.includes('RAV4') || /^(52|53|48|04465)\d{8}/.test(r)) return true;
+    }
+
+    if (sel === 'ISUZU') {
+      if (b.includes('ISUZU') || allText.includes('D-MAX') || allText.includes('DMAX')) return true;
+    }
+
+    if (sel === 'BMW') {
+      if (b.includes('BMW') || allText.includes('E46') || allText.includes('E90') || allText.includes('F30') || allText.includes('SERIE 3') || allText.includes('SERIE 5')) return true;
+    }
+
+    if (sel === 'MERCEDES-BENZ' || sel === 'MERCEDES') {
+      if (b.includes('MERCEDES') || b.includes('BENZ') || allText.includes('SPRINTER') || allText.includes('VITO') || allText.includes('W204') || allText.includes('W205')) return true;
+    }
+
+    return false;
+  };
+
   const filtered = histories.filter(h => {
     // 1. Filtrage exclusif Pièces de rechange (exclut consommables / MO)
     if (sparePartsOnly) {
@@ -5909,13 +5976,9 @@ function SectionHistoriquePrixArticles() {
       }
     }
 
-    // 2. Filtre Marque
+    // 2. Filtre Marque intelligent
     if (brandFilter !== 'TOUTES') {
-      const bUpper = brandFilter.toUpperCase();
-      const bMatch = (h.brand || '').toUpperCase() === bUpper ||
-        (h.designation || '').toUpperCase().includes(bUpper) ||
-        (h.reference || '').toUpperCase().includes(bUpper);
-      if (!bMatch) return false;
+      if (!matchBrandFilter(h, brandFilter)) return false;
     }
 
     // 3. Recherche texte
@@ -6110,14 +6173,14 @@ function SectionHistoriquePrixArticles() {
         {/* Sélecteur Rapide par Marques Populaires (Pills) */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] font-black uppercase text-zinc-400 mr-1">MARQUES RAPIDES :</span>
-          {['TOUTES', 'PEUGEOT', 'CITROËN', 'RENAULT', 'VOLKSWAGEN', 'AUDI', 'FIAT', 'FORD', 'HYUNDAI', 'MAHINDRA', 'ISUZU'].map(b => (
+          {['TOUTES', 'PEUGEOT', 'CITROËN', 'VOLKSWAGEN', 'AUDI', 'RENAULT', 'FIAT', 'FORD', 'HYUNDAI', 'MAHINDRA', 'BMW', 'MERCEDES'].map(b => (
             <button
               key={b}
               type="button"
               onClick={() => setBrandFilter(b)}
               className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase transition border ${
                 brandFilter === b
-                  ? 'bg-purple-900 text-white border-purple-900 shadow-sm'
+                  ? 'bg-purple-900 text-white border-purple-900 shadow-sm ring-2 ring-purple-300'
                   : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'
               }`}
             >

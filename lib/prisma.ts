@@ -5,7 +5,7 @@ import fs from 'fs';
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 function getDatabaseUrl() {
-  const isVercel = !!process.env.VERCEL || process.env.NODE_ENV === 'production';
+  const isVercel = !!process.env.VERCEL;
   const candidates = [
     path.join(process.cwd(), 'prisma', 'dev.db'),
     path.join(process.cwd(), 'dev.db'),
@@ -25,6 +25,10 @@ function getDatabaseUrl() {
     const tmpDbPath = '/tmp/dev.db';
     try {
       if (!fs.existsSync(tmpDbPath)) {
+        const tmpDir = path.dirname(tmpDbPath);
+        if (!fs.existsSync(tmpDir)) {
+          fs.mkdirSync(tmpDir, { recursive: true });
+        }
         fs.copyFileSync(foundFile, tmpDbPath);
         console.log(`[Prisma] Copied database to writable /tmp/dev.db`);
       }

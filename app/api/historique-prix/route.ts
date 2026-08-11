@@ -32,6 +32,9 @@ export async function GET(request: Request) {
       ];
     }
 
+    const limitParam = searchParams.get('limit');
+    const take = limitParam ? parseInt(limitParam, 10) : 2000;
+
     const histories = await prisma.partPriceHistory.findMany({
       where: whereClause,
       include: {
@@ -40,7 +43,7 @@ export async function GET(request: Request) {
       orderBy: {
         updatedAt: 'desc'
       },
-      take: 200
+      take
     });
 
     // Si recherche en direct dans Odoo demandée

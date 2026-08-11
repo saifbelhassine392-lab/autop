@@ -241,56 +241,97 @@ export async function searchOdooByReference(query: string): Promise<OdooPriceRes
 }
 
 export function detectAutoBrand(name: string = '', ref: string = '', categName: string = ''): string {
-  const text = `${name} ${ref} ${categName}`.toUpperCase();
-  
-  if (text.includes('PEUGEOT') || text.includes('PGT') || text.includes('206') || text.includes('207') || text.includes('208') || text.includes('301') || text.includes('307') || text.includes('308') || text.includes('407') || text.includes('508') || text.includes('3008') || text.includes('2008') || text.includes('PARTNER')) return 'PEUGEOT';
-  if (text.includes('CITROEN') || text.includes('CITROËN') || text.includes('BERLINGO') || text.includes('C3') || text.includes('C4') || text.includes('C5') || text.includes('DS3') || text.includes('DS4') || text.includes('NEMO') || text.includes('JUMPY')) return 'CITROËN';
-  if (text.includes('RENAULT') || text.includes('CLIO') || text.includes('MEGANE') || text.includes('MÉGANE') || text.includes('KANGOO') || text.includes('SYMBOL') || text.includes('FLUENCE') || text.includes('KADJAR') || text.includes('CAPTUR') || text.includes('DUSTER') || text.includes('LOGAN') || text.includes('SANDERO')) return 'RENAULT';
-  if (text.includes('VOLKSWAGEN') || text.includes('VW') || text.includes('GOLF') || text.includes('POLO') || text.includes('PASSAT') || text.includes('TIGUAN') || text.includes('CADDY') || text.includes('TOURAN') || text.includes('JETTA') || text.includes('AMAROK')) return 'VOLKSWAGEN';
+  const n = name.toUpperCase();
+  const r = ref.trim().toUpperCase();
+  const c = categName.toUpperCase();
+  const text = `${n} ${r} ${c}`;
+
+  // 1. Catégorie Odoo explicite
+  if (c.includes('ISUZU')) return 'ISUZU';
+  if (c.includes('BMW')) return 'BMW';
+  if (c.includes('MERC')) return 'MERCEDES-BENZ';
+  if (c.includes('VW')) return 'VOLKSWAGEN';
+  if (c.includes('TOYOTA')) return 'TOYOTA';
+  if (c.includes('SUZUKI')) return 'SUZUKI';
+  if (c.includes('MAZ')) return 'MAZDA';
+  if (c.includes('MG')) return 'MG';
+
+  // 2. Mots-clés textuels très explicites
+  if (text.includes('MAHINDRA') || text.includes('KUV 100') || text.includes('KUV100') || text.includes('XUV300') || text.includes('XUV 300') || text.includes('SCORPIO')) return 'MAHINDRA';
+  if (text.includes('PEUGEOT') || text.includes('CITROEN') || text.includes('CITROËN') || text.includes('BERLINGO') || text.includes('PARTNER') || text.includes('C3') || text.includes('C4') || text.includes('C5') || text.includes('206') || text.includes('207') || text.includes('208') || text.includes('301') || text.includes('307') || text.includes('308') || text.includes('407') || text.includes('508') || text.includes('2008') || text.includes('3008') || text.includes('NEMO') || text.includes('JUMPY') || text.includes('EXPERT') || text.includes('PGT')) return 'PEUGEOT / CITROËN';
+  if (text.includes('VOLKSWAGEN') || text.includes('VW') || text.includes('POLO') || text.includes('GOLF') || text.includes('PASSAT') || text.includes('CADDY') || text.includes('TIGUAN') || text.includes('TOURAN') || text.includes('AMAROK') || text.includes('JETTA')) return 'VOLKSWAGEN';
   if (text.includes('AUDI') || text.includes('A1') || text.includes('A3') || text.includes('A4') || text.includes('A6') || text.includes('Q3') || text.includes('Q5') || text.includes('Q7')) return 'AUDI';
-  if (text.includes('MERCEDES') || text.includes('BENZ') || text.includes('W204') || text.includes('W205') || text.includes('W212') || text.includes('SPRINTER') || text.includes('VITO') || text.includes('CLASSE A') || text.includes('CLASSE C')) return 'MERCEDES-BENZ';
-  if (text.includes('BMW') || text.includes('E46') || text.includes('E90') || text.includes('F30') || text.includes('X1') || text.includes('X3') || text.includes('X5') || text.includes('SERIE 3') || text.includes('SERIE 5')) return 'BMW';
-  if (text.includes('FIAT') || text.includes('PUNTO') || text.includes('GRANDE PUNTO') || text.includes('PANDA') || text.includes('FIORINO') || text.includes('DOBLO') || text.includes('DUCATO') || text.includes('TIPO') || text.includes('500')) return 'FIAT';
-  if (text.includes('FORD') || text.includes('FIESTA') || text.includes('FOCUS') || text.includes('MONDEO') || text.includes('TRANSIT') || text.includes('RANGER') || text.includes('KUGA') || text.includes('ECOSPORT')) return 'FORD';
+  if (text.includes('RENAULT') || text.includes('CLIO') || text.includes('MEGANE') || text.includes('MÉGANE') || text.includes('SYMBOL') || text.includes('KANGOO') || text.includes('FLUENCE') || text.includes('KADJAR') || text.includes('CAPTUR') || text.includes('DUSTER') || text.includes('LOGAN') || text.includes('SANDERO') || text.includes('DACIA')) return 'RENAULT / DACIA';
   if (text.includes('HYUNDAI') || text.includes('I10') || text.includes('I20') || text.includes('I30') || text.includes('ACCENT') || text.includes('TUCSON') || text.includes('SANTA FE') || text.includes('CRETA') || text.includes('ELANTRA')) return 'HYUNDAI';
   if (text.includes('KIA') || text.includes('RIO') || text.includes('PICANTO') || text.includes('SPORTAGE') || text.includes('CERATO') || text.includes('CEED') || text.includes('SORENTO')) return 'KIA';
-  if (text.includes('TOYOTA') || text.includes('YARIS') || text.includes('COROLLA') || text.includes('HILUX') || text.includes('RAV4') || text.includes('AURIS') || text.includes('PRADO')) return 'TOYOTA';
+  if (text.includes('FIAT') || text.includes('DOBLO') || text.includes('PUNTO') || text.includes('PANDA') || text.includes('FIORINO') || text.includes('DUCATO') || text.includes('TIPO') || text.includes('500')) return 'FIAT';
+  if (text.includes('FORD') || text.includes('FIESTA') || text.includes('FOCUS') || text.includes('RANGER') || text.includes('TRANSIT') || text.includes('MONDEO') || text.includes('KUGA') || text.includes('ECOSPORT')) return 'FORD';
+  if (text.includes('TOYOTA') || text.includes('YARIS') || text.includes('COROLLA') || text.includes('HILUX') || text.includes('RAV4') || text.includes('PRADO') || text.includes('AURIS')) return 'TOYOTA';
   if (text.includes('NISSAN') || text.includes('QASHQAI') || text.includes('MICRA') || text.includes('JUKE') || text.includes('NAVARA') || text.includes('X-TRAIL') || text.includes('SUNNY')) return 'NISSAN';
-  if (text.includes('SEAT') || text.includes('IBIZA') || text.includes('LEON') || text.includes('ARONA') || text.includes('ATECA')) return 'SEAT';
-  if (text.includes('SKODA') || text.includes('OCTAVIA') || text.includes('FABIA') || text.includes('SUPERB') || text.includes('KODIAQ')) return 'SKODA';
-  if (text.includes('MAHINDRA') || text.includes('KUV') || text.includes('XUV') || text.includes('SCORPIO')) return 'MAHINDRA';
+  if (text.includes('MERCEDES') || text.includes('BENZ') || text.includes('SPRINTER') || text.includes('VITO') || text.includes('W204') || text.includes('W205') || text.includes('W212')) return 'MERCEDES-BENZ';
+  if (text.includes('BMW') || text.includes('SERIE 3') || text.includes('SERIE 5') || text.includes('X1') || text.includes('X3') || text.includes('X5')) return 'BMW';
   if (text.includes('ISUZU') || text.includes('D-MAX') || text.includes('DMAX')) return 'ISUZU';
-  if (text.includes('OPEL') || text.includes('CORSA') || text.includes('ASTRA') || text.includes('INSIGNIA') || text.includes('MOKKA')) return 'OPEL';
-  if (text.includes('DACIA') || text.includes('LOGAN') || text.includes('SANDERO') || text.includes('DUSTER') || text.includes('DOKKER')) return 'DACIA';
-  if (text.includes('CHEVROLET') || text.includes('AVEO') || text.includes('CRUZE') || text.includes('SPARK') || text.includes('OPTRA')) return 'CHEVROLET';
   if (text.includes('SUZUKI') || text.includes('SWIFT') || text.includes('CELERIO') || text.includes('BALENO') || text.includes('VITARA')) return 'SUZUKI';
+  if (text.includes('SEAT') || text.includes('IBIZA') || text.includes('LEON') || text.includes('ARONA') || text.includes('ATECA')) return 'SEAT';
+  if (text.includes('SKODA') || text.includes('OCTAVIA') || text.includes('FABIA') || text.includes('SUPERB')) return 'SKODA';
+  if (text.includes('CHEVROLET') || text.includes('AVEO') || text.includes('CRUZE') || text.includes('SPARK') || text.includes('OPTRA')) return 'CHEVROLET';
+  if (text.includes('OPEL') || text.includes('CORSA') || text.includes('ASTRA') || text.includes('INSIGNIA') || text.includes('MOKKA')) return 'OPEL';
   if (text.includes('MITSUBISHI') || text.includes('L200') || text.includes('PAJERO') || text.includes('LANCER')) return 'MITSUBISHI';
-  if (text.includes('JEEP') || text.includes('RENEGADE') || text.includes('CHEROKEE') || text.includes('COMPASS')) return 'JEEP';
+  if (text.includes('JEEP') || text.includes('RENEGADE') || text.includes('CHEROKEE')) return 'JEEP';
+
+  // 3. Patterns de références OEM constructeurs
+  // PSA (10 chiffres commençant par 96, 98, 16, 97 ou 6 chars comme 7414QV, 1306J5, 1440TV, 7410CF, 7410GE...)
+  if (/^(96\d{8}|98\d{8}|16\d{8}|97\d{8})/.test(r)) return 'PEUGEOT / CITROËN';
+  if (/^\d{4}[A-Z0-9]{2}$/.test(r) && !r.startsWith('05P')) return 'PEUGEOT / CITROËN';
+  
+  // VAG (6Q, 1K, 5K, 04C, 03L, 03G, 06A, 038, 5Q, 7N, 6R, 2K, 3C, 8K, 8V, 4F...)
+  if (/^(6Q|1K|5K|04C|03L|03G|06A|038|5Q|7N|6R|2K|3C|8K|8V|4F|1J|6J|8X|1T|7M|7P)/.test(r)) return 'VOLKSWAGEN';
+
+  // RENAULT (7701..., 8200..., 6001..., 6384..., finit par R)
+  if (/^(77|82|60|63)\d+/.test(r) || (/^[0-9A-Z]{9,11}R$/.test(r))) return 'RENAULT / DACIA';
+
+  // HYUNDAI / KIA (866141V000, 86812H8000, 77003K6000, 28113..., 58101...)
+  if (/^\d{5}[A-Z0-9]{5}$/.test(r) || /^\d{5}[A-Z]\d{4}$/.test(r)) return 'HYUNDAI / KIA';
+
+  // MAHINDRA (0102..., 0108..., 0119..., 0114..., 0116..., 0303..., 0304..., 0311..., 0313..., 0401...)
+  if (/^(0102|0108|0119|0114|0116|0303|0304|0311|0313|0401)/.test(r)) return 'MAHINDRA';
+
+  // FORD (7 chiffres ou 6F...)
+  if (/^\d{7}$/.test(r)) return 'FORD';
+
+  // TOYOTA (525350H040, 52119..., 48820...)
+  if (/^(52|53|48|04465)\d{8}/.test(r)) return 'TOYOTA';
+
+  // NISSAN (727501HB0A, 727001HB0A...)
+  if (/^\d{5}[0-9A-Z]{5}$/.test(r) && r.includes('HB0')) return 'NISSAN';
+
+  // Équipementiers
+  if (text.includes('SOCOFA')) return 'SOCOFA';
   if (text.includes('VALEO')) return 'VALEO';
   if (text.includes('BOSCH')) return 'BOSCH';
   if (text.includes('CANSU')) return 'CANSU';
-  if (text.includes('SOCOFA')) return 'SOCOFA';
   if (text.includes('STEQ')) return 'STEQ';
-  
-  return 'ORIGINE / ADAPTABLE';
+
+  return 'MULTIMARQUE / ADAPTABLE';
 }
 
 export function isConsumableOrNonPart(name: string = '', categName: string = ''): boolean {
   const text = `${name} ${categName}`.toUpperCase();
   const excludeKeywords = [
-    "MAIN D'OEUVRE", "MAIN DOEUVRE", "PEINTURE", "VERNIS", "MASTIC", "DILUANT", "DURCISSEUR", 
+    "MAIN D'OEUVRE", "MAIN DOEUVRE", "MAIN D'OUEVRE", "MAIO", "PEINTURE", "VERNIS", "MASTIC", "DILUANT", "DURCISSEUR", 
     "PAPIER ABRASIF", "PREPARATION", "LAVAGE", "NETTOYAGE", "NETTOYANT", "DEPOSE POSE", 
     "CALE A PONCER", "PONCEUSE", "PRODUIT DE LUSTRAGE", "BASE A EFFET", "APPRET", "IMPRESSION",
-    "MATERIEL", "ACCESOIRES PEINTURE", "CONSOMMABLE", "FOURNITURE", "CHIFFON", "MASQUAGE", "SCOTCH"
+    "MATERIEL", "ACCESOIRES PEINTURE", "CONSOMMABLE", "CONSOMABLE", "FOURNITURE", "CHIFFON", "MASQUAGE", "SCOTCH",
+    "SERVICE", "TRANSPORT"
   ];
   return excludeKeywords.some(kw => text.includes(kw));
 }
 
 /**
  * Synchronisation globale des articles et prix depuis Odoo vers AUTOP
- * Filtre exclusivement les pièces de rechange et calcule les 3 prix (Achat, Vente, Devis)
+ * Extrait toutes les pièces de rechange (1300+ articles) et calcule les 3 prix (Achat, Vente, Devis)
  */
-export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: number; updated: number; errors: number; totalSpareParts: number }> {
+export async function syncOdooCatalog(limit: number = 2000): Promise<{ imported: number; updated: number; errors: number; totalSpareParts: number }> {
   const { prisma } = await import('@/lib/prisma');
   
   let imported = 0;
@@ -299,14 +340,28 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
   let totalSpareParts = 0;
 
   try {
-    console.log(`[Odoo Sync] Début synchronisation Odoo (limite: ${limit})...`);
+    console.log(`[Odoo Sync] Début synchronisation complète Odoo (cible pièces de rechange)...`);
 
-    // 1. Récupération des devis clients Odoo récents (pour extraire le Prix Devis)
+    // 1. Récupération des catégories de pièces de rechange dans Odoo
+    const allCategs = await callOdooKw("product.category", "search_read", [[]], {
+      fields: ["id", "name", "complete_name"]
+    }).catch(() => []);
+
+    const spareCategIds = (Array.isArray(allCategs) ? allCategs : []).filter((c: any) => {
+      const n = (c.complete_name || c.name || "").toUpperCase();
+      return !n.includes("PEINTURE") && !n.includes("MAIN D'OEUVRE") && !n.includes("MAIN D'OUEVRE") && 
+             !n.includes("CONSOMMABLE") && !n.includes("CONSOMABLE") && !n.includes("MATERIEL") && 
+             !n.includes("OUTILLAGE") && !n.includes("SERVICE") && !n.includes("TRANSPORT");
+    }).map((c: any) => c.id);
+
+    console.log(`[Odoo Sync] ${spareCategIds.length} catégories de pièces sélectionnées.`);
+
+    // 2. Récupération des devis clients Odoo récents (pour extraire le Prix Devis)
     const soLines = await callOdooKw("sale.order.line", "search_read", [
       [["state", "in", ["sent", "draft", "sale", "done"]]]
     ], {
       fields: ["name", "product_id", "price_unit", "product_uom_qty", "order_id", "order_partner_id", "create_date", "state"],
-      limit: 1000,
+      limit: 1500,
       order: "create_date desc"
     }).catch(() => []);
 
@@ -329,10 +384,10 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
       }
     }
 
-    // 2. Récupération des dernières lignes de commande d'achat (pour Prix Achat & Fournisseur)
+    // 3. Récupération des dernières lignes de commande d'achat (pour Prix Achat & Fournisseur)
     const poLines = await callOdooKw("purchase.order.line", "search_read", [[]], {
       fields: ["name", "product_id", "price_unit", "product_qty", "partner_id", "date_order", "order_id"],
-      limit: 1000,
+      limit: 1500,
       order: "date_order desc"
     }).catch(() => []);
 
@@ -353,13 +408,15 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
       }
     }
 
-    // 3. Récupération des articles stockables Odoo
-    const products = await callOdooKw("product.product", "search_read", [
-      [["default_code", "!=", false], ["type", "=", "product"]]
-    ], {
+    // 4. Récupération de TOUTES les pièces de rechange stockables Odoo
+    const domain = spareCategIds.length > 0
+      ? [["categ_id", "in", spareCategIds], ["default_code", "!=", false]]
+      : [["default_code", "!=", false], ["type", "=", "product"]];
+
+    const products = await callOdooKw("product.product", "search_read", [domain], {
       fields: ["name", "default_code", "standard_price", "list_price", "qty_available", "categ_id", "type"],
-      limit,
-      order: "write_date desc"
+      limit: Math.max(limit, 2000),
+      order: "id desc"
     }).catch(() => []);
 
     if (Array.isArray(products)) {
@@ -370,7 +427,7 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
 
           const categName = Array.isArray(p.categ_id) ? p.categ_id[1] : '';
 
-          // ⚠️ FILTRAGE EXCLUSIF PIÈCES DE RECHANGE (EXCLURE CONSOMMABLES & MO)
+          // ⚠️ EXCLUSION DES CONSOMMABLES & MO
           if (isConsumableOrNonPart(p.name, categName)) {
             continue;
           }
@@ -382,7 +439,8 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
           const relatedQuote = quoteMap[ref];
 
           const purchasePrice = relatedPo ? relatedPo.purchasePrice : (parseFloat(p.standard_price) || 0);
-          const sellingPrice = (parseFloat(p.list_price) > 1 ? parseFloat(p.list_price) : (purchasePrice > 0 ? purchasePrice * 1.30 : 0));
+          const rawSell = parseFloat(p.list_price) || 0;
+          const sellingPrice = rawSell > 1 ? rawSell : (purchasePrice > 0 ? purchasePrice * 1.30 : 0);
           const quotePrice = relatedQuote?.quotePrice || 0;
           const stock = parseInt(p.qty_available || 0, 10) || 0;
           const supplierName = relatedPo?.supplierName || "Stock Odoo AUTOP";
@@ -410,7 +468,7 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
                 stock,
                 designation: p.name,
                 brand,
-                type: brand !== 'ORIGINE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
+                type: brand !== 'MULTIMARQUE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
                 supplierName,
                 sourceDetails,
                 updatedAt: new Date()
@@ -423,7 +481,7 @@ export async function syncOdooCatalog(limit: number = 500): Promise<{ imported: 
                 reference: ref,
                 designation: p.name,
                 brand,
-                type: brand !== 'ORIGINE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
+                type: brand !== 'MULTIMARQUE / ADAPTABLE' ? 'OEM' : 'ADAPTABLE',
                 purchasePrice,
                 sellingPrice,
                 discount: quotePrice > 0 ? quotePrice : 0, // Prix Devis Odoo
