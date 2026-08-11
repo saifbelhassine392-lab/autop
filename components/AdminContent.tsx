@@ -10,7 +10,7 @@ import {
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
-  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle
+  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle, Loader2
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -261,6 +261,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
   const [activeSuggestRow, setActiveSuggestRow] = useState<number | null>(null);
   const [activeSuggestField, setActiveSuggestField] = useState<'ref' | 'desc' | null>(null);
   const [showSynthese, setShowSynthese] = useState(false);
+  const [searchingB2BIndex, setSearchingB2BIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/products', { cache: 'no-store' }).then(r => r.json()).then(d => {
@@ -322,6 +323,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
       return;
     }
 
+    setSearchingB2BIndex(index);
     try {
       const res = await fetch('/api/b2b/search', {
         method: 'POST',
@@ -362,6 +364,8 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     } catch (e) {
       console.error(e);
       alert("Erreur de connexion à l'API B2B.");
+    } finally {
+      setSearchingB2BIndex(null);
     }
   };
 
@@ -1210,9 +1214,17 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                 </button>
                                 <button 
                                   onClick={() => handleB2BSearch(i)}
-                                  className="text-[10px] bg-indigo-900/40 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-zinc-950 px-3 py-1.5 rounded font-bold uppercase transition text-center"
+                                  disabled={searchingB2BIndex === i}
+                                  className="text-[10px] bg-indigo-900/40 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-zinc-950 px-3 py-1.5 rounded font-bold uppercase transition text-center flex items-center gap-1 disabled:opacity-50"
                                 >
-                                  CHERCHER AUTO B2B
+                                  {searchingB2BIndex === i ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                                      <span>RECHERCHE...</span>
+                                    </>
+                                  ) : (
+                                    'CHERCHER AUTO B2B'
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -1805,7 +1817,7 @@ function SectionConsultationFournisseur() {
       alert('VEUILLEZ SÉLECTIONNER AU MOINS UN FOURNISSEUR POUR LA RECHERCHE B2B');
       return;
     }
-    const itemsToSearch = compItems.filter(it => it.reference.trim() !== '');
+    const itemsToSearch = compItems.map((it, idx) => ({ ...it, idx })).filter(it => it.reference.trim() !== '');
     if (itemsToSearch.length === 0) {
       alert('VEUILLEZ RENSEIGNER AU MOINS UNE RÉFÉRENCE ARTICLE');
       return;
@@ -1813,37 +1825,36 @@ function SectionConsultationFournisseur() {
 
     setB2bLoading(true);
     try {
+      const searchTasks: Promise<any>[] = [];
       for (const suppId of selectedSuppIds) {
-        for (let i = 0; i < compItems.length; i++) {
-          const item = compItems[i];
-          if (!item.reference.trim()) continue;
-
-          // Call the API endpoint
-          try {
-            const res = await fetch('/api/b2b/search', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ supplierId: suppId, reference: item.reference })
-            });
-            const data = await res.json();
-            if (data.success && data.data) {
-              const { price, discount, available } = data.data;
-              if (available) {
-                // Update state directly for this cell
-                setCompPrices(prev => ({
-                  ...prev,
-                  [suppId]: {
-                    ...(prev[suppId] || {}),
-                    [i]: { price, discount }
-                  }
-                }));
+        for (const item of itemsToSearch) {
+          searchTasks.push((async () => {
+            try {
+              const res = await fetch('/api/b2b/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ supplierId: suppId, reference: item.reference })
+              });
+              const data = await res.json();
+              if (data.success && data.data) {
+                const { price, discount, available } = data.data;
+                if (available || price > 0) {
+                  setCompPrices(prev => ({
+                    ...prev,
+                    [suppId]: {
+                      ...(prev[suppId] || {}),
+                      [item.idx]: { price, discount: discount || 0 }
+                    }
+                  }));
+                }
               }
+            } catch (err) {
+              console.error(`Error searching B2B for ${item.reference} at ${suppId}`, err);
             }
-          } catch (err) {
-            console.error(`Error searching B2B for ${item.reference} at ${suppId}`, err);
-          }
+          })());
         }
       }
+      await Promise.all(searchTasks);
     } finally {
       setB2bLoading(false);
     }
@@ -4124,15 +4135,19 @@ function SectionRobotB2B() {
             const taggedItems = items.map((it: any) => ({ ...it, supplierName: s.name }));
             allItems.push(...taggedItems);
           }
+          // Real-time streaming update to UI as each supplier returns
+          syncState();
         } else {
           statuses[s.id] = 'error';
           setSupplierStatuses({ ...statuses });
           allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: data.error || 'Non trouvé', available: false, price: 0, discount: 0 });
+          syncState();
         }
       } catch {
         statuses[s.id] = 'error';
         setSupplierStatuses({ ...statuses });
         allBreakdown.push({ supplierName: s.name, supplierId: s.id, items: [], availability: 'Erreur réseau', available: false, price: 0, discount: 0 });
+        syncState();
       }
     }));
 
