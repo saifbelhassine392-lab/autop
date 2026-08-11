@@ -9,8 +9,45 @@ export default function CustomerCatalogue() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    fetch('/api/products').then(res => res.json()).then(data => setProducts(data));
+    fetchProducts();
   }, []);
+
+  const fetchProducts = () => {
+    fetch('/api/products').then(res => res.json()).then(data => setProducts(data));
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, product: any) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result;
+      if (typeof base64 !== 'string') return;
+
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reference: product.reference,
+            images: [base64]
+          })
+        });
+
+        if (res.ok) {
+          alert('Photo mise à jour avec succès');
+          fetchProducts();
+        } else {
+          alert('Erreur lors de la mise à jour de la photo');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Erreur réseau lors de l\'upload');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const filtered = products.filter(p => 
     (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
@@ -41,8 +78,8 @@ export default function CustomerCatalogue() {
                 </span>
               </div>
               
-              {/* Image Container with Bing fetch integration */}
-              <div className="w-full h-44 bg-slate-950/60 rounded-xl overflow-hidden mb-4 relative flex items-center justify-center border border-slate-800/80">
+              {/* Image Container */}
+              <div className="w-full h-44 bg-slate-950/60 rounded-xl mb-4 relative flex items-center justify-center border border-slate-800/80 group">
                 {product.images && product.images.length > 0 ? (
                   <img
                     src={product.images[0]}
@@ -58,6 +95,10 @@ export default function CustomerCatalogue() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Recherche photo...</span>
                   </div>
                 )}
+                <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
+                  <span className="text-white text-xs font-bold px-3 py-1.5 bg-red-600 rounded-lg">Changer Photo</span>
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, product)} />
+                </label>
               </div>
 
               <h3 className="text-sm font-bold text-slate-200 mb-4">{product.name}</h3>

@@ -46,8 +46,36 @@ export async function POST(req: Request) {
       brand = 'HYUNDAI / KIA';
       model = 'HYUNDAI TUCSON / KIA SPORTAGE';
       service = 'hyundai_parts';
+    } else if (cleanVin.startsWith('LZW')) {
+      brand = 'CHEVROLET';
+      model = 'CHEVROLET CAPTIVA II / GROOVE 1.5 Turbo (SGMW)';
+      service = 'chevrolet_parts';
+    } else if (cleanVin.startsWith('LVV')) {
+      brand = 'CHERY';
+      model = 'CHERY TIGGO / ARRIZO 1.5 L';
+      service = 'chery_parts';
+    } else if (cleanVin.startsWith('L56') || cleanVin.startsWith('LHG') || cleanVin.startsWith('LBV')) {
+      brand = 'GEELY';
+      model = 'GEELY GX3 / COOLRAY / EMGRAND 1.5 L';
+      service = 'geely_parts';
+    } else if (cleanVin.startsWith('LVS') || cleanVin.startsWith('LZY')) {
+      brand = 'MG';
+      model = 'MG ZS / MG 3 / MG 5';
+      service = 'mg_parts';
+    } else if (cleanVin.startsWith('LTV') || cleanVin.startsWith('LSV')) {
+      brand = 'HAVAL / GREAT WALL';
+      model = 'HAVAL H6 / JOLION / WINGLE';
+      service = 'haval_parts';
+    } else if (cleanVin.startsWith('MA3') || cleanVin.startsWith('JS1')) {
+      brand = 'SUZUKI';
+      model = 'SUZUKI SWIFT / DZIRE / CELERIO';
+      service = 'suzuki_parts';
+    } else if (cleanVin.startsWith('MA1')) {
+      brand = 'MAHINDRA';
+      model = 'MAHINDRA KUV100 / XUV500';
+      service = 'mahindra_parts';
     } else {
-      brand = 'GÉNÉRIQUE';
+      brand = `VÉHICULE (${cleanVin.substring(0, 3)})`;
       model = `VÉHICULE IDENTIFIÉ PAR VIN (${cleanVin.substring(0, 3)})`;
       service = 'vw_parts';
     }

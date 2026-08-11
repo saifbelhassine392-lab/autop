@@ -10,7 +10,7 @@ import {
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
-  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload
+  ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -4001,6 +4001,8 @@ function SectionRobotB2B() {
   const [result, setResult] = useState<any>(null);
   const [supplierStatuses, setSupplierStatuses] = useState<Record<string, string>>({});
   const [availabilityFilter, setAvailabilityFilter] = useState<'ALL' | 'DISPONIBLE' | 'SUR_COMMANDE' | 'ARRIVAGE'>('ALL');
+  const [fallbackData, setFallbackData] = useState<{ logs: any[]; stats: any; summary: string } | null>(null);
+  const [showFallbackLog, setShowFallbackLog] = useState(false);
 
   useEffect(() => {
     fetch('/api/suppliers').then(r => r.json()).then(d => {
@@ -4072,19 +4074,30 @@ function SectionRobotB2B() {
     const allBreakdown: any[] = [];
     const allItems: any[] = [];
 
+    const pickBest = (itemsList: any[]) => {
+      if (!itemsList || itemsList.length === 0) return null;
+      const availWithPrice = itemsList.find((i: any) => (i.available || i.rawStock > 0) && ((i.price || 0) > 0 || (i.prixHT || 0) > 0));
+      if (availWithPrice) return availWithPrice;
+      const withPrice = itemsList.filter((i: any) => (i.price || 0) > 0 || (i.prixHT || 0) > 0)
+                                 .sort((a: any, b: any) => (a.price || a.prixHT || 0) - (b.price || b.prixHT || 0));
+      if (withPrice.length > 0) return withPrice[0];
+      return itemsList[0];
+    };
+
     const syncState = () => {
-      const best = allItems.find((i: any) => i.available) || allItems[0] || null;
+      const best = pickBest(allItems);
+      const bestPrice = best ? (best.price || best.prixHT || 0) : 0;
       setResult({
         success: true,
         isMulti: true,
         data: {
           items: [...allItems],
           suppliersBreakdown: [...allBreakdown],
-          price: best?.price || 0,
+          price: bestPrice,
           discount: best?.discount || 0,
-          available: best?.available || false,
-          stock: best?.rawStock || 0,
-          availability: best ? (best.available ? 'Disponible' : 'Sur Commande') : 'Non trouvé'
+          available: best ? (best.available || (best.rawStock || 0) > 0) : false,
+          stock: best?.rawStock || best?.stock || 0,
+          availability: best ? (best.available || (best.rawStock || 0) > 0 ? (best.rawStock ? `${best.rawStock} EN STOCK (${best.supplierName || 'Fournisseur'})` : `DISPONIBLE (${best.supplierName || 'Fournisseur'})`) : `SUR COMMANDE — ${best.supplierName || 'Fournisseur'}`) : 'Non trouvé'
         }
       });
     };
@@ -4123,22 +4136,54 @@ function SectionRobotB2B() {
       }
     }));
 
-    const best = allItems.find((i: any) => i.available) || allItems[0] || null;
-    setResult({
-      success: true,
-      isMulti: true,
-      data: {
-        items: allItems,
-        suppliersBreakdown: allBreakdown,
-        price: best?.price || 0,
-        discount: best?.discount || 0,
-        available: best?.available || false,
-        stock: best?.rawStock || 0,
-        availability: best ? (best.available ? 'Disponible' : 'Sur Commande') : 'Non trouvé'
+    syncState();
+
+    // Si aucun stock direct, déclencher le moteur de repli via l'appel ALL
+    const hasStockAfterFirstPass = allItems.some(i => i.available || (i.rawStock || 0) > 0 || i.price > 0);
+    if (!hasStockAfterFirstPass && cleanQuery.length >= 3) {
+      console.log('[Robot B2B] Pas de stock direct. Appel moteur de repli (ALL)...');
+      try {
+        const fallbackRes = await fetch('/api/b2b/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supplierId: 'ALL', query: cleanQuery })
+        });
+        const fallbackJson = await fallbackRes.json();
+        if (fallbackJson.success && fallbackJson.data) {
+          const fd = fallbackJson.data;
+
+          // Mettre à jour les données de repli dans l'UI
+          if (fd.fallbackStats?.triggered) {
+            setFallbackData({
+              logs: fd.fallbackLogs || [],
+              stats: fd.fallbackStats || { triggered: false },
+              summary: fd.fallbackSummary || ''
+            });
+            setShowFallbackLog(false);
+          } else {
+            setFallbackData(null);
+          }
+
+          // Ajouter les articles trouvés par le moteur de repli
+          const fallbackItems = (fd.items || []).filter((it: any) =>
+            it.matchType === 'FALLBACK' && (it.price > 0 || it.available)
+          );
+          if (fallbackItems.length > 0) {
+            fallbackItems.forEach((it: any) => allItems.push(it));
+            // Mise à jour de l'état avec les nouveaux articles
+            syncState();
+          }
+        }
+      } catch (e) {
+        console.warn('[Robot B2B] Erreur lors de l\'appel moteur de repli:', e);
       }
-    });
+    } else {
+      setFallbackData(null);
+    }
+
     setLoading(false);
   };
+
 
   const isAllSelected = b2bSuppliers.length > 0 && selectedSupplierIds.length === b2bSuppliers.length;
 
@@ -4284,7 +4329,7 @@ function SectionRobotB2B() {
                                 {bestItem?.discount > 0 ? ` (-${bestItem.discount}%)` : ''}
                               </span>
                             ) : (
-                              <span className="text-zinc-600 text-[11px] font-semibold">{bd.availability || 'Référence non trouvée'}</span>
+                              <span className="text-zinc-600 text-[11px] font-semibold">{bd.statusReason || bd.availability || 'Référence non trouvée'}</span>
                             )}
                           </div>
                         </div>
@@ -4348,6 +4393,55 @@ function SectionRobotB2B() {
                   >
                     🟡 SUR COMMANDE ({countCommande})
                   </button>
+                </div>
+              )}
+
+              {/* Fallback Recovery Banner */}
+              {fallbackData && fallbackData.stats?.triggered && (
+                <div className="bg-orange-950/30 border border-orange-500/40 rounded-2xl p-4 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-orange-400 text-lg">🔍</span>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-0.5">
+                          MOTEUR DE REPLI AUTOMATIQUE — {fallbackData.stats.success ? '✅ RÉCUPÉRATION RÉUSSIE' : '❌ RÉFÉRENCE NON TROUVÉE'}
+                        </div>
+                        <div className="text-xs text-zinc-400 font-semibold">
+                          {fallbackData.stats.totalAttempts} tentatives · {fallbackData.stats.durationMs}ms
+                          {fallbackData.stats.success && fallbackData.stats.foundAt?.length > 0 && (
+                            <span className="text-green-400 ml-2">→ trouvé chez [{fallbackData.stats.foundAt.join(', ')}] via "{fallbackData.stats.finalRef}"</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFallbackLog(v => !v)}
+                      className="text-[10px] font-black uppercase text-orange-400 border border-orange-500/40 px-3 py-1.5 rounded-lg hover:bg-orange-950/40 transition"
+                    >
+                      {showFallbackLog ? '▲ MASQUER' : '▼ VOIR JOURNAL'}
+                    </button>
+                  </div>
+
+                  {showFallbackLog && fallbackData.logs.length > 0 && (
+                    <div className="mt-3 border-t border-orange-500/20 pt-3 space-y-1.5 max-h-60 overflow-y-auto">
+                      {fallbackData.logs.map((log: any, i: number) => (
+                        <div key={i} className={`flex items-start gap-2 text-[10px] font-mono px-2 py-1.5 rounded ${
+                          log.outcome === 'FOUND'
+                            ? 'bg-green-950/40 text-green-300'
+                            : log.outcome === 'PARTIAL'
+                              ? 'bg-blue-950/40 text-blue-300'
+                              : 'bg-zinc-900/60 text-zinc-500'
+                        }`}>
+                          <span className="shrink-0 font-black w-5 text-center">{log.outcome === 'FOUND' ? '✅' : log.outcome === 'PARTIAL' ? '🔵' : '·'}</span>
+                          <span className="shrink-0 uppercase font-black w-28 text-orange-400">[{log.method}]</span>
+                          <span className="shrink-0 w-16 text-zinc-400">{log.supplierName}</span>
+                          <span className="text-zinc-300">"{log.triedRef}"</span>
+                          {log.itemsFound > 0 && <span className="text-green-400 ml-auto shrink-0">{log.itemsFound} art.</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -4464,6 +4558,67 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
     { ref: '6208E6', designation: 'PHARE / OPTIQUE AVANT GAUCHE PEUGEOT 407', category: 'Carrosserie avant' },
     { ref: '424917', designation: 'JEU DE DISQUES DE FREIN AVANT PEUGEOT 407', category: 'Climatiseur/Chauffage' }
   ]);
+  const [enrichingRef, setEnrichingRef] = useState<string | null>(null);
+  const [enrichStatusMsg, setEnrichStatusMsg] = useState<{ text: string; isError?: boolean } | null>(null);
+
+  // Enrich single item into internal product database catalog
+  const handleEnrichInternalCatalog = async (item: { ref: string; designation: string; category?: string; brand?: string }) => {
+    setEnrichingRef(item.ref);
+    setEnrichStatusMsg(null);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reference: item.ref,
+          sku: item.ref,
+          name: item.designation,
+          brand: item.brand || catalogData?.brand || 'OE',
+          vehicleCompat: `${catalogData?.brand || ''} ${catalogData?.model || ''} (VIN: ${vinInput})`,
+          description: `Référence extraite du schéma d'origine pour ${catalogData?.brand || ''} ${catalogData?.model || ''}. Catégorie: ${item.category || 'Général'}.`,
+          status: 'ACTIVE'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && !data.error) {
+        setEnrichStatusMsg({ text: `✅ Référence ${item.ref} ("${item.designation}") ajoutée avec succès au catalogue interne !` });
+      } else {
+        setEnrichStatusMsg({ text: `⚠️ ${data.error || 'Erreur lors de l\'enregistrement'}`, isError: true });
+      }
+    } catch (e: any) {
+      setEnrichStatusMsg({ text: `❌ Erreur d'enrichissement: ${e.message}`, isError: true });
+    } finally {
+      setEnrichingRef(null);
+    }
+  };
+
+  // Enrich all items in the basket into internal catalog
+  const handleEnrichEntireBasket = async () => {
+    if (basket.length === 0) return;
+    setLoadingHeadless(true);
+    setEnrichStatusMsg(null);
+    let count = 0;
+    for (const item of basket) {
+      try {
+        await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reference: item.ref,
+            sku: item.ref,
+            name: item.designation,
+            brand: catalogData?.brand || 'OE',
+            vehicleCompat: `${catalogData?.brand || ''} ${catalogData?.model || ''} (VIN: ${vinInput})`,
+            description: `Enrichi depuis consultation VIN ${vinInput} (${item.category})`,
+            status: 'ACTIVE'
+          })
+        });
+        count++;
+      } catch (e) {}
+    }
+    setLoadingHeadless(false);
+    setEnrichStatusMsg({ text: `🎉 ${count} article(s) du panier ont été enregistrés avec succès dans votre catalogue interne !` });
+  };
 
   // Load saved VINs from localStorage
   useEffect(() => {
@@ -4499,6 +4654,15 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
       if (data.success) {
         setCatalogData(data);
         saveVinToHistory(cleanVin, `${data.brand} ${data.model}`);
+
+        // ═══ AUTO-ROUTING INTELLIGENT ═══
+        // 1. Toujours basculer vers la vue SCHEMATIC avec les pièces
+        setActiveCatalogSource('SCHEMATIC');
+        // 2. Remettre sur la première section (Carrosserie avant)
+        setSelectedSectionIndex(0);
+        // 3. Réinitialiser les filtres pour voir toutes les pièces
+        setSelectedCategory('TOUS');
+        setPartFilterText('');
       }
     } catch (err: any) {
       console.error("Erreur de chargement du catalogue natif:", err);
@@ -4657,11 +4821,14 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
         </div>
       </div>
 
-      {/* BARRE DE RECHERCHE MULTICRITÈRES UNIVERSELLE & SAISIE VIN */}
-      <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-2xl space-y-4">
-        <div className="text-[10px] font-black uppercase tracking-widest text-cyan-400 flex justify-between items-center">
-          <span>1. SAISIE MULTICRITÈRES (CODE VIN, DÉSIGNATION, RÉFÉRENCE OE OU ÉQUIVALENT)</span>
-          <span className="text-emerald-400 font-bold">⚡ RECHERCHE CROISÉE INTELIGENTE (DICTIONNAIRE + 14 FOURNISSEURS B2B)</span>
+      <div className="bg-white border-2 border-cyan-500/60 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="flex justify-between items-center">
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-800">
+            🔍 SAISIE VIN — IDENTIFICATION AUTOMATIQUE & OUVERTURE DIRECTE DU CATALOGUE
+          </span>
+          <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
+            ⚡ ROUTAGE INTELLIGENT 30+ MARQUES
+          </span>
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
@@ -4669,34 +4836,68 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             type="text"
             value={vinInput}
             onChange={e => setVinInput(e.target.value.toUpperCase())}
-            placeholder="RECHERCHER PAR VIN, RÉFÉRENCE OE, ÉQUIVALENT (PHIRA, LPR...), OU DÉSIGNATION (ex: Pare-chocs Peugeot 208, 7401AX, VF3...)"
-            className="flex-1 bg-white text-zinc-900 border border-zinc-200 font-black text-sm px-4 py-3 rounded-xl border border-zinc-200 focus:outline-none focus:border-cyan-500 uppercase placeholder:text-zinc-500 placeholder:font-normal placeholder:normal-case"
+            onKeyDown={e => {
+              if (e.key === 'Enter' && vinInput.trim() && !loadingHeadless) {
+                handleLoadHeadlessCatalog(vinInput.trim());
+              }
+            }}
+            placeholder="SAISIR CODE VIN (ex: WAUZZZ8V..., JS2YC...) — APPUYER ENTRÉE OU CLIQUER IDENTIFIER"
+            className="flex-1 bg-white text-zinc-950 border-2 border-zinc-300 font-black text-sm px-4 py-3 rounded-xl focus:outline-none focus:border-cyan-500 uppercase placeholder:text-zinc-400 placeholder:font-normal placeholder:normal-case transition-colors"
           />
           <button
             type="button"
             disabled={loadingHeadless}
             onClick={() => {
-              handleLoadHeadlessCatalog(vinInput);
-              if (onTransferToRobot && vinInput.trim()) {
-                onTransferToRobot(vinInput.trim());
+              if (vinInput.trim()) {
+                handleLoadHeadlessCatalog(vinInput.trim());
               }
             }}
-            className="px-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-zinc-950 font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 py-3 shadow-lg shadow-cyan-500/20 disabled:opacity-50"
+            className="px-6 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 py-3 shadow-lg shadow-cyan-500/20 disabled:opacity-40 disabled:cursor-not-allowed min-w-[230px]"
           >
             {loadingHeadless ? (
-              <span>RECHERCHE EN COURS...</span>
+              <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />IDENTIFICATION...</span>
             ) : (
               <>
-                <Search className="w-4 h-4" /> ⚡ RECHERCHE MULTICRITÈRES & B2B ↗
+                <Search className="w-4 h-4" /> 🚗 IDENTIFIER & OUVRIR CATALOGUE
               </>
             )}
           </button>
         </div>
+        {/* Auto-routing animated progress */}
+        {loadingHeadless && (
+          <div className="flex items-center gap-3 p-3 bg-cyan-50 border border-cyan-300 rounded-xl">
+            <div className="flex gap-1 flex-shrink-0">
+              <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+            <span className="text-[10px] font-black text-cyan-800 uppercase tracking-widest">
+              🔄 Analyse VIN → Identification marque/modèle → Sélection catalogue → Chargement pièces...
+            </span>
+          </div>
+        )}
+
+        {/* Toast / Notification Banner for Catalog Enrichment */}
+        {enrichStatusMsg && (
+          <div className={`p-4 rounded-xl text-xs font-black uppercase flex items-center justify-between shadow-lg border ${
+            enrichStatusMsg.isError
+              ? 'bg-rose-950/80 border-rose-500/50 text-rose-300'
+              : 'bg-emerald-950/90 border-emerald-500/60 text-emerald-300'
+          }`}>
+            <span>{enrichStatusMsg.text}</span>
+            <button
+              onClick={() => setEnrichStatusMsg(null)}
+              className="text-zinc-400 hover:text-white font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Saved VINs History Pills */}
         {savedVins.length > 0 && (
           <div className="space-y-1.5 pt-1">
-            <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest block">
+            <span className="text-[9px] font-black text-zinc-700 uppercase tracking-widest block">
               📋 VINS ENREGISTRÉS ET CONSULTABLES NATIVEMENT :
             </span>
             <div className="flex flex-wrap gap-2">
@@ -4706,12 +4907,12 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                   onClick={() => handleSelectVin(v.vin)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-2 border ${
                     vinInput.toUpperCase() === v.vin.toUpperCase()
-                      ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-md'
-                      : 'bg-white border-zinc-200 text-slate-300 hover:border-zinc-200'
+                      ? 'bg-cyan-600 border-cyan-600 text-white shadow-md'
+                      : 'bg-white border-zinc-300 text-zinc-800 hover:border-cyan-400 hover:bg-cyan-50'
                   }`}
                 >
-                  <span className="font-mono text-cyan-400">{v.vin}</span>
-                  <span className="text-[10px] text-zinc-500">({v.name})</span>
+                  <span className="font-mono text-cyan-700 font-black">{v.vin}</span>
+                  <span className="text-[10px] text-zinc-600 font-semibold">({v.name})</span>
                 </button>
               ))}
             </div>
@@ -4720,22 +4921,33 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
 
         {/* Identified Vehicle Badge */}
         {catalogData && (
-          <div className="bg-white p-4 rounded-xl border border-zinc-200 mb-4 w-full">
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🚘</span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block">VÉHICULE IDENTIFIÉ & SCHÉMAS EXTRAITS</span>
-                  <span className="text-[9px] font-black bg-cyan-950 text-cyan-300 px-2 py-0.5 rounded border border-cyan-800">{catalogData.brand}</span>
+          <div className="bg-white p-5 rounded-2xl border-2 border-cyan-500 mb-4 w-full shadow-lg">
+            <div className="flex items-start gap-4">
+              <span className="text-4xl">🚘</span>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-400 px-2 py-0.5 rounded uppercase tracking-widest">✅ VÉHICULE IDENTIFIÉ</span>
+                  <span className="text-[9px] font-black bg-cyan-600 text-white px-2.5 py-0.5 rounded-full">{catalogData.brand}</span>
+                  {catalogData.year && <span className="text-[9px] font-bold text-zinc-600 bg-zinc-100 border border-zinc-300 px-2 py-0.5 rounded">{catalogData.year}</span>}
                 </div>
-                <h3 className="text-base font-black text-zinc-950 uppercase">{catalogData.model}</h3>
-                <p className="text-[10px] text-zinc-500">VIN : <span className="font-mono text-cyan-300 font-bold">{catalogData.vin}</span> | Source Backend : <span className="text-emerald-400 font-bold">{catalogData.sourceCatalog}</span></p>
+                <h3 className="text-lg font-black text-zinc-950 uppercase tracking-wide">{catalogData.model}</h3>
+                <p className="text-[11px] text-zinc-700 font-bold mt-1">
+                  VIN : <span className="font-mono text-cyan-700 font-black">{catalogData.vin}</span>
+                </p>
+                <p className="text-[10px] text-zinc-600 font-semibold mt-0.5">
+                  🔗 Source : <span className="text-emerald-700 font-black">{catalogData.sourceCatalog}</span>
+                </p>
+                {catalogData.engine && (
+                  <p className="text-[10px] text-zinc-600 font-semibold">
+                    ⚙️ Moteur : <span className="font-black text-zinc-950">{catalogData.engine}</span>
+                  </p>
+                )}
+                {catalogData.warning && (
+                  <div className="mt-2 p-2 bg-amber-50 border border-amber-400 rounded-lg text-[10px] text-amber-800 font-bold">
+                    ⚠️ {catalogData.warning}
+                  </div>
+                )}
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-emerald-950 text-emerald-300 text-[10px] font-black uppercase rounded border border-emerald-800">
-                ✓ AFFICHAGE 100% NATIF EN BALISE &lt;IMG&gt;
-              </span>
             </div>
           </div>
         )}
@@ -4832,15 +5044,15 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
           {activeCatalogSource === 'SCHEMATIC' && (
             <>
               {/* Section Selection Tabs */}
-              <div className="flex flex-wrap gap-2 border-b border-zinc-200 pb-3">
+                <div className="flex flex-wrap gap-2 border-b border-zinc-200 pb-3">
                 {(catalogData?.nativeSchematics || []).map((sec: any, idx: number) => (
                   <button
                     key={sec.sectionId || idx}
                     onClick={() => setSelectedSectionIndex(idx)}
                     className={`px-4 py-2.5 rounded-xl text-xs font-black uppercase transition flex items-center gap-2 border ${
                       selectedSectionIndex === idx
-                        ? 'bg-cyan-950 border-cyan-500 text-cyan-300 shadow-lg font-extrabold'
-                        : 'bg-white border-zinc-200 text-zinc-500 hover:text-slate-200'
+                        ? 'bg-cyan-600 border-cyan-600 text-white shadow-lg'
+                        : 'bg-white border-zinc-300 text-zinc-800 hover:border-cyan-400 hover:text-cyan-700 hover:bg-cyan-50'
                     }`}
                   >
                     <span>📁 {sec.title}</span>
@@ -4943,10 +5155,10 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
         <div className="space-y-4">
           <div className="bg-white border border-zinc-200 rounded-2xl p-4 shadow-2xl space-y-3">
             <div className="flex justify-between items-center border-b border-zinc-200 pb-2">
-              <span className="text-xs font-black text-cyan-400 uppercase tracking-wider flex items-center gap-2">
-                <Search className="w-4 h-4" /> 2. RECHERCHER UNE PIÈCE DANS CE VÉHICULE
+              <span className="text-xs font-black text-zinc-800 uppercase tracking-wider flex items-center gap-2">
+                <Search className="w-4 h-4 text-cyan-600" /> 2. RECHERCHER UNE PIÈCE
               </span>
-              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+              <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-400 px-2 py-0.5 rounded">
                 {displayedOeItems.length} RÉSULTAT(S)
               </span>
             </div>
@@ -4995,8 +5207,8 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-2 py-0.5 rounded text-[9px] font-bold transition border ${
                     selectedCategory === cat
-                      ? 'bg-cyan-950 border-cyan-400 text-cyan-300'
-                      : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-200'
+                      ? 'bg-cyan-600 border-cyan-600 text-white'
+                      : 'bg-white border-zinc-300 text-zinc-700 hover:border-cyan-400 hover:text-cyan-700'
                   }`}
                 >
                   {cat}
@@ -5015,7 +5227,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                     ? "RECHERCHE PAR DÉSIGNATION (ex: Embrayage 308, Pare-chocs, Phare, Filtre...)"
                     : "RECHERCHE PAR RÉFÉRENCE (ex: 7401AX, A2048800124, 424917...)"
                 }
-                className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal"
+                className="w-full bg-white text-zinc-950 font-black border border-zinc-300 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-cyan-500 uppercase transition-colors placeholder:text-zinc-400 placeholder:normal-case placeholder:font-normal"
               />
               {partFilterText && (
                 <button
@@ -5055,15 +5267,15 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                       </span>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-cyan-400 font-black text-xs">OE: #{item.ref}</span>
-                          <span className="text-[9px] font-black bg-zinc-50 text-slate-300 px-2 py-0.5 rounded">{item.group}</span>
+                          <span className="font-mono text-cyan-700 font-black text-xs">OE: #{item.ref}</span>
+                          <span className="text-[9px] font-black bg-zinc-100 text-zinc-800 border border-zinc-300 px-2 py-0.5 rounded">{item.group}</span>
                           {equivalents.length > 0 && (
-                            <span className="text-[9px] font-black bg-amber-950/80 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded">
+                            <span className="text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-400 px-2 py-0.5 rounded">
                               ⚡ {equivalents.length} ÉQUIVALENT(S)
                             </span>
                           )}
                         </div>
-                        <h4 className="text-zinc-950 font-bold text-xs uppercase mt-0.5">{item.designation}</h4>
+                        <h4 className="text-zinc-950 font-black text-xs uppercase mt-0.5 tracking-wide">{item.designation}</h4>
                         {/* Critical Part Verification Badge */}
                         {criticalValidation.status === 'VERIFIED' && (
                           <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -5080,7 +5292,17 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        disabled={enrichingRef === item.ref}
+                        onClick={() => handleEnrichInternalCatalog({ ref: item.ref, designation: item.designation, category: item.group })}
+                        title="Ajouter directement cette référence à mon catalogue interne"
+                        className="px-2.5 py-1.5 bg-cyan-950 hover:bg-cyan-700 text-cyan-300 hover:text-white text-[10px] font-black uppercase rounded-lg border border-cyan-500/40 transition flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5 text-cyan-400" /> 📥 ENRICHIR CATALOGUE
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -5098,10 +5320,10 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                         className={`px-3 py-1.5 text-[10px] font-black uppercase rounded-lg transition flex items-center gap-1.5 flex-shrink-0 ${
                           inBasket
                             ? 'bg-emerald-600 text-zinc-950 hover:bg-emerald-700'
-                            : 'bg-cyan-700 hover:bg-cyan-600 text-zinc-950'
+                            : 'bg-zinc-800 hover:bg-zinc-700 text-cyan-300 border border-zinc-700'
                         }`}
                       >
-                        {inBasket ? '✓ AJOUTÉ' : '🛒 + OE'}
+                        {inBasket ? '✓ AJOUTÉ' : '🛒 + PANIER'}
                       </button>
                     </div>
                   </div>
@@ -5118,24 +5340,32 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
                           return (
                             <div
                               key={eqIdx}
-                              className={`px-2.5 py-1 rounded-md text-[10px] border flex items-center gap-2 transition ${
+                              className={`px-2.5 py-1.5 rounded-md text-[10px] border flex items-center gap-2 transition ${
                                 eqInBasket
-                                  ? 'bg-emerald-950 border-emerald-500 text-emerald-300'
-                                  : 'bg-white border-zinc-200 text-slate-300 hover:border-slate-600'
+                                  ? 'bg-emerald-100 border-emerald-500 text-emerald-800'
+                                  : 'bg-white border-zinc-300 text-zinc-900 hover:border-zinc-400 hover:bg-zinc-50'
                               }`}
                             >
-                              <span className="font-extrabold text-amber-300 uppercase">{eq.brand}:</span>
-                              <span className="font-mono font-bold text-zinc-950">{eq.reference}</span>
+                              <span className="font-extrabold text-amber-700 uppercase">{eq.brand}:</span>
+                              <span className="font-mono font-black text-zinc-950">{eq.reference}</span>
                               {eq.estimatedPrice && (
-                                <span className="text-emerald-400 font-mono font-bold">{eq.estimatedPrice.toFixed(2)} TND</span>
+                                <span className="text-emerald-700 font-mono font-bold">{eq.estimatedPrice.toFixed(2)} TND</span>
                               )}
+                              <button
+                                type="button"
+                                onClick={() => handleEnrichInternalCatalog({ ref: eq.reference, designation: `${eq.designation || item.designation} (${eq.brand})`, category: item.group, brand: eq.brand })}
+                                className="text-[9px] text-emerald-400 hover:text-emerald-300 font-bold uppercase ml-1"
+                                title="Enregistrer l'équivalent dans le catalogue interne"
+                              >
+                                📥 Enrichir
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (eqInBasket) {
                                     handleRemoveFromBasket(eq.reference);
                                   } else {
-                                    handleAddToBasket({ ref: eq.reference, designation: `${eq.designation} (${eq.brand})`, category: item.group });
+                                    handleAddToBasket({ ref: eq.reference, designation: `${eq.designation || item.designation} (${eq.brand})`, category: item.group });
                                   }
                                 }}
                                 className="text-[9px] text-cyan-400 hover:text-zinc-950 font-bold underline uppercase ml-1"
@@ -5193,7 +5423,7 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
             {basket.length === 0 ? (
               <div className="text-center py-12 text-zinc-600 text-xs font-bold uppercase border border-zinc-200/50 border-dashed rounded-xl p-4">
                 Votre panier de consultation est vide.<br />
-                Cliquez sur 🛒 + AJOUTER sur le schéma natif pour préparer votre demande B2B.
+                Cliquez sur 🛒 + PANIER ou 📥 ENRICHIR pour traiter les pièces du schéma.
               </div>
             ) : (
               <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
@@ -5219,11 +5449,20 @@ function SectionPartsCatalogue({ onTransferToRobot }: SectionPartsCatalogueProps
           <div className="pt-4 border-t border-zinc-200 space-y-2">
             <button
               type="button"
+              disabled={basket.length === 0 || loadingHeadless}
+              onClick={handleEnrichEntireBasket}
+              className="w-full py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-zinc-950 font-black uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-cyan-500/20 transition disabled:opacity-40 flex items-center justify-center gap-2"
+            >
+              <PlusCircle className="w-4 h-4 text-cyan-950" /> 📥 TOUT ENRICHIR DANS CATALOGUE INTERNE ({basket.length})
+            </button>
+
+            <button
+              type="button"
               disabled={basket.length === 0}
               onClick={handleLaunchBasketSearch}
-              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-zinc-500 font-bold uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition disabled:opacity-40 flex items-center justify-center gap-2"
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-indigo-500/20 transition disabled:opacity-40 flex items-center justify-center gap-2"
             >
-              <Package className="w-4 h-4" /> 🚀 LANCER CONSULTATION B2B MULTI-FOURNISSEURS ({basket.length})
+              <Package className="w-4 h-4" /> 🚀 CONSULTATION B2B MULTI-FOURNISSEURS ({basket.length})
             </button>
           </div>
         </div>
@@ -6122,3 +6361,5 @@ function SectionChatInterne() {
     </div>
   );
 }
+
+

@@ -67,7 +67,7 @@ export async function getVinCatalogFromDb(vin: string) {
     const record = await prisma.vehicleVinCatalog.findUnique({
       where: { vin: cleanVin },
     });
-    if (record) {
+    if (record && record.brand && record.brand !== 'INCONNU' && !record.brand.startsWith('VÉHICULE') && !record.brand.startsWith('GÉNÉRIQUE')) {
       return {
         ...record,
         treeJson: JSON.parse(record.treeJson),

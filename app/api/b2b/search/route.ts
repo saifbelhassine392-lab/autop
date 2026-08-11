@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from "https";
 import { getEquivalentsForRef, normalizeRef, searchDictionaryAndEquivalents } from '@/lib/equivalentsDictionary';
+import { runFallbackSearch, formatFallbackSummary, type FallbackResult } from '@/lib/fallbackSearchEngine';
 
 // Force TLS reject unauthorized to 0 globally for Tunisian HTTPS portals with custom SSL certs
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -13,23 +14,77 @@ const supplierCookies: Record<string, string> = {};
 
 const FAD_SECRET_KEY = "sictFvxSr4yr1DM8itxjYSrL0CvsDjeA";
 
-async function fetchWithTimeout(url: string, options: any = {}, timeoutMs: number = 2000): Promise<Response> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    return res;
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || 'Timeout' }), {
-      status: 504,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } finally {
-    clearTimeout(id);
-  }
+function robustFetch(urlStr: string, options: any = {}, timeoutMs: number = 8000): Promise<Response> {
+  return new Promise((resolve) => {
+    try {
+      const u = new URL(urlStr);
+      const isHttps = u.protocol === 'https:';
+      const lib = isHttps ? https : require('http');
+
+      const headers: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+        ...(options.headers || {})
+      };
+
+      let bodyData: string | Buffer | null = null;
+      if (options.body) {
+        bodyData = typeof options.body === 'string' ? options.body : String(options.body);
+        headers['Content-Length'] = String(Buffer.byteLength(bodyData || ''));
+      }
+
+      const reqOpts = {
+        protocol: u.protocol,
+        hostname: u.hostname,
+        port: u.port || (isHttps ? 443 : 80),
+        path: u.pathname + u.search,
+        method: options.method || 'GET',
+        headers,
+        rejectUnauthorized: false
+      };
+
+      let finished = false;
+      const req = lib.request(reqOpts, (res: any) => {
+        let rawData = '';
+        res.on('data', (chunk: any) => rawData += chunk);
+        res.on('end', () => {
+          if (finished) return;
+          finished = true;
+          const resHeaders = new Headers();
+          Object.entries(res.headers).forEach(([k, v]) => {
+            if (Array.isArray(v)) v.forEach(val => resHeaders.append(k, val));
+            else if (v) resHeaders.set(k, String(v));
+          });
+          resolve(new Response(rawData, {
+            status: res.statusCode || 200,
+            headers: resHeaders
+          }));
+        });
+      });
+
+      req.on('error', (err: any) => {
+        if (finished) return;
+        finished = true;
+        resolve(new Response(JSON.stringify({ error: err.message }), { status: 502, headers: { 'Content-Type': 'application/json' } }));
+      });
+
+      req.setTimeout(timeoutMs, () => {
+        if (finished) return;
+        finished = true;
+        req.destroy();
+        resolve(new Response(JSON.stringify({ error: 'Timeout' }), { status: 504, headers: { 'Content-Type': 'application/json' } }));
+      });
+
+      if (bodyData) req.write(bodyData);
+      req.end();
+    } catch (err: any) {
+      resolve(new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { 'Content-Type': 'application/json' } }));
+    }
+  });
+}
+
+async function fetchWithTimeout(url: string, options: any = {}, timeoutMs: number = 8000): Promise<Response> {
+  return robustFetch(url, options, timeoutMs);
 }
 
 function mergeSetCookies(existing: string, setCookie: string | null): string {
@@ -66,16 +121,22 @@ function extractJsonArticles(data: unknown): any[] {
   return [];
 }
 
-/** Références à tester : saisie, normalisée, OE et toutes équivalences Aftermarket du dictionnaire (CANSU, METALCAUCHO, VALEO, GATES, etc.). */
+/** Références à tester : saisie, normalisée, OE et toutes équivalences Aftermarket du dictionnaire.
+ * Recherche BIDIRECTIONNELLE : OE→equivalents ET equivalent→OE→tous les autres equivalents.
+ * Limite portée à 10 refs pour maximiser les chances de trouver en stock.
+ */
 function buildSupplierSearchRefs(query: string): string[] {
   const seen = new Set<string>();
   const add = (raw: string) => {
     if (!raw) return;
     const t = raw.trim();
-    if (!t) return;
+    if (!t || t.length < 3) return;
     seen.add(t);
     const n = normalizeRef(t);
-    if (n.length >= 3) seen.add(n);
+    if (n.length >= 3 && n !== t) seen.add(n);
+    // Also add uppercase version
+    const u = t.toUpperCase();
+    if (u !== t) seen.add(u);
   };
 
   add(query);
@@ -85,7 +146,7 @@ function buildSupplierSearchRefs(query: string): string[] {
     if (eq && eq.reference) add(eq.reference);
   }
 
-  // 2. Recherche étendue dans le dictionnaire
+  // 2. Recherche étendue dans le dictionnaire (OE→equivalents + equivalent→OE→other equivalents)
   for (const entry of searchDictionaryAndEquivalents(query)) {
     if (entry.oeReference) add(entry.oeReference);
     for (const eq of (entry.equivalents || [])) {
@@ -93,7 +154,23 @@ function buildSupplierSearchRefs(query: string): string[] {
     }
   }
 
-  return Array.from(seen).slice(0, 3);
+  // 3. Recherche inverse : si la query est une ref d'équivalent, trouver l'OE et ses autres équivalents
+  const { DICTIONARY_DB } = require('@/lib/equivalentsDictionary');
+  const qNorm = normalizeRef(query);
+  for (const [, entry] of Object.entries(DICTIONARY_DB as Record<string, any>)) {
+    const isEqMatch = (entry.equivalents || []).some((eq: any) =>
+      normalizeRef(eq.reference || '') === qNorm ||
+      (eq.reference || '').toUpperCase() === query.toUpperCase()
+    );
+    if (isEqMatch) {
+      add(entry.oeReference);
+      for (const eq of (entry.equivalents || [])) {
+        if (eq && eq.reference) add(eq.reference);
+      }
+    }
+  }
+
+  return Array.from(seen).slice(0, 10);
 }
 
 function dedupeB2BItems(items: any[]): any[] {
@@ -238,7 +315,7 @@ async function scrapeSTEQ(supplierId: string, query: string, b2bLogin: string, b
     const loginParams = new URLSearchParams();
     loginParams.append("UserCode", b2bLogin);
     loginParams.append("UserPassword", b2bPassword);
-    loginParams.append("UserSubmit", "“ E N T R E R ”");
+    loginParams.append("UserSubmit", " E N T R E R ");
     const loginRes = await fetchWithTimeout("https://b2bsteq.com/", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0", "Cookie": cookie },
@@ -396,135 +473,129 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. MOSAIQUE AUTO  — plateforme commune à UNIVERS AUTO & ROUTE X
-//    (uag.mosaique-auto.com / parx.mosaique-auto.com)
+// 3. MOSAIQUE AUTO  — plateforme commune à UNIVERS AUTO, ROUTE X, SOCOFA
+//    (uag.mosaique-auto.com / parx.mosaique-auto.com / espacepro.socofagros.com)
 // ─────────────────────────────────────────────────────────────────────────────
-async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl: string) {
+async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    const baseUrl = b2bUrl.replace(/\/$/, '');
+    let baseUrl = "https://parx.mosaique-auto.com";
+    if (b2bUrl) {
+      try {
+        const u = new URL(b2bUrl);
+        baseUrl = `${u.protocol}//${u.host}`;
+      } catch {}
+    }
+
     let cookie = supplierCookies[supplierId] || "";
 
     if (!cookie) {
-      // 1. GET initial session
-      const r1 = await fetch(`${baseUrl}/`, {
-        headers: { "User-Agent": "Mozilla/5.0" }
+      // Step 1: GET initial session cookie
+      const r1 = await robustFetch(`${baseUrl}/auth`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
       });
       const initCookie = r1.headers.get("set-cookie") || "";
-      const matchInit = initCookie.match(/PHPSESSID=[^;]+/i);
-      const sessCookie = matchInit ? matchInit[0] : "";
+      const matchSess = initCookie.match(/PHPSESSID=[^;]+/i);
+      if (matchSess) cookie = matchSess[0];
 
-      // 2. POST /auth login
-      const formBody = new URLSearchParams({ login: b2bLogin, pass: b2bPassword });
-      const authRes = await fetch(`${baseUrl}/auth`, {
+      // Step 2: POST login with form params login & pass
+      const loginParams = new URLSearchParams({
+        login: b2bLogin,
+        pass: b2bPassword
+      });
+
+      const r2 = await robustFetch(`${baseUrl}/auth`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Mozilla/5.0",
-          "Cookie": sessCookie
+          "Cookie": cookie,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": `${baseUrl}/auth`
         },
-        body: formBody.toString()
+        body: loginParams.toString()
       });
 
-      const authCookies = authRes.headers.get("set-cookie") || sessCookie;
-      const matchAuth = authCookies.match(/PHPSESSID=[^;]+/i);
-      cookie = matchAuth ? matchAuth[0] : sessCookie;
+      const loginCookie = r2.headers.get("set-cookie") || "";
+      const matchSess2 = loginCookie.match(/PHPSESSID=[^;]+/i);
+      if (matchSess2) cookie = matchSess2[0];
       if (cookie) supplierCookies[supplierId] = cookie;
     }
 
+    // Step 3: Search using multi-reference equivalents from dictionary
+    const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
-    // 1. Direct article search by ref (getArticlebyref)
-    try {
-      const artRes = await fetch(`${baseUrl}/?api=getArticlebyref&lu=1`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookie,
-          "User-Agent": "Mozilla/5.0",
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: new URLSearchParams({ jsonDataApiTransfert: JSON.stringify({ ref: query }) }).toString()
-      });
-      if (artRes.ok) {
-        const artJson = await artRes.json();
-        const master = artJson?.master;
-        if (master && (master.prix_u_ht || master.prix || master.titre)) {
-          const price = parseFloat(master.prix_u_ht || master.prix || 0) || 0;
-          const stock = parseInt(master.stockTotal || master.etat || 0) || 0;
-          items.push({
-            name: master.titre || query,
-            brand: master.titre_marque || "ORIGINE",
-            price: price,
-            discount: parseFloat(master.remise || 0) || 0,
-            availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
-            rawStock: stock,
-            available: stock > 0
-          });
+    for (const refKey of refsToTest) {
+      try {
+        const searchParams = new URLSearchParams({
+          jsonDataApiTransfert: JSON.stringify({ ref: refKey, reference: refKey })
+        });
+
+        const rSearch = await robustFetch(`${baseUrl}/auth?api=getArticlebyref&lu=1`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Cookie": cookie,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: searchParams.toString()
+        });
+
+        if (rSearch.ok) {
+          const resJson = await rSearch.json().catch(() => null);
+          const master = resJson?.master;
+          if (master && master.id_article) {
+            const stock = parseInt(master.stockTotal || 0) || 0;
+            const price = parseFloat(master.prix || master.prix_u_ht || 0) || 0;
+            const refName = master.reference || master.ref || refKey;
+
+            items.push({
+              name: refName,
+              brand: (master.titre_marque || master.marque || master.fournisseur?.nom || 'MOSAIQUE').toUpperCase().trim(),
+              designation: master.titre || `Article ${refName}`,
+              price,
+              discount: 0,
+              availability: stock > 0 ? `Disponible (${stock} en stock)` : "Sur Commande / Hors Stock",
+              rawStock: stock,
+              available: stock > 0 || price > 0,
+              matchType: normalizeRef(refName) === normalizeRef(query) ? 'DIRECT' : 'EQUIVALENCE'
+            });
+
+            if (stock > 0) break;
+          }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    // 2. TecDoc cross-reference search (recherchetecdoc)
-    try {
-      const postUrl = `${baseUrl}/?api=recherchetecdoc&lu=1`;
-      const payload = {
-        action: "loadData",
-        filter: { ref: query, reference: query, search: query, q: query },
-        data: { ref: query, reference: query, search: query }
-      };
-
-      const searchRes = await fetch(postUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookie,
-          "User-Agent": "Mozilla/5.0",
-          "X-Requested-With": "XMLHttpRequest"
-        },
-        body: new URLSearchParams({ jsonDataApiTransfert: JSON.stringify(payload) }).toString()
-      });
-
-      if (searchRes.ok) {
-        const json = await searchRes.json();
-        const master = json.master || json;
-        const catalogsParts = master.catalogsParts?.list || [];
-        const rawList = Array.isArray(catalogsParts) ? catalogsParts.flat() : [];
-        const validArticles = rawList.filter((item: any) => item && (item.marque || item.titre || item.refsearch));
-
-        for (const i of validArticles.slice(0, 10)) {
-          const price = parseFloat(i.price || i.prix || i.pu_ht || 0) || 0;
-          const stock = parseInt(i.stock || i.qte || i.qty || 0) || 0;
-          items.push({
-            name: i.titre || i.refsearch || i.reference || query,
-            brand: i.marque || "MOSAIQUE-AUTO",
-            price: price,
-            discount: parseFloat(i.remise || 0) || 0,
-            availability: stock > 0 ? "Disponible en Stock" : "Sur Commande",
-            rawStock: stock,
-            available: stock > 0
-          });
-        }
-      }
-    } catch {}
-
-    if (items.length > 0) {
-      const best = items.find((i: any) => i.available && i.price > 0) || items.find((i: any) => i.price > 0) || items[0];
+    const list = dedupeB2BItems(items);
+    if (list.length > 0) {
+      const best = pickBestB2BItem(list);
       return {
         price: best.price,
         discount: best.discount,
         availability: best.availability,
         rawStock: best.rawStock,
         available: best.available,
-        items: items
+        items: list
       };
     }
 
-    return { price: 0, discount: 0, available: false, availability: `Portail Mosaique-Auto connecté. Référence ${query} non trouvée.`, items: [] };
+    return {
+      price: 0, discount: 0, available: false,
+      availability: `Mosaique B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`,
+      items: []
+    };
+
   } catch (err: any) {
-    return { price: 0, discount: 0, available: false, availability: `Erreur Mosaique-Auto: ${err.message}`, items: [] };
+    return {
+      price: 0, discount: 0, available: false,
+      availability: `Erreur Mosaique Auto: ${err.message}`,
+      items: []
+    };
   }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4. SAGAP  (b2b.sagap.tn)
@@ -1472,6 +1543,40 @@ async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCRAPER MAP — expose chaque scraper par nom pour le moteur de repli
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Map des scrapers indexée par nom de fournisseur (UPPERCASE) */
+function buildScraperFnMap(): Map<string, (supplierId: string, query: string, login: string, password: string, url?: string | null) => Promise<any>> {
+  type ScraperFn = (supplierId: string, query: string, login: string, password: string, url?: string | null) => Promise<any>;
+  const entries: [string, ScraperFn][] = [
+    ['STEQ',         (id, q, l, p)      => scrapeSTEQ(id, q, l, p)],
+    ['FAD',          (id, q, l, p, u)   => scrapeFAD(id, q, l, p, u)],
+    ['UNIVERS AUTO', (id, q, l, p, u)   => scrapeMosaiqueAuto(id, q, l, p, u)],
+    ['ROUTE X',      (id, q, l, p, u)   => scrapeMosaiqueAuto(id, q, l, p, u)],
+    ['STE ROUTE X',  (id, q, l, p, u)   => scrapeMosaiqueAuto(id, q, l, p, u)],
+    ['SAGAP',        (id, q, l, p)      => scrapeSAGAP(id, q, l, p)],
+    ['CDG',          (id, q, l, p)      => scrapeCDG(id, q, l, p)],
+    ['GPG',          (id, q, l, p)      => scrapeGPG(id, q, l, p)],
+    ['ITALCAR',      (id, q, l, p)      => scrapeITALCAR(id, q, l, p)],
+    ['PROPARTS',     (id, q, l, p, u)   => scrapePROPARTS(id, q, l, p, u)],
+    ['SOCOFA',       (id, q, l, p)      => scrapeSOCOFA(id, q, l, p)],
+    ['SOCOFA GROS',  (id, q, l, p)      => scrapeSOCOFA(id, q, l, p)],
+    ['AFRICA',       (id, q, l, p)      => scrapeAFRICA(id, q, l, p)],
+    ['AAP',          (id, q, l, p)      => scrapeAFRICA(id, q, l, p)],
+    ['ALPHA FORD',   (id, q, l, p)      => scrapeALPHAFORD(id, q, l, p)],
+    ['SOPIC',        (id, q, l, p)      => scrapeSOPIC(id, q, l, p)],
+    ['CAR GROS',     (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
+    ['CARGROS',      (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
+    // Fallback générique pour tout fournisseur non reconnu
+    ['DEFAULT',      (id, q, l, p, u)   => scrapeMosaiqueAuto(id, q, l, p, u)],
+  ];
+  return new Map(entries);
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DISPATCHER — route chaque fournisseur vers le bon scraper
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1592,7 +1697,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
 }
 
 function supplierSearchTimeoutMs(name: string): number {
-  return 2500;
+  return 10000;
 }
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs?: number): Promise<any> {
   const effectiveTimeout = timeoutMs ?? supplierSearchTimeoutMs(supplier.name);
@@ -1669,7 +1774,10 @@ export async function POST(request: Request) {
     } = body;
     
     const supplierId = rawSupplierId || 'ALL';
-    let searchQuery = (query || reference || designation || '').trim();
+    let rawQuery = (query || reference || designation || '').trim();
+    // Normalisation stricte de la référence saisie (suppression des espaces, tirets, points, slashs)
+    let searchQuery = rawQuery.replace(/[\s\-_.\/]+/g, "").toUpperCase();
+    if (!searchQuery && rawQuery) searchQuery = rawQuery;
     
     // VIN Integration
     let vinInfo: any = null;
@@ -1749,32 +1857,37 @@ export async function POST(request: Request) {
       let liveSupplierItems: any[] = [];
       allResults.forEach(r => { if (r.items && Array.isArray(r.items)) liveSupplierItems.push(...r.items); });
 
-      // 2. FALLBACK AUTOMATIQUE AUX ÉQUIVALENCES
-      // Si aucun article DISPONIBLE n'est trouvé, on tente les équivalences
+      // 2. MOTEUR DE REPLI AUTOMATIQUE (Fallback Engine 5 étapes)
+      // Si aucun article DISPONIBLE n'est trouvé, on lance la recherche en repli structurée
       const hasAvailable = liveSupplierItems.some(i => i.available || i.rawStock > 0);
-      
-      if (!hasAvailable && searchQuery.length >= 4) {
-        console.log(`[B2B Search] Aucun stock direct pour ${searchQuery}. Tentative par Équivalences...`);
-        const equivalents = getEquivalentsForRef(searchQuery);
-        const eqRefs = equivalents
-          .filter(e => e.reference !== searchQuery)
-          .map(e => e.reference)
-          .slice(0, 5); // Limiter pour ne pas saturer
+      let fallbackResult: FallbackResult | null = null;
 
-        if (eqRefs.length > 0) {
-          const eqResults = await Promise.all(
-            preparedSuppliers.flatMap(s => 
-              eqRefs.map(ref => searchSingleSupplierWithTimeout(s, ref, 5000))
-            )
-          );
-          
-          eqResults.forEach(r => { 
-            if (r.items && Array.isArray(r.items)) {
-              r.items.forEach((it: any) => {
-                liveSupplierItems.push({ ...it, matchType: 'EQUIVALENCE' });
-              });
-            }
+      if (!hasAvailable && searchQuery.length >= 3) {
+        console.log(`[B2B Search] Aucun stock direct pour "${searchQuery}". Lancement du moteur de repli 5 étapes...`);
+        
+        // Construire la map des scrapers
+        const scraperFnMap = buildScraperFnMap();
+
+        // Construire la liste des refs déjà testées (éviter les doublons)
+        const alreadyTriedRefs = buildSupplierSearchRefs(searchQuery);
+
+        // Lancer le moteur de repli
+        fallbackResult = await runFallbackSearch(
+          searchQuery,
+          preparedSuppliers,
+          alreadyTriedRefs,
+          allResults,
+          scraperFnMap
+        );
+
+        if (fallbackResult.success) {
+          console.log(`[B2B Search] ✅ Repli réussi: ${fallbackResult.items.length} articles via [${fallbackResult.foundAt.join(', ')}]`);
+          console.log(`[B2B Search] ${formatFallbackSummary(fallbackResult)}`);
+          fallbackResult.items.forEach((it: any) => {
+            liveSupplierItems.push({ ...it, matchType: 'FALLBACK' });
           });
+        } else {
+          console.log(`[B2B Search] ❌ Repli épuisé pour "${searchQuery}" — ${fallbackResult.totalAttemptsCount} tentatives, ${fallbackResult.durationMs}ms`);
         }
       }
 
@@ -1871,7 +1984,18 @@ export async function POST(request: Request) {
         stock: bestItem ? bestItem.rawStock : 0,
         availability: bestItem ? (bestItem.availability || (bestItem.available ? 'Disponible' : 'Sur Commande')) : 'Résultats extraits des fournisseurs',
         items: combinedItems,
-        suppliersBreakdown: allResults
+        suppliersBreakdown: allResults,
+        // Journal de repli structuré (null si non déclenché)
+        fallbackLogs: fallbackResult?.logs || null,
+        fallbackSummary: fallbackResult ? formatFallbackSummary(fallbackResult) : null,
+        fallbackStats: fallbackResult ? {
+          triggered: true,
+          success: fallbackResult.success,
+          totalAttempts: fallbackResult.totalAttemptsCount,
+          durationMs: fallbackResult.durationMs,
+          foundAt: fallbackResult.foundAt,
+          finalRef: fallbackResult.finalRef,
+        } : { triggered: false },
       };
 
     } else {

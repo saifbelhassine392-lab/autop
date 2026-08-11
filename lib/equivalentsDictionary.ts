@@ -26,24 +26,62 @@ export interface PartDictionaryEntry {
 // Dictionnaire étendu de correspondances courantes (Peugeot, Citroën, Renault, VW, Audi, BMW, Mercedes, Ford)
 export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
   // Peugeot / Citroën — Kit embrayage (réf. courante robot B2B)
+  // Références réelles STEQ : 623332500 (LUK RepSet), 832427 (VALEO), MK10231 (MECARM)
   '1611273080': {
     oeReference: '1611273080',
     designation: "KIT D'EMBRAYAGE COMPLET PEUGEOT 308 / 3008 / C4",
     category: 'Embrayage',
     equivalents: [
-      { brand: 'PEUGEOT / CITROËN', reference: '1611273080', type: 'OE', designation: 'Kit embrayage Origine PSA' },
-      { brand: 'VALEO', reference: '826576', type: 'ADAPTABLE', designation: 'Kit embrayage Valeo', estimatedPrice: 241.0 },
+      { brand: 'PEUGEOT / CITROEN', reference: '1611273080', type: 'OE', designation: 'Kit embrayage Origine PSA' },
+      { brand: 'LUK', reference: '623332500', type: 'ADAPTABLE', designation: 'Kit embrayage LuK RepSet 3P', estimatedPrice: 450.0 },
       { brand: 'LUK', reference: '624335809', type: 'ADAPTABLE', designation: 'Kit embrayage LuK', estimatedPrice: 255.0 },
-      { brand: 'SACHS', reference: '3000950636', type: 'ADAPTABLE', designation: 'Kit embrayage Sachs', estimatedPrice: 248.0 },
+      { brand: 'VALEO', reference: '832427', type: 'ADAPTABLE', designation: 'Kit embrayage Valeo', estimatedPrice: 450.998 },
+      { brand: 'VALEO', reference: '826576', type: 'ADAPTABLE', designation: 'Kit embrayage Valeo 2P', estimatedPrice: 241.0 },
+      { brand: 'SACHS', reference: '3000951560', type: 'ADAPTABLE', designation: 'Kit embrayage Sachs', estimatedPrice: 248.0 },
+      { brand: 'SACHS', reference: '3000950636', type: 'ADAPTABLE', designation: 'Kit embrayage Sachs 3P', estimatedPrice: 248.0 },
+      { brand: 'MECARM', reference: 'MK10231', type: 'ADAPTABLE', designation: 'Kit embrayage Mecarm', estimatedPrice: 380.0 },
+      { brand: 'NPS', reference: 'P200A09', type: 'ADAPTABLE', designation: 'Kit embrayage NPS', estimatedPrice: 557.0 },
+      { brand: 'RIGIDE', reference: 'SKCK-0100152', type: 'ADAPTABLE', designation: 'Kit embrayage Rigide', estimatedPrice: 826.0 },
       { brand: 'EXEDY', reference: 'KPS035', type: 'ADAPTABLE', designation: 'Kit embrayage Exedy', estimatedPrice: 220.0 },
     ]
   },
+  // Alias lowercase pour la ref 1611273080
+  '1611273080_alias': {
+    oeReference: '1611273080',
+    designation: "KIT EMBRAYAGE PSA 1611273080",
+    category: 'Embrayage',
+    equivalents: [
+      { brand: 'LUK', reference: '623332500', type: 'ADAPTABLE', designation: 'LUK RepSet 3P', estimatedPrice: 450.0 },
+      { brand: 'VALEO', reference: '832427', type: 'ADAPTABLE', designation: 'Valeo Kit EMB', estimatedPrice: 450.998 },
+      { brand: 'MECARM', reference: 'MK10231', type: 'ADAPTABLE', designation: 'Mecarm KIT', estimatedPrice: 380.0 },
+    ]
+  },
+
+  // === REFERENCE 1611266580 (Kit embrayage PSA 301/BERLINGO B9 1.6 HDi) ===
+  '1611266580': {
+    oeReference: '1611266580',
+    designation: "KIT D'EMBRAYAGE PEUGEOT 301 / 308 / BERLINGO B9 1.6 HDI (3P EMB)",
+    category: 'Embrayage',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '1611266580', type: 'OE', designation: 'Kit embrayage Origine PSA B9 1.6 HDI' },
+      { brand: 'LUK', reference: '623332500', type: 'ADAPTABLE', designation: 'LUK RepSet 3P Kit EMB B9 1.6 HDI MINI COOPER R56', estimatedPrice: 450.0 },
+      { brand: 'LUK', reference: '624335809', type: 'ADAPTABLE', designation: 'LuK Kit Embrayage', estimatedPrice: 255.0 },
+      { brand: 'VALEO', reference: '832427', type: 'ADAPTABLE', designation: 'VALEO Kit EMB 3P B9 301/BERLINGO B9 1.6 HDI', estimatedPrice: 450.998 },
+      { brand: 'VALEO', reference: '826576', type: 'ADAPTABLE', designation: 'VALEO Kit 2P', estimatedPrice: 241.0 },
+      { brand: 'SACHS', reference: '3000951560', type: 'ADAPTABLE', designation: 'Sachs 3000951560', estimatedPrice: 248.0 },
+      { brand: 'MECARM', reference: 'MK10231', type: 'ADAPTABLE', designation: 'MECARM Kit EMB', estimatedPrice: 380.0 },
+      { brand: 'PEUGEOT / CITROEN', reference: '2051Z0', type: 'OE', designation: 'Kit EMB 3P PSA 301/BERLINGO B9 1.6 HDI 08-', estimatedPrice: 0 },
+      { brand: 'PEUGEOT / CITROEN', reference: '2051Z1_S', type: 'OE', designation: 'Kit EMB 3P PSA BERLINGO B9 EST 1.6 HDI 08-', estimatedPrice: 0 },
+    ]
+  },
+
+  // === REFERENCE 1306J5 (Bouchon vase expansion) ===
   '1306J5': {
     oeReference: '1306J5',
     designation: "BOUCHON DE VASE D'EXPANSION / RADIATEUR PEUGEOT CITROEN (1.4 BAR)",
     category: 'Refroidissement',
     equivalents: [
-      { brand: 'PEUGEOT / CITROËN', reference: '1306J5', type: 'OE', designation: 'Bouchon vase d\'expansion Origine PSA' },
+      { brand: 'PEUGEOT / CITROEN', reference: '1306J5', type: 'OE', designation: 'Bouchon vase d\'expansion Origine PSA' },
       { brand: 'CANSU', reference: 'CAN1306J5', type: 'ADAPTABLE', designation: 'Bouchon radiateur Cansu', estimatedPrice: 8.74 },
       { brand: 'METALCAUCHO', reference: '03025', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Metalcaucho', estimatedPrice: 9.50 },
       { brand: 'VALEO', reference: '720300', type: 'ADAPTABLE', designation: 'Bouchon radiateur Valeo', estimatedPrice: 12.00 },
@@ -51,6 +89,49 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
       { brand: 'VERNET', reference: 'RC0018', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Calorstat BY Vernet', estimatedPrice: 10.00 },
       { brand: 'FEBI BILSTEIN', reference: '22084', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Febi Bilstein', estimatedPrice: 11.50 },
       { brand: 'SASIC', reference: '3060001', type: 'ADAPTABLE', designation: 'Bouchon vase d\'expansion Sasic', estimatedPrice: 9.80 },
+    ]
+  },
+  // Alias lowercase 1306j5
+  '1306j5': {
+    oeReference: '1306J5',
+    designation: "BOUCHON VASE EXPANSION PSA 1306J5",
+    category: 'Refroidissement',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '1306J5', type: 'OE', designation: 'Bouchon Origine PSA' },
+      { brand: 'CANSU', reference: 'CAN1306J5', type: 'ADAPTABLE', designation: 'Cansu 1306J5', estimatedPrice: 8.74 },
+      { brand: 'METALCAUCHO', reference: '03025', type: 'ADAPTABLE', designation: 'Metalcaucho 03025', estimatedPrice: 9.50 },
+      { brand: 'GATES', reference: 'RC234', type: 'ADAPTABLE', designation: 'Gates RC234', estimatedPrice: 14.50 },
+    ]
+  },
+
+  // === REFERENCE 1336AX (Courroie de distribution Peugeot 1.4 / 1.6 8V) ===
+  '1336AX': {
+    oeReference: '1336AX',
+    designation: "COURROIE DE DISTRIBUTION PEUGEOT / CITROEN 1.4 HDI / 1.6 8V",
+    category: 'Distribution & Moteur',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '1336AX', type: 'OE', designation: 'Courroie distribution Origine PSA 1.4 HDI' },
+      { brand: 'GATES', reference: '5397XS', type: 'ADAPTABLE', designation: 'Courroie distribution Gates PowerGrip', estimatedPrice: 35.00 },
+      { brand: 'GATES', reference: '5397', type: 'ADAPTABLE', designation: 'Courroie distribution Gates', estimatedPrice: 30.00 },
+      { brand: 'DAYCO', reference: '941063', type: 'ADAPTABLE', designation: 'Courroie distribution Dayco', estimatedPrice: 28.50 },
+      { brand: 'CONTINENTAL', reference: 'CT988', type: 'ADAPTABLE', designation: 'Courroie distribution Continental', estimatedPrice: 32.00 },
+      { brand: 'SKF', reference: 'VKMA 03219', type: 'ADAPTABLE', designation: 'Kit distribution SKF (courroie+galets)', estimatedPrice: 95.00 },
+      { brand: 'INA', reference: '530 0382 10', type: 'ADAPTABLE', designation: 'Kit distribution INA', estimatedPrice: 90.00 },
+      { brand: 'MAGNETI MARELLI', reference: '341316070008', type: 'ADAPTABLE', designation: 'Courroie distribution Magneti Marelli', estimatedPrice: 29.00 },
+      { brand: 'VALEO', reference: 'KV831', type: 'ADAPTABLE', designation: 'Kit distribution Valeo (courroie + galets)', estimatedPrice: 85.00 },
+      { brand: 'HUTCHINSON', reference: 'HT 8MX1080', type: 'ADAPTABLE', designation: 'Courroie distribution Hutchinson', estimatedPrice: 27.50 },
+    ]
+  },
+  // Alias lowercase 1336ax
+  '1336ax': {
+    oeReference: '1336AX',
+    designation: "COURROIE DISTRIBUTION PSA 1336AX",
+    category: 'Distribution & Moteur',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '1336AX', type: 'OE', designation: 'Courroie Origine PSA' },
+      { brand: 'GATES', reference: '5397XS', type: 'ADAPTABLE', designation: 'Gates 5397XS', estimatedPrice: 35.00 },
+      { brand: 'DAYCO', reference: '941063', type: 'ADAPTABLE', designation: 'Dayco 941063', estimatedPrice: 28.50 },
+      { brand: 'CONTINENTAL', reference: 'CT988', type: 'ADAPTABLE', designation: 'Continental CT988', estimatedPrice: 32.00 },
     ]
   },
 
@@ -255,6 +336,119 @@ export const TUNISIAN_SLANG_NORMALIZER: Record<string, string> = {
 export function normalizeRef(ref: string): string {
   if (!ref) return '';
   return ref.trim().toUpperCase().replace(/[\s\.\-_]/g, '');
+}
+
+/**
+ * Préfixes de marques aftermarket courantes sur le marché tunisien.
+ * Utilisés pour la variante "BRAND_VARIANT" de la recherche en repli.
+ */
+const TUNISIAN_BRAND_PREFIXES: { prefix: string; brand: string }[] = [
+  { prefix: 'CAN',  brand: 'CANSU' },
+  { prefix: 'MTC',  brand: 'METALCAUCHO' },
+  { prefix: 'VRT',  brand: 'VERNET' },
+  { prefix: 'GTR',  brand: 'GATES' },
+  { prefix: 'DAY',  brand: 'DAYCO' },
+  { prefix: 'CON',  brand: 'CONTINENTAL' },
+  { prefix: 'BRE',  brand: 'BREMBO' },
+  { prefix: 'LPR',  brand: 'LPR' },
+  { prefix: 'VAL',  brand: 'VALEO' },
+  { prefix: 'BOC',  brand: 'BOSCH' },
+  { prefix: 'TRW',  brand: 'TRW' },
+  { prefix: 'FER',  brand: 'FERODO' },
+  { prefix: 'SKF',  brand: 'SKF' },
+  { prefix: 'INA',  brand: 'INA' },
+  { prefix: 'MAN',  brand: 'MANN-FILTER' },
+  { prefix: 'PUR',  brand: 'PURFLUX' },
+  { prefix: 'MHL',  brand: 'MAHLE' },
+  { prefix: 'SAC',  brand: 'SACHS' },
+  { prefix: 'LUK',  brand: 'LUK' },
+  { prefix: 'MOG',  brand: 'MOOG' },
+  { prefix: 'FEB',  brand: 'FEBI BILSTEIN' },
+  { prefix: 'SAS',  brand: 'SASIC' },
+];
+
+/**
+ * Génère une liste de variantes d'une référence pièce pour maximiser les chances
+ * de correspondance lors des recherches chez les fournisseurs B2B.
+ *
+ * Stratégies appliquées :
+ * 1. Originale telle que saisie
+ * 2. Normalisée (uppercase, sans espaces/tirets/points)
+ * 3. Nettoyée (suppression de tous les caractères non alphanumériques)
+ * 4. Sans zéros de tête (ex: "01306J5" → "1306J5")
+ * 5. Sans préfixe de marque connu (ex: "CAN1306J5" → "1306J5")
+ * 6. Avec préfixe de marques aftermarket ajouté (ex: "1306J5" → "CAN1306J5")
+ * 7. Correction typographique OCR : 0↔O, 1↔I, 5↔S
+ *
+ * @param rawRef Référence brute saisie par l'utilisateur ou extraite du catalogue
+ * @returns Tableau de variantes dédupliquées (max 20)
+ */
+export function generateRefVariants(rawRef: string): string[] {
+  if (!rawRef || rawRef.trim().length < 3) return rawRef ? [rawRef.trim().toUpperCase()] : [];
+
+  const seen = new Set<string>();
+  const add = (v: string) => {
+    const t = v?.trim().toUpperCase();
+    if (t && t.length >= 3) seen.add(t);
+  };
+
+  const base = rawRef.trim().toUpperCase();
+  add(base);
+
+  // 1. Normalisée standard (sans espaces/tirets/points)
+  const normalized = base.replace(/[\s.\-_/\\]/g, '');
+  add(normalized);
+
+  // 2. Alphanumérique pur (suppression de TOUS les caractères non alphanumériques)
+  const alnum = base.replace(/[^A-Z0-9]/g, '');
+  add(alnum);
+
+  // 3. Sans zéros de tête
+  const noLeadZero = alnum.replace(/^0+/, '');
+  add(noLeadZero);
+
+  // 4. Sans préfixe de marque connu (ex: CAN1306J5 → 1306J5)
+  for (const { prefix } of TUNISIAN_BRAND_PREFIXES) {
+    if (alnum.startsWith(prefix) && alnum.length > prefix.length + 3) {
+      const stripped = alnum.slice(prefix.length);
+      add(stripped);
+      // aussi sans zéros de tête de la version strippée
+      add(stripped.replace(/^0+/, ''));
+    }
+  }
+
+  // 5. Avec préfixes de marques aftermarket (ex: 1306J5 → CAN1306J5)
+  // Seulement si la ref de base ne commence pas déjà par un préfixe connu
+  const hasKnownPrefix = TUNISIAN_BRAND_PREFIXES.some(({ prefix }) => alnum.startsWith(prefix));
+  if (!hasKnownPrefix) {
+    let addedPrefixCount = 0;
+    for (const { prefix } of TUNISIAN_BRAND_PREFIXES) {
+      if (addedPrefixCount >= 4) break; // Limiter pour ne pas saturer
+      add(`${prefix}${alnum}`);
+      addedPrefixCount++;
+    }
+  }
+
+  // 6. Corrections typographiques OCR (O↔0, I↔1, S↔5)
+  const ocr1 = alnum.replace(/O/g, '0').replace(/I/g, '1').replace(/S/g, '5');
+  if (ocr1 !== alnum) add(ocr1);
+  const ocr2 = alnum.replace(/0/g, 'O').replace(/1/g, 'I').replace(/5/g, 'S');
+  if (ocr2 !== alnum) add(ocr2);
+
+  // 7. Avec espace(s) insérés aux positions courantes (ex: "1306J5" → "1306 J5")
+  if (alnum.length >= 6 && alnum.length <= 10) {
+    const mid = Math.floor(alnum.length / 2);
+    add(`${alnum.slice(0, mid)} ${alnum.slice(mid)}`);
+  }
+
+  return Array.from(seen).slice(0, 20);
+}
+
+/**
+ * Retourne les préfixes de marque aftermarket connus (pour CDG_ANALYSIS / BRAND_VARIANT)
+ */
+export function getTunisianBrandPrefixes() {
+  return TUNISIAN_BRAND_PREFIXES;
 }
 
 /**
