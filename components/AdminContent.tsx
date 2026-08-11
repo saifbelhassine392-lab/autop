@@ -6468,47 +6468,60 @@ function SectionHistoriquePrixArticles() {
             {loadingOdooHistory ? (
               <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-wider flex flex-col items-center justify-center gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-                <span>Interrogation des logs d'achats et ventes Odoo ERP en temps réel...</span>
+                <span>Interrogation des devis, ventes et achats Odoo ERP en temps réel...</span>
               </div>
-            ) : !odooHistoryData?.hasHistory || (!odooHistoryData.purchases?.length && !odooHistoryData.sales?.length) ? (
-              /* Message si aucun achat / historique */
+            ) : !odooHistoryData?.hasHistory && !odooHistoryData?.hasPurchases && !odooHistoryData?.hasSalesOrQuotes ? (
+              /* Message si aucune transaction trouvée */
               <div className="text-center py-12 px-6 bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-3xl space-y-2 my-4">
                 <div className="text-3xl">⚠️</div>
                 <h4 className="text-base font-black text-amber-950 uppercase tracking-wide">
-                  Aucun historique d'achat pour cette référence
+                  Aucun historique d'achat ni devis pour cette référence
                 </h4>
                 <p className="text-xs text-amber-800 font-medium max-w-md mx-auto">
-                  La référence <strong>"{odooSearchRef}"</strong> n'a fait l'objet d'aucune commande d'achat fournisseur enregistrée dans la base Odoo.
+                  La référence <strong>"{odooSearchRef}"</strong> n'a fait l'objet d'aucun devis envoyé, vente client ou commande fournisseur enregistrée dans la base Odoo.
                 </p>
               </div>
             ) : (
               <div className="space-y-6">
                 {/* 4 Cartes Synthèse (En Noir et Gros Gras) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 flex flex-col justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-1">
-                      🏬 FOURNISSEUR (DERNIER ACHAT)
+                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 mb-1">
+                      🏷️ DERNIER PRIX DE VENTE / DEVIS (HT)
                     </span>
-                    <span className="text-sm font-black text-zinc-950 uppercase truncate">
-                      {odooHistoryData.summary.lastSupplier || 'Inconnu'}
-                    </span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xl font-black text-zinc-950 font-mono">
+                        {odooHistoryData.summary.lastSellingPrice > 0 ? `${odooHistoryData.summary.lastSellingPrice.toFixed(3)} TND` : '-'}
+                      </span>
+                    </div>
+                    {odooHistoryData.summary.lastQuoteStatus && (
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase mt-1">
+                        {odooHistoryData.summary.lastQuoteStatus} ({odooHistoryData.summary.lastQuoteNumber || 'SO'})
+                      </span>
+                    )}
                   </div>
 
                   <div className="bg-purple-50/60 border border-purple-200 rounded-2xl p-4 flex flex-col justify-between">
                     <span className="text-[10px] font-black uppercase tracking-wider text-purple-900 mb-1">
                       💰 DERNIER PRIX D'ACHAT (HT)
                     </span>
-                    <span className="text-lg font-black text-zinc-950 font-mono">
-                      {odooHistoryData.summary.lastPurchasePrice ? `${odooHistoryData.summary.lastPurchasePrice.toFixed(3)} TND` : '-'}
+                    <span className="text-xl font-black text-zinc-950 font-mono">
+                      {odooHistoryData.summary.lastPurchasePrice > 0 ? `${odooHistoryData.summary.lastPurchasePrice.toFixed(3)} TND` : '-'}
+                    </span>
+                    <span className="text-[10px] font-bold text-purple-700 uppercase mt-1 truncate">
+                      {odooHistoryData.summary.lastSupplier || 'Non acheté'}
                     </span>
                   </div>
 
-                  <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4 flex flex-col justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-900 mb-1">
-                      🏷️ DERNIER PRIX DE VENTE (HT)
+                  <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-zinc-500 mb-1">
+                      👥 DERNIER CLIENT (DEVIS / VENTE)
                     </span>
-                    <span className="text-lg font-black text-zinc-950 font-mono">
-                      {odooHistoryData.summary.lastSellingPrice ? `${odooHistoryData.summary.lastSellingPrice.toFixed(3)} TND` : '-'}
+                    <span className="text-xs font-black text-zinc-950 uppercase truncate">
+                      {odooHistoryData.summary.lastClient || 'Aucun devis client'}
+                    </span>
+                    <span className="text-[10px] font-bold text-zinc-500 mt-1">
+                      {odooHistoryData.summary.lastSaleDate ? `Le ${odooHistoryData.summary.lastSaleDate}` : '-'}
                     </span>
                   </div>
 
@@ -6519,22 +6532,99 @@ function SectionHistoriquePrixArticles() {
                     <span className="text-sm font-black text-zinc-950 font-mono">
                       {odooHistoryData.summary.lastPurchaseDate || '-'}
                     </span>
+                    <span className="text-[10px] font-bold text-zinc-500 mt-1">
+                      {odooHistoryData.purchases?.length || 0} achat(s) enregistré(s)
+                    </span>
                   </div>
                 </div>
 
-                {/* Tableau Chronologique des Achats (Odoo) */}
-                {odooHistoryData.purchases && odooHistoryData.purchases.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
-                        <span>📦 HISTORIQUE CHRONOLOGIQUE DES ACHATS FOURNISSEURS</span>
-                        <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full text-[10px]">
-                          {odooHistoryData.purchases.length} TRANSACTION(S)
-                        </span>
-                      </h4>
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase">ÉVOLUTION DES PRIX</span>
-                    </div>
+                {/* Tableau 1 : Devis & Ventes Clients (Odoo) */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
+                      <span>👥 HISTORIQUE DES DEVIS & VENTES CLIENTS ODOO</span>
+                      <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        {odooHistoryData.sales?.length || 0} ENREGISTREMENT(S)
+                      </span>
+                    </h4>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase">DEVIS ENVOYÉS & FACTURES</span>
+                  </div>
 
+                  {odooHistoryData.sales && odooHistoryData.sales.length > 0 ? (
+                    <div className="border border-zinc-200 rounded-2xl overflow-hidden shadow-sm bg-white">
+                      <table className="w-full text-xs text-left">
+                        <thead>
+                          <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
+                            <th className="px-4 py-3">DATE</th>
+                            <th className="px-4 py-3">CLIENT</th>
+                            <th className="px-4 py-3">N° DEVIS / COMMANDE</th>
+                            <th className="px-4 py-3 text-center">QTÉ</th>
+                            <th className="px-4 py-3 text-right text-emerald-800">PRIX PROPOSÉ / VENTE (HT)</th>
+                            <th className="px-4 py-3 text-center">STATUT DEVIS / VENTE</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-100">
+                          {odooHistoryData.sales.map((so: any, idx: number) => {
+                            const isQuoteSent = so.state === 'Devis Envoyé';
+                            const isQuoteDraft = so.state === 'Devis Brouillon';
+                            const isSold = so.state === 'Vente Confirmée' || so.state === 'Vente Livrée / Facturée' || so.state === 'Facture Validée';
+
+                            return (
+                              <tr key={idx} className={idx === 0 ? "bg-emerald-50/40 font-bold" : "hover:bg-zinc-50"}>
+                                <td className="px-4 py-3 font-mono font-black text-zinc-950">
+                                  {so.date}
+                                </td>
+                                <td className="px-4 py-3 font-black text-zinc-950 uppercase">
+                                  {so.clientName}
+                                </td>
+                                <td className="px-4 py-3 font-mono font-black text-purple-900">
+                                  {so.orderNumber}
+                                </td>
+                                <td className="px-4 py-3 text-center font-mono font-black text-zinc-950">
+                                  {so.quantity}
+                                </td>
+                                <td className="px-4 py-3 text-right font-mono font-black text-zinc-950 text-sm">
+                                  {so.sellingPrice ? `${so.sellingPrice.toFixed(3)} TND` : '-'}
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                                    isQuoteSent
+                                      ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                                      : isQuoteDraft
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : isSold
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                      : 'bg-zinc-100 text-zinc-700'
+                                  }`}>
+                                    {isQuoteSent ? '🟣 DEVIS ENVOYÉ' : so.state}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200 text-center text-xs text-zinc-500 font-bold uppercase">
+                      Aucun devis ni vente client enregistré dans Odoo pour cette référence
+                    </div>
+                  )}
+                </div>
+
+                {/* Tableau 2 : Achats Fournisseurs (Odoo) */}
+                <div className="space-y-2 pt-3 border-t border-zinc-200">
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
+                      <span>📦 HISTORIQUE DES ACHATS FOURNISSEURS ODOO</span>
+                      <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                        {odooHistoryData.purchases?.length || 0} ACHAT(S)
+                      </span>
+                    </h4>
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase">ÉVOLUTION DES PRIX D'ACHAT</span>
+                  </div>
+
+                  {odooHistoryData.purchases && odooHistoryData.purchases.length > 0 ? (
                     <div className="border border-zinc-200 rounded-2xl overflow-hidden shadow-sm bg-white">
                       <table className="w-full text-xs text-left">
                         <thead>
@@ -6542,8 +6632,8 @@ function SectionHistoriquePrixArticles() {
                             <th className="px-4 py-3">DATE D'ACHAT</th>
                             <th className="px-4 py-3">FOURNISSEUR</th>
                             <th className="px-4 py-3">N° COMMANDE (PO)</th>
-                            <th className="px-4 py-3 text-center">QUANTITÉ</th>
-                            <th className="px-4 py-3 text-right">PRIX ACHAT UNIT. (HT)</th>
+                            <th className="px-4 py-3 text-center">QTÉ</th>
+                            <th className="px-4 py-3 text-right text-purple-900">PRIX ACHAT UNIT. (HT)</th>
                             <th className="px-4 py-3 text-center">STATUT</th>
                           </tr>
                         </thead>
@@ -6577,65 +6667,12 @@ function SectionHistoriquePrixArticles() {
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                )}
-
-                {/* Tableau des Ventes Clients (Odoo) */}
-                {odooHistoryData.sales && odooHistoryData.sales.length > 0 && (
-                  <div className="space-y-2 pt-2">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-xs font-black text-zinc-950 uppercase tracking-wider flex items-center gap-2">
-                        <span>👥 HISTORIQUE DES VENTES CLIENTS</span>
-                        <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full text-[10px]">
-                          {odooHistoryData.sales.length} VENTE(S)
-                        </span>
-                      </h4>
+                  ) : (
+                    <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-200 text-center text-xs text-zinc-500 font-bold uppercase">
+                      Aucun achat fournisseur enregistré dans Odoo pour cette référence
                     </div>
-
-                    <div className="border border-zinc-200 rounded-2xl overflow-hidden shadow-sm bg-white">
-                      <table className="w-full text-xs text-left">
-                        <thead>
-                          <tr className="bg-zinc-100 border-b border-zinc-200 text-zinc-700 font-black text-[11px] uppercase tracking-wider">
-                            <th className="px-4 py-3">DATE DE VENTE</th>
-                            <th className="px-4 py-3">CLIENT</th>
-                            <th className="px-4 py-3">N° COMMANDE (SO)</th>
-                            <th className="px-4 py-3 text-center">QUANTITÉ</th>
-                            <th className="px-4 py-3 text-right">PRIX VENTE UNIT. (HT)</th>
-                            <th className="px-4 py-3 text-center">STATUT</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-zinc-100">
-                          {odooHistoryData.sales.slice(0, 10).map((so: any, idx: number) => (
-                            <tr key={idx} className="hover:bg-zinc-50">
-                              <td className="px-4 py-3 font-mono font-black text-zinc-950">
-                                {so.date}
-                              </td>
-                              <td className="px-4 py-3 font-black text-zinc-950 uppercase">
-                                {so.clientName}
-                              </td>
-                              <td className="px-4 py-3 font-mono font-black text-emerald-800">
-                                {so.orderNumber}
-                              </td>
-                              <td className="px-4 py-3 text-center font-mono font-black text-zinc-950">
-                                {so.quantity}
-                              </td>
-                              <td className="px-4 py-3 text-right font-mono font-black text-emerald-700 text-sm">
-                                {so.sellingPrice ? `${so.sellingPrice.toFixed(3)} TND` : '-'}
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                                  so.state === 'Livré' || so.state === 'Confirmé' ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-100 text-zinc-700'
-                                }`}>
-                                  {so.state}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
