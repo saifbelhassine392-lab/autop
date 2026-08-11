@@ -543,9 +543,7 @@ async function scrapeFAD(supplierId: string, query: string, b2bLogin: string, b2
       }
     };
 
-    for (const refKey of refsToTest) {
-      await fetchFADRef(refKey, token);
-    }
+    await Promise.all(refsToTest.slice(0, 5).map(refKey => fetchFADRef(refKey, token)));
 
     const list = dedupeB2BItems(items);
     if (list.length > 0) {
@@ -578,7 +576,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
       try {
         const r1 = await robustFetch(`${baseUrl}/auth`, {
           headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" }
-        });
+        }, 4000);
         const initCookie = r1.headers.get("set-cookie") || "";
         const matchSess = initCookie.match(/PHPSESSID=[^;]+/i);
         let curCookie = matchSess ? matchSess[0] : "";
@@ -597,7 +595,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
             "Referer": `${baseUrl}/auth`
           },
           body: loginParams.toString()
-        });
+        }, 4000);
 
         const loginCookie = r2.headers.get("set-cookie") || curCookie;
         const matchSess2 = loginCookie.match(/PHPSESSID=[^;]+/i);
@@ -619,7 +617,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
     const refsToTest = buildSupplierSearchRefs(query);
     const items: any[] = [];
 
-    for (const refKey of refsToTest) {
+    await Promise.all(refsToTest.slice(0, 4).map(async (refKey) => {
       try {
         const searchParams = new URLSearchParams({
           jsonDataApiTransfert: JSON.stringify({ ref: refKey, reference: refKey })
@@ -703,7 +701,7 @@ async function scrapeMosaiqueAuto(supplierId: string, query: string, b2bLogin: s
           }
         }
       } catch {}
-    }
+    }));
 
     const list = dedupeB2BItems(items);
     if (list.length > 0) {
@@ -1977,7 +1975,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
 }
 
 function supplierSearchTimeoutMs(name: string): number {
-  return 12000;
+  return 18000;
 }
 async function searchSingleSupplierWithTimeout(supplier: any, searchQuery: string, timeoutMs?: number): Promise<any> {
   const effectiveTimeout = timeoutMs ?? supplierSearchTimeoutMs(supplier.name);
