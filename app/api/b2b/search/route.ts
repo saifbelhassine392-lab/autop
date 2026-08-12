@@ -3,6 +3,9 @@ import https from "https";
 import { getEquivalentsForRef, normalizeRef, searchDictionaryAndEquivalents } from '@/lib/equivalentsDictionary';
 import { runFallbackSearch, formatFallbackSummary, type FallbackResult } from '@/lib/fallbackSearchEngine';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Force TLS reject unauthorized to 0 globally for Tunisian HTTPS portals with custom SSL certs
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
