@@ -7,9 +7,22 @@ import { fetchProductionQuotes } from '@/lib/neonClient';
 
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const user = session.user as any;
+    const isAdmin = user.role === 'ADMIN';
+
+    const where = isAdmin ? {} : {
+      clientEmail: user.email?.trim().toLowerCase()
+    };
+
     let quotes: any[] = [];
     try {
       quotes = await prisma.quote.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         include: { items: true, managedBy: true }
       });
@@ -252,7 +265,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 })
     }
 
-    if (user.role !== 'ADMIN' && quote.clientEmail !== user.email) {
+    if (user.role !== 'ADMIN' && quote.clientEmail?.trim().toLowerCase() !== user.email?.trim().toLowerCase()) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 

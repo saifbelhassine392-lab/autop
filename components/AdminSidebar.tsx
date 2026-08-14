@@ -135,8 +135,8 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       .then(r => r.json())
       .then(d => {
         const qList = Array.isArray(d) ? d : d.data || [];
-        const reception = qList.filter((q: any) => q.status === 'pending' || q.status === 'En attente').length;
-        const traitement = qList.filter((q: any) => q.status === 'in_progress' || q.status === 'En traitement').length;
+        const reception = qList.filter((q: any) => q.status?.toUpperCase() === 'PENDING' || q.status === 'En attente' || q.status === 'pending').length;
+        const traitement = qList.filter((q: any) => q.status?.toUpperCase() === 'IN_PROGRESS' || q.status === 'En traitement' || q.status === 'in_progress').length;
         setCounts(prev => ({ ...prev, reception, traitement }));
       })
       .catch(() => {});

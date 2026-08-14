@@ -6,16 +6,36 @@ import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
 import { 
   Download, CheckCircle, MessageCircle, FileText, 
-  Plus, FileSpreadsheet, ClipboardList, Package, Receipt, X, Search, Home
+  Plus, FileSpreadsheet, ClipboardList, Package, Receipt, X, Search, Home,
+  User, MapPin, Phone, Building, Save, AlertCircle, RefreshCw, Key, ShieldCheck
 } from 'lucide-react'
 
 export default function MesDevisPage() {
   const { data: session, status } = useSession()
-  const [activeTab, setActiveTab] = useState<'devis' | 'commandes' | 'factures'>('devis')
+  const [activeTab, setActiveTab] = useState<'devis' | 'commandes' | 'factures' | 'profil'>('devis')
   const [devis, setDevis] = useState<any[]>([])
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [clientSearch, setClientSearch] = useState('')
+
+  // Profil Client State
+  const [profile, setProfile] = useState({
+    name: '',
+    firstName: '',
+    lastName: '',
+    phone: '',
+    email: '',
+    street: '',
+    city: '',
+    zipCode: '2035',
+    country: 'Tunisie',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
+  const [loadingProfile, setLoadingProfile] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileFeedback, setProfileFeedback] = useState<{ type: 'success' | 'error', message: string } | null>(null)
 
   // États pour le Bon de Commande
   const [orderModalDevis, setOrderModalDevis] = useState<any | null>(null)
@@ -35,6 +55,87 @@ export default function MesDevisPage() {
     }
   }, [shippingMethod])
 
+  const loadProfile = async () => {
+    try {
+      setLoadingProfile(true)
+      const res = await fetch("/api/user/profile")
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success && json.data) {
+          const u = json.data
+          const defaultAddr = u.addresses?.[0] || {}
+          setProfile(prev => ({
+            ...prev,
+            name: u.name || '',
+            firstName: u.firstName || '',
+            lastName: u.lastName || '',
+            phone: u.phone || '',
+            email: u.email || '',
+            street: defaultAddr.street || '',
+            city: defaultAddr.city || '',
+            zipCode: defaultAddr.zipCode || '2035',
+            country: defaultAddr.country || 'Tunisie',
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: ''
+          }))
+          if (defaultAddr.street && !shippingAddress) {
+            setShippingAddress(`${defaultAddr.street}, ${defaultAddr.city || ''}`.trim())
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Erreur chargement profil:", err)
+    } finally {
+      setLoadingProfile(false)
+    }
+  }
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setProfileFeedback(null)
+
+    if (profile.newPassword && profile.newPassword !== profile.confirmPassword) {
+      setProfileFeedback({ type: 'error', message: 'Les nouveaux mots de passe ne correspondent pas.' })
+      return
+    }
+
+    try {
+      setSavingProfile(true)
+      const res = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: profile.name,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          phone: profile.phone,
+          address: {
+            street: profile.street,
+            city: profile.city,
+            zipCode: profile.zipCode,
+            country: profile.country
+          },
+          currentPassword: profile.currentPassword || undefined,
+          newPassword: profile.newPassword || undefined
+        })
+      })
+
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setProfileFeedback({ type: 'success', message: data.message || 'Vos coordonnées ont été enregistrées avec succès.' })
+        setProfile(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }))
+      } else {
+        setProfileFeedback({ type: 'error', message: data.error || 'Erreur lors de la mise à jour du profil.' })
+      }
+    } catch (err: any) {
+      console.error("Erreur sauvegarde profil:", err)
+      setProfileFeedback({ type: 'error', message: 'Une erreur technique est survenue.' })
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
   const loadData = async () => {
     if (!session) return;
     try {
@@ -50,7 +151,8 @@ export default function MesDevisPage() {
       const unifiedList = [
         ...(Array.isArray(devisData) ? devisData : []).map((d: any) => ({
           id: d.id,
-          date: new Date(d.createdAt).toLocaleDateString('fr-FR'),
+          createdAt: d.createdAt || new Date().toISOString(),
+          date: new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR'),
           brand: d.vehicleBrand || 'Générique',
           model: d.vehicleModel || 'N/A',
           vin: d.vehicleVin || '',
@@ -73,7 +175,8 @@ export default function MesDevisPage() {
           .filter((q: any) => q.status !== 'TREATED')
           .map((q: any) => ({
             id: q.id,
-            date: new Date(q.createdAt).toLocaleDateString('fr-FR'),
+            createdAt: q.createdAt || new Date().toISOString(),
+            date: new Date(q.createdAt || Date.now()).toLocaleDateString('fr-FR'),
           brand: q.brand || 'Générique',
           model: q.model || 'N/A',
           vin: q.vin || '',
@@ -92,7 +195,7 @@ export default function MesDevisPage() {
           }))
         }))
       ];
-      unifiedList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      unifiedList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setDevis(unifiedList);
 
       // 2. Charger les commandes réelles
@@ -112,6 +215,7 @@ export default function MesDevisPage() {
   useEffect(() => {
     if (status === "authenticated") {
       loadData();
+      loadProfile();
     }
   }, [session, status]);
 
@@ -468,6 +572,7 @@ export default function MesDevisPage() {
                   { id: "devis", label: "LISTE DEVIS", icon: ClipboardList },
                   { id: "commandes", label: "SUIVI COMMANDES", icon: Package },
                   { id: "factures", label: "MES FACTURES", icon: Receipt },
+                  { id: "profil", label: "MON PROFIL & INFOS", icon: User },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -808,9 +913,259 @@ export default function MesDevisPage() {
                     </button>
                   </div>
                 ))}
+                </div>
+              );
+            })()}
+
+            {/* TAB PROFIL & COORDONNÉES */}
+            {activeTab === 'profil' && (
+              <div className="space-y-6">
+                <div className="bg-slate-900/20 border border-slate-800/40 rounded-3xl p-6 md:p-8 backdrop-blur-md shadow-xl">
+                  <div className="flex items-center justify-between border-b border-slate-800/60 pb-5 mb-6">
+                    <div>
+                      <h2 className="text-lg font-black text-white uppercase tracking-wider flex items-center gap-2.5">
+                        <User className="w-5 h-5 text-red-500" />
+                        Mes Informations Personnelles & Professionnelles
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
+                        Modifiez vos coordonnées pour faciliter le traitement de vos devis et livraisons
+                      </p>
+                    </div>
+                    <button
+                      onClick={loadProfile}
+                      disabled={loadingProfile}
+                      className="p-2.5 bg-slate-950/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition"
+                      title="Recharger mon profil"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${loadingProfile ? 'animate-spin text-red-500' : ''}`} />
+                    </button>
+                  </div>
+
+                  {profileFeedback && (
+                    <div className={`p-4 rounded-2xl mb-6 flex items-center gap-3 border text-xs font-bold ${
+                      profileFeedback.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    }`}>
+                      {profileFeedback.type === 'success' ? (
+                        <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                      )}
+                      <span>{profileFeedback.message}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSaveProfile} className="space-y-8">
+                    {/* Section 1: Identité */}
+                    <div>
+                      <h3 className="text-xs font-black text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <Building className="w-4 h-4" /> 1. IDENTITÉ & CONTACT
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Nom Complet / Raison Sociale
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.name}
+                            onChange={e => setProfile({ ...profile, name: e.target.value })}
+                            placeholder="Ex: Société Auto Express / Jean Dupont"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Numéro de Téléphone (Mobile / WhatsApp)
+                          </label>
+                          <div className="relative">
+                            <Phone className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="tel"
+                              value={profile.phone}
+                              onChange={e => setProfile({ ...profile, phone: e.target.value })}
+                              placeholder="Ex: +216 98 123 456"
+                              className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl pl-11 pr-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Prénom
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.firstName}
+                            onChange={e => setProfile({ ...profile, firstName: e.target.value })}
+                            placeholder="Ex: Saif"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Nom
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.lastName}
+                            onChange={e => setProfile({ ...profile, lastName: e.target.value })}
+                            placeholder="Ex: Belhassine"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Adresse E-mail (Identifiant de connexion)
+                          </label>
+                          <input
+                            type="email"
+                            value={profile.email}
+                            disabled
+                            className="w-full bg-slate-950/40 border border-slate-850 rounded-2xl px-4 py-3 text-sm text-slate-400 cursor-not-allowed font-mono"
+                          />
+                          <span className="text-[10px] text-slate-500 mt-1 block">L'e-mail est associé à votre compte et sécurise vos devis.</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Adresse de livraison */}
+                    <div className="pt-4 border-t border-slate-800/60">
+                      <h3 className="text-xs font-black text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <MapPin className="w-4 h-4" /> 2. ADRESSE DE LIVRAISON PAR DÉFAUT
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Adresse / Rue / Bâtiment
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.street}
+                            onChange={e => setProfile({ ...profile, street: e.target.value })}
+                            placeholder="Ex: Rue des Entrepreneurs, Z.I. Charguia 2"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Ville / Gouvernorat
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.city}
+                            onChange={e => setProfile({ ...profile, city: e.target.value })}
+                            placeholder="Ex: Tunis / Ariana"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Code Postal
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.zipCode}
+                            onChange={e => setProfile({ ...profile, zipCode: e.target.value })}
+                            placeholder="Ex: 2035"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Pays
+                          </label>
+                          <input
+                            type="text"
+                            value={profile.country}
+                            onChange={e => setProfile({ ...profile, country: e.target.value })}
+                            placeholder="Ex: Tunisie"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition placeholder:text-slate-600 font-semibold"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 3: Sécurité / Mot de passe */}
+                    <div className="pt-4 border-t border-slate-800/60">
+                      <h3 className="text-xs font-black text-red-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                        <Key className="w-4 h-4" /> 3. SÉCURITÉ & MOT DE PASSE (OPTIONNEL)
+                      </h3>
+                      <p className="text-[10px] text-slate-500 mb-4 uppercase tracking-wider">
+                        Laissez ces champs vides si vous ne souhaitez pas changer votre mot de passe actuel.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Mot de passe actuel
+                          </label>
+                          <input
+                            type="password"
+                            value={profile.currentPassword}
+                            onChange={e => setProfile({ ...profile, currentPassword: e.target.value })}
+                            placeholder="••••••••"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Nouveau mot de passe
+                          </label>
+                          <input
+                            type="password"
+                            value={profile.newPassword}
+                            onChange={e => setProfile({ ...profile, newPassword: e.target.value })}
+                            placeholder="Min. 6 caractères"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                            Confirmer nouveau mot de passe
+                          </label>
+                          <input
+                            type="password"
+                            value={profile.confirmPassword}
+                            onChange={e => setProfile({ ...profile, confirmPassword: e.target.value })}
+                            placeholder="Min. 6 caractères"
+                            className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white focus:outline-none focus:border-red-500 transition font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bouton de soumission */}
+                    <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row justify-end items-center gap-4">
+                      <button
+                        type="submit"
+                        disabled={savingProfile}
+                        className="w-full sm:w-auto px-8 py-4 bg-red-650 hover:bg-red-700 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 disabled:opacity-50"
+                      >
+                        {savingProfile ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" /> ENREGISTREMENT...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" /> ENREGISTRER MES INFORMATIONS
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
-            );
-          })()}
+            )}
           </div>
         </div>
       </div>

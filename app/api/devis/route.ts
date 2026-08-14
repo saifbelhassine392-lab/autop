@@ -7,9 +7,25 @@ import { fetchProductionDevis } from '@/lib/neonClient'
 // GET - Mes devis (client) ou tous (admin)
 export async function GET(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions)
+    if (!session || !session.user) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+    }
+
+    const user = session.user as any
+    const isAdmin = user.role === 'ADMIN'
+
+    const where = isAdmin ? {} : {
+      OR: [
+        { userId: user.id },
+        { user: { email: user.email } }
+      ]
+    }
+
     let devis: any[] = []
     try {
       devis = await prisma.devis.findMany({
+        where,
         include: {
           user: { select: { name: true, email: true, phone: true } },
           items: { include: { product: true } },
@@ -41,11 +57,20 @@ export async function POST(req: NextRequest) {
 
     // Si c'est l'admin qui crée le devis pour un client
     if (user.role === 'ADMIN' && clientEmail) {
-      const clientUser = await prisma.user.findFirst({
-        where: { email: clientEmail }
+      const emailTrimmed = clientEmail.trim().toLowerCase();
+      let clientUser = await prisma.user.findFirst({
+        where: { email: emailTrimmed }
       })
       if (!clientUser) {
-        return NextResponse.json({ error: 'Aucun utilisateur client trouvé avec cet e-mail. Le client doit d\'abord s\'inscrire.' }, { status: 404 })
+        // Auto-création du compte client s'il n'existe pas encore
+        clientUser = await prisma.user.create({
+          data: {
+            email: emailTrimmed,
+            name: clientEmail.split('@')[0],
+            role: 'CUSTOMER',
+            status: 'ACTIVE'
+          }
+        });
       }
       targetUserId = clientUser.id
     }

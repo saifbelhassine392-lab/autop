@@ -11,7 +11,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = session.user as any;
+    const sessionUser = session.user as any;
+    let userId = sessionUser.id;
+
+    let dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: userId },
+          { email: sessionUser.email }
+        ]
+      }
+    });
+
+    if (!dbUser && sessionUser.email) {
+      dbUser = await prisma.user.create({
+        data: {
+          email: sessionUser.email.toLowerCase(),
+          name: sessionUser.name || sessionUser.email.split('@')[0],
+          role: sessionUser.role || 'CUSTOMER',
+          status: 'ACTIVE'
+        }
+      });
+      userId = dbUser.id;
+    } else if (dbUser) {
+      userId = dbUser.id;
+    }
+
     const body = await req.json();
     const { devisId, selectedFormat, fileBase64, fileName, shippingAddress, customerNote, modifiedItems, shippingMethod, paymentMethod } = body;
 
@@ -82,7 +107,7 @@ export async function POST(req: NextRequest) {
     const order = await prisma.order.create({
       data: {
         orderNumber,
-        userId: user.id,
+        userId,
         status: 'PENDING',
         paymentStatus: 'PENDING',
         paymentMethod: paymentMethod || 'CASH_ON_DELIVERY',
@@ -130,13 +155,13 @@ export async function POST(req: NextRequest) {
       }] : undefined;
 
       await sendEmail({
-        to: [user.email, ADMIN_NOTIFICATION_EMAIL],
+        to: [sessionUser.email, ADMIN_NOTIFICATION_EMAIL],
         subject: `Nouveau Bon de Commande AUTOP - #${order.orderNumber}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
             <h2 style="color: #10b981; border-bottom: 2px solid #10b981; padding-bottom: 10px;">Bon de Commande Confirmé !</h2>
             <p>Bonjour,</p>
-            <p>Le client <strong>${user.name || user.email}</strong> a validé son devis et généré un bon de commande.</p>
+            <p>Le client <strong>${sessionUser.name || sessionUser.email}</strong> a validé son devis et généré un bon de commande.</p>
             <p><strong>Numéro de commande :</strong> ${order.orderNumber}</p>
             <p><strong>Adresse de livraison :</strong> ${shippingAddress || 'À spécifier'}</p>
             <p><strong>Note client :</strong> ${customerNote || 'Aucune'}</p>

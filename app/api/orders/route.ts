@@ -13,16 +13,21 @@ export async function GET(req: NextRequest) {
     }
 
     const userId = (session.user as any).id;
+    const userEmail = (session.user as any).email;
     const userRole = (session.user as any).role;
+    const isAdmin = userRole === 'ADMIN';
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const limit = parseInt(searchParams.get('limit') || '50');
     const status = searchParams.get('status');
 
     const where: any = {};
-    if (userRole === 'CUSTOMER' || userRole === 'PROFESSIONAL' || userRole === 'client' || userRole === 'pro') {
-      where.userId = userId;
+    if (!isAdmin) {
+      where.OR = [
+        { userId: userId },
+        { user: { email: userEmail } }
+      ];
     }
     if (status) where.status = status;
 
@@ -36,7 +41,7 @@ export async function GET(req: NextRequest) {
             },
           },
           user: {
-            select: { firstName: true, lastName: true, email: true, name: true },
+            select: { firstName: true, lastName: true, email: true, name: true, phone: true },
           },
           managedBy: true,
         },
@@ -65,13 +70,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
     }
 
-    const userId = (session.user as any).id;
+    const sessionUser = session.user as any;
+    let userId = sessionUser.id;
+
+    // S'assurer que l'utilisateur existe dans la base de données
+    let dbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { id: userId },
+          { email: sessionUser.email }
+        ]
+      }
+    });
+
+    if (!dbUser && sessionUser.email) {
+      dbUser = await prisma.user.create({
+        data: {
+          email: sessionUser.email.toLowerCase(),
+          name: sessionUser.name || sessionUser.email.split('@')[0],
+          role: sessionUser.role || 'CUSTOMER',
+          status: 'ACTIVE'
+        }
+      });
+      userId = dbUser.id;
+    } else if (dbUser) {
+      userId = dbUser.id;
+    }
 
     const body = await req.json();
     const result = orderSchema.safeParse(body);
 
     if (!result.success) {
-      return NextResponse.json({ success: false, error: 'Données invalides' }, { status: 400 });
+      console.warn("Validation error in Order POST:", result.error);
+      return NextResponse.json({ success: false, error: 'Données de livraison ou commande invalides' }, { status: 400 });
     }
 
     const cartItems = await prisma.cartItem.findMany({
@@ -79,20 +110,43 @@ export async function POST(req: NextRequest) {
       include: { product: true },
     });
 
-    if (cartItems.length === 0) {
-      return NextResponse.json({ success: false, error: 'Panier vide' }, { status: 400 });
+    if (cartItems.length === 0 && (!body.items || body.items.length === 0)) {
+      return NextResponse.json({ success: false, error: 'Votre panier est vide' }, { status: 400 });
     }
 
-    const subtotal = cartItems.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
+    let subtotal = 0;
+    let orderItemsCreateData: any[] = [];
+
+    if (cartItems.length > 0) {
+      subtotal = cartItems.reduce((sum, item) => sum + Number(item.product.price) * item.quantity, 0);
+      orderItemsCreateData = cartItems.map((item) => ({
+        productId: item.productId,
+        productName: item.product.name,
+        sku: item.product.sku || item.product.reference || 'N/A',
+        price: item.product.price,
+        quantity: item.quantity,
+        total: Number(item.product.price) * item.quantity,
+      }));
+    } else if (body.items && Array.isArray(body.items)) {
+      subtotal = body.items.reduce((sum: number, it: any) => sum + (parseFloat(it.price) || 0) * (parseInt(it.quantity) || 1), 0);
+      orderItemsCreateData = body.items.map((it: any) => ({
+        productId: it.productId || null,
+        productName: it.name || it.productName || 'Article',
+        sku: it.sku || it.reference || 'N/A',
+        price: parseFloat(it.price) || 0,
+        quantity: parseInt(it.quantity) || 1,
+        total: (parseFloat(it.price) || 0) * (parseInt(it.quantity) || 1),
+      }));
+    }
 
     const settings = await prisma.setting.findMany({
       where: { key: { in: ['shipping_free_threshold', 'shipping_standard_cost', 'tax_rate'] } },
-    });
+    }).catch(() => []);
 
     const freeThreshold = parseFloat(settings.find(s => s.key === 'shipping_free_threshold')?.value || '99');
     const isFreeMethod = body.shippingMethod === 'AU MAGASIN' || body.shippingMethod === 'PAR PROPRES MOYENS' || body.shippingMethod === 'POWER TRANSPORT';
     const shippingCost = (subtotal >= freeThreshold || isFreeMethod) ? 0 : parseFloat(settings.find(s => s.key === 'shipping_standard_cost')?.value || '7.90');
-    const taxRate = parseFloat(settings.find(s => s.key === 'tax_rate')?.value || '20');
+    const taxRate = parseFloat(settings.find(s => s.key === 'tax_rate')?.value || '19');
 
     const tax = (subtotal + shippingCost) * (taxRate / 100);
     const total = subtotal + shippingCost + tax;
@@ -101,38 +155,39 @@ export async function POST(req: NextRequest) {
     const nextNumber = String(orderCount + 1).padStart(6, '0');
     const orderNumber = `CMD-${nextNumber}`;
 
+    const serializedShippingAddress = typeof body.shippingAddress === 'string'
+      ? body.shippingAddress
+      : JSON.stringify({
+          ...(typeof body.shippingAddress === 'object' ? body.shippingAddress : {}),
+          shippingMethod: body.shippingMethod || 'standard'
+        });
+
+    const serializedBillingAddress = typeof body.billingAddress === 'string'
+      ? body.billingAddress
+      : (body.billingAddress ? JSON.stringify(body.billingAddress) : serializedShippingAddress);
+
     const order = await prisma.order.create({
       data: {
         orderNumber,
         userId,
-        shippingAddress: {
-          ...(body.shippingAddress || {}),
-          shippingMethod: body.shippingMethod || 'standard'
-        },
-        billingAddress: body.billingAddress || body.shippingAddress,
+        shippingAddress: serializedShippingAddress,
+        billingAddress: serializedBillingAddress,
         items: {
-          create: cartItems.map((item) => ({
-            productId: item.productId,
-            productName: item.product.name,
-            sku: item.product.sku,
-            price: item.product.price,
-            quantity: item.quantity,
-            total: Number(item.product.price) * item.quantity,
-          })),
+          create: orderItemsCreateData,
         },
         subtotal,
         shippingCost,
         discount: 0,
         tax,
         total,
-        paymentMethod: body.paymentMethod,
+        paymentMethod: body.paymentMethod || 'CASH_ON_DELIVERY',
         paymentStatus: 'PENDING',
         status: 'PENDING',
-        customerNote: body.customerNote,
+        customerNote: body.customerNote || null,
         statusHistory: {
           create: {
             status: 'PENDING',
-            note: 'Commande créée',
+            note: 'Commande créée avec succès',
           },
         },
       },
@@ -145,7 +200,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    await prisma.cartItem.deleteMany({ where: { userId } });
+    if (cartItems.length > 0) {
+      await prisma.cartItem.deleteMany({ where: { userId } }).catch(() => {});
+    }
 
     for (const item of cartItems) {
       if (item.product.trackStock) {

@@ -44,17 +44,17 @@ export const cartItemSchema = z.object({
 });
 
 export const addressSchema = z.object({
-  label: z.string().min(1, 'Libelle requis'),
-  street: z.string().min(3, 'Adresse minimum 3 caracteres'),
-  city: z.string().min(2, 'Ville minimum 2 caracteres'),
-  zipCode: z.string().regex(/^[0-9]{5}$/, 'Code postal invalide'),
-  country: z.string().default('France'),
+  label: z.string().optional().default('Livraison'),
+  street: z.string().min(1, 'Adresse requise'),
+  city: z.string().min(1, 'Ville requise'),
+  zipCode: z.string().min(1, 'Code postal requis').optional().default('2035'),
+  country: z.string().default('Tunisie'),
 });
 
 export const orderSchema = z.object({
-  shippingAddress: addressSchema,
-  billingAddress: addressSchema.optional(),
-  paymentMethod: z.enum(['CARD', 'PAYPAL', 'BANK_TRANSFER', 'CASH_ON_DELIVERY']),
+  shippingAddress: z.union([addressSchema, z.record(z.any()), z.string()]),
+  billingAddress: z.union([addressSchema, z.record(z.any()), z.string()]).optional(),
+  paymentMethod: z.enum(['CARD', 'PAYPAL', 'BANK_TRANSFER', 'CASH_ON_DELIVERY']).default('CASH_ON_DELIVERY'),
   shippingMethod: z.string().default('standard'),
   customerNote: z.string().optional(),
 });

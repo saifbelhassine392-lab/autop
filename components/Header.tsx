@@ -61,11 +61,16 @@ export default function Header() {
 
             {session ? (
               <div className="hidden md:flex items-center space-x-4">
-                <span className="text-xs text-slate-300 font-bold bg-slate-900/60 border border-slate-800/80 px-3 py-1.5 rounded-full uppercase tracking-wider">
-                  👤 {user?.name || user?.email?.split('@')[0]}
-                </span>
+                <Link 
+                  href="/mes-devis" 
+                  className="text-xs text-slate-300 hover:text-white font-bold bg-slate-900/60 hover:bg-slate-800 border border-slate-800/80 hover:border-red-500/50 px-3 py-1.5 rounded-full uppercase tracking-wider transition flex items-center gap-1.5"
+                  title="Accéder à mon Espace Client"
+                >
+                  <span>👤</span>
+                  <span>{user?.name || user?.email?.split('@')[0]}</span>
+                </Link>
                 <Link href="/mes-devis" className="text-sm text-slate-400 hover:text-red-500 transition font-semibold">
-                  Mes Devis
+                  Espace Client
                 </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: '/' })}

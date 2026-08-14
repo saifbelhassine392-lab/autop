@@ -24,12 +24,12 @@ export async function POST(req: NextRequest) {
     let deletedOrders = 0;
     let deletedPurchaseOrders = 0;
 
-    if (target === 'ALL' || target === 'DEVIS') {
+    if (target === 'ALL' || target === 'DEVIS' || target === 'ALL_DEVIS') {
       const res = await prisma.devis.deleteMany({});
       deletedDevis = res.count;
     }
 
-    if (target === 'ALL' || target === 'QUOTES') {
+    if (target === 'ALL' || target === 'QUOTES' || target === 'ALL_DEVIS') {
       const res = await prisma.quote.deleteMany({});
       deletedQuotes = res.count;
     }

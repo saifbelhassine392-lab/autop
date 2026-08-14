@@ -80,7 +80,35 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
 
   return (
     <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1">DEMANDES CLIENTS EN ATTENTE</h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-1">
+        <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950">DEMANDES CLIENTS EN ATTENTE</h2>
+        <button
+          onClick={async () => {
+            if (confirm("⚠️ CONFIRMATION : Réinitialiser la liste et remettre le compteur des devis et demandes à zéro ?")) {
+              try {
+                const res = await fetch('/api/admin/reset-data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ target: 'ALL_DEVIS' })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  alert("✅ Compteur remis à zéro : Toutes les demandes et devis ont été réinitialisés.");
+                  fetchQuotes();
+                } else {
+                  alert(data.error || "Erreur lors de la réinitialisation");
+                }
+              } catch (e: any) {
+                alert("Erreur: " + e.message);
+              }
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-sm"
+          title="Remettre le compteur des devis et demandes à zéro"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> REMISE À ZÉRO COMPTEUR
+        </button>
+      </div>
       <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">TRAITEZ LES DEMANDES REÇUES EN TEMPS RÉEL</p>
 
       <div className="flex flex-col sm:flex-row gap-2 mb-5">
@@ -3196,9 +3224,37 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
 
   return (
     <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-        <FileText className="w-5 h-5 text-red-400" /> DEVIS GÉNÉRÉS & TRAITÉS
-      </h2>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-1">
+        <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 flex items-center gap-2">
+          <FileText className="w-5 h-5 text-red-400" /> DEVIS GÉNÉRÉS & TRAITÉS
+        </h2>
+        <button
+          onClick={async () => {
+            if (confirm("⚠️ CONFIRMATION : Réinitialiser la liste et remettre le compteur des devis et demandes à zéro ?")) {
+              try {
+                const res = await fetch('/api/admin/reset-data', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ target: 'ALL_DEVIS' })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  alert("✅ Compteur remis à zéro : Tous les devis et demandes ont été réinitialisés.");
+                  fetchDevis();
+                } else {
+                  alert(data.error || "Erreur lors de la réinitialisation");
+                }
+              } catch (e: any) {
+                alert("Erreur: " + e.message);
+              }
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-sm"
+          title="Remettre le compteur des devis à zéro"
+        >
+          <RefreshCw className="w-3.5 h-3.5" /> REMISE À ZÉRO COMPTEUR
+        </button>
+      </div>
       <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">CONSULTEZ, MODIFIEZ ET EXPÉDIEZ VOS DEVIS DÉJÀ CHIFFRÉS</p>
 
       <div className="flex gap-2 mb-5">
