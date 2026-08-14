@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { sendEmail, ADMIN_NOTIFICATION_EMAIL } from '@/lib/email';
 import { fetchProductionQuotes } from '@/lib/neonClient';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

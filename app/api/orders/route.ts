@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth';
 import { generateOrderNumber } from '@/lib/utils';
 import { orderSchema } from '@/lib/validation';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

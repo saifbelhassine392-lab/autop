@@ -4,6 +4,8 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { fetchProductionDevis } from '@/lib/neonClient'
 
+export const dynamic = 'force-dynamic'
+
 // GET - Mes devis (client) ou tous (admin)
 export async function GET(req: NextRequest) {
   try {
