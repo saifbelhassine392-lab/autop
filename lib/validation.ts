@@ -52,8 +52,8 @@ export const addressSchema = z.object({
 });
 
 export const orderSchema = z.object({
-  shippingAddress: z.union([addressSchema, z.record(z.any()), z.string()]),
-  billingAddress: z.union([addressSchema, z.record(z.any()), z.string()]).optional(),
+  shippingAddress: z.union([addressSchema, z.record(z.string(), z.any()), z.string()]),
+  billingAddress: z.union([addressSchema, z.record(z.string(), z.any()), z.string()]).optional(),
   paymentMethod: z.enum(['CARD', 'PAYPAL', 'BANK_TRANSFER', 'CASH_ON_DELIVERY']).default('CASH_ON_DELIVERY'),
   shippingMethod: z.string().default('standard'),
   customerNote: z.string().optional(),
