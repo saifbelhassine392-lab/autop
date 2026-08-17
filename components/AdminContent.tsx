@@ -2418,8 +2418,8 @@ function SectionGestionArticles() {
 
   const [selectedProductForDetails, setSelectedProductForDetails] = useState<any | null>(null);
 
-  const getProductImageUrl = (p: any): string | null => {
-    if (!p) return null;
+  const getProductImageUrl = (p: any): string => {
+    if (!p) return '/images/categories/piece-auto-generique.jpg';
     if (p.imageUrl) return p.imageUrl;
     if (p.image) return p.image;
     if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
@@ -2440,7 +2440,38 @@ function SectionGestionArticles() {
         }
       }
     }
-    return null;
+    const name = (p.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (name.includes('plaquette') || name.includes('patin') || name.includes('garniture') || (name.includes('frein') && !name.includes('disque'))) {
+      return '/images/categories/plaquettes-frein.jpg';
+    }
+    if (name.includes('disque') || name.includes('rotor') || name.includes('tambour')) {
+      return '/images/categories/disque-frein.jpg';
+    }
+    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) {
+      return '/images/categories/filtre-huile.jpg';
+    }
+    if (name.includes('filtre') || name.includes('cartouche') || name.includes('carburant') || name.includes('essence') || name.includes('pollen') || name.includes('habitacle') || name.includes('gazole') || name.includes('gasoil')) {
+      return '/images/categories/filtre-air.jpg';
+    }
+    if (name.includes('embrayage') || name.includes('clutch') || name.includes('butee') || name.includes('volant')) {
+      return '/images/categories/kit-embrayage.jpg';
+    }
+    if (name.includes('biellette') || (name.includes('bielle') && (name.includes('suspension') || name.includes('stab')))) {
+      return '/images/categories/biellette-suspension.jpg';
+    }
+    if (name.includes('rotule') || name.includes('direction') || name.includes('cremaillere')) {
+      return '/images/categories/rotule-direction.jpg';
+    }
+    if (name.includes('triangle') || name.includes('bras') || name.includes('silentbloc')) {
+      return '/images/categories/triangle-suspension.jpg';
+    }
+    if (name.includes('amortisseur') || name.includes('strut') || name.includes('jambe') || name.includes('ressort')) {
+      return '/images/categories/amortisseur.jpg';
+    }
+    if (name.includes('distribution') || name.includes('distrib') || name.includes('courroie') || name.includes('chaine') || name.includes('galet')) {
+      return '/images/categories/kit-distribution.jpg';
+    }
+    return '/images/categories/piece-auto-generique.jpg';
   };
 
   const [enriching, setEnriching] = useState(false);
@@ -2944,26 +2975,16 @@ function SectionGestionArticles() {
                             title="Cliquer pour voir la fiche article et la grande photo"
                           >
                             <div className="flex items-center justify-center">
-                              {imgUrl ? (
-                                <div className="relative w-12 h-12">
-                                  <img 
-                                    src={imgUrl} 
-                                    alt={p.reference || p.name} 
-                                    className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm bg-white group-hover:scale-105 transition-transform"
-                                    onError={(e) => { 
-                                      (e.currentTarget as HTMLImageElement).style.display = 'none'; 
-                                      ((e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement).style.display = 'flex'; 
-                                    }}
-                                  />
-                                  <div className="hidden absolute inset-0 rounded-lg bg-zinc-100 border border-zinc-200 items-center justify-center text-zinc-400 shadow-inner">
-                                    <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 shadow-inner">
-                                  <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
-                                </div>
-                              )}
+                              <div className="relative w-12 h-12">
+                                <img 
+                                  src={imgUrl} 
+                                  alt={p.reference || p.name} 
+                                  className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm bg-white group-hover:scale-105 transition-transform"
+                                  onError={(e) => { 
+                                    (e.currentTarget as HTMLImageElement).src = '/images/categories/piece-auto-generique.jpg';
+                                  }}
+                                />
+                              </div>
                             </div>
                           </td>
                           <td 

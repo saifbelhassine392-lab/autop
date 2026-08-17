@@ -47,78 +47,82 @@ function normalizeText(text?: string | null): string {
 }
 
 /**
- * 2. Recherche d'image par DÉSIGNATION PRÉCISE (Zéro fausse correspondance)
+ * 2. Recherche d'image par DÉSIGNATION PRÉCISE & COMPLÈTE
  */
-export function resolveImageByDesignation(name?: string | null): string | null {
-  if (!name) return null;
+export function resolveImageByDesignation(name?: string | null): string {
+  if (!name) return '/images/categories/piece-auto-generique.jpg';
   const n = normalizeText(name);
 
-  // 1. Plaquettes de frein
-  if ((n.includes('plaquette') || n.includes('patin de frein') || n.includes('jeu plaquettes')) && !n.includes('disque')) {
+  // 1. Plaquettes de frein & Garnitures
+  if (n.includes('plaquette') || n.includes('patin') || n.includes('garniture') || (n.includes('frein') && !n.includes('disque'))) {
     return '/images/categories/plaquettes-frein.jpg';
   }
 
-  // 2. Disque de frein
-  if ((n.includes('disque') || n.includes('rotor')) && !n.includes('plaquette') && (n.includes('frein') || n.includes('av') || n.includes('ar') || n.includes('ventil'))) {
+  // 2. Disque de frein & Tambour
+  if (n.includes('disque') || n.includes('rotor') || n.includes('tambour')) {
     return '/images/categories/disque-frein.jpg';
   }
 
-  // 3. Filtres
-  if (n.includes('filtre') || n.includes('cartouche') || n.includes('element filtrant')) {
-    if (n.includes('huile') || n.includes('oil')) return '/images/categories/filtre-huile.jpg';
-    if (n.includes('air') || n.includes('admission')) return '/images/categories/filtre-air.jpg';
+  // 3. Filtres à huile
+  if (n.includes('filtre') && (n.includes('huile') || n.includes('oil'))) {
+    return '/images/categories/filtre-huile.jpg';
   }
 
-  // 4. Kit Embrayage
-  if (n.includes('embrayage') || n.includes('clutch')) {
+  // 4. Autres filtres (Air, Carburant, Essence, Pollen, Habitacle, Gazole)
+  if (n.includes('filtre') || n.includes('cartouche') || n.includes('carburant') || n.includes('essence') || n.includes('pollen') || n.includes('habitacle') || n.includes('gazole') || n.includes('gasoil')) {
+    return '/images/categories/filtre-air.jpg';
+  }
+
+  // 5. Kit Embrayage & Butée
+  if (n.includes('embrayage') || n.includes('clutch') || n.includes('butee') || n.includes('volant moteur')) {
     return '/images/categories/kit-embrayage.jpg';
   }
 
-  // 5. Biellette suspension / barre stabilisatrice
+  // 6. Biellette de suspension & Barre stabilisatrice
   if (n.includes('biellette') || (n.includes('bielle') && (n.includes('suspension') || n.includes('stab')))) {
     return '/images/categories/biellette-suspension.jpg';
   }
 
-  // 6. Rotule de direction
-  if (n.includes('rotule') && (n.includes('direction') || n.includes('cremaillere'))) {
+  // 7. Rotule de direction & Crémaillère
+  if (n.includes('rotule') || n.includes('direction') || n.includes('cremaillere')) {
     return '/images/categories/rotule-direction.jpg';
   }
 
-  // 7. Triangle / Bras de suspension
-  if ((n.includes('triangle') || n.includes('bras')) && (n.includes('suspension') || n.includes('oscillat') || n.includes('inf') || n.includes('sup'))) {
+  // 8. Triangle & Bras de suspension
+  if (n.includes('triangle') || n.includes('bras') || n.includes('silentbloc') || n.includes('silent bloc')) {
     return '/images/categories/triangle-suspension.jpg';
   }
 
-  // 8. Amortisseur
-  if (n.includes('amortisseur') || n.includes('strut') || n.includes('jambe de force')) {
+  // 9. Amortisseur & Ressort
+  if (n.includes('amortisseur') || n.includes('strut') || n.includes('jambe de force') || n.includes('ressort')) {
     return '/images/categories/amortisseur.jpg';
   }
 
-  // 9. Kit distribution
-  if ((n.includes('distribution') || n.includes('distrib')) && (n.includes('kit') || n.includes('courroie') || n.includes('chaine'))) {
+  // 10. Kit distribution & Courroie
+  if (n.includes('distribution') || n.includes('distrib') || n.includes('courroie') || n.includes('chaine') || n.includes('galet') || n.includes('tendeur')) {
     return '/images/categories/kit-distribution.jpg';
   }
 
-  return null;
+  return '/images/categories/piece-auto-generique.jpg';
 }
 
 /**
- * Résolveur d'image strict :
+ * Résolveur d'image complet :
  * 1. Image personnalisée uploadée
  * 2. Image officielle par Référence exacte (Priorité 1)
  * 3. Image par Désignation précise et vérifiée (Priorité 2)
- * 4. null si aucune correspondance 100% fiable
+ * 4. Image de pièce auto générique haute définition (Fallback)
  */
 export function resolveProductImage(product: {
   reference?: string | null;
   sku?: string | null;
   name?: string | null;
   images?: string | string[] | null;
-}): string | null {
+}): string {
   // 1. Image personnalisée ou explicite valide
   if (Array.isArray(product.images) && product.images.length > 0 && product.images[0]) {
     const img = product.images[0];
-    if (img) return img;
+    if (img && img.trim()) return img;
   }
   if (typeof product.images === 'string' && product.images.trim() && product.images !== '[]') {
     try {
@@ -139,9 +143,6 @@ export function resolveProductImage(product: {
   const byRef = resolveImageByExactReference(product.reference, product.sku);
   if (byRef) return byRef;
 
-  // 3. Priorité 2 : Recherche par Désignation précise
-  const byDesig = resolveImageByDesignation(product.name);
-  if (byDesig) return byDesig;
-
-  return null;
+  // 3. Priorité 2 : Recherche par Désignation précise avec Fallback automatique
+  return resolveImageByDesignation(product.name);
 }

@@ -102,28 +102,59 @@ export default function MesDevisPage() {
     }
   }
 
-  const getPartImage = (p: any): string | null => {
-    if (!p) return null
-    if (p.imageUrl) return p.imageUrl
-    if (p.image) return p.image
+  const getPartImage = (p: any): string => {
+    if (!p) return '/images/categories/piece-auto-generique.jpg';
+    if (p.imageUrl) return p.imageUrl;
+    if (p.image) return p.image;
     if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
-      return p.images[0]
+      return p.images[0];
     }
     if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
       try {
-        const parsed = JSON.parse(p.images)
+        const parsed = JSON.parse(p.images);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) {
-          return parsed[0]
+          return parsed[0];
         }
         if (typeof parsed === 'string' && parsed.trim()) {
-          return parsed
+          return parsed;
         }
       } catch {
-        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images
+        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images;
       }
     }
-    return null
-  }
+    const name = (p.name || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (name.includes('plaquette') || name.includes('patin') || name.includes('garniture') || (name.includes('frein') && !name.includes('disque'))) {
+      return '/images/categories/plaquettes-frein.jpg';
+    }
+    if (name.includes('disque') || name.includes('rotor') || name.includes('tambour')) {
+      return '/images/categories/disque-frein.jpg';
+    }
+    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) {
+      return '/images/categories/filtre-huile.jpg';
+    }
+    if (name.includes('filtre') || name.includes('cartouche') || name.includes('carburant') || name.includes('essence') || name.includes('pollen') || name.includes('habitacle') || name.includes('gazole') || name.includes('gasoil')) {
+      return '/images/categories/filtre-air.jpg';
+    }
+    if (name.includes('embrayage') || name.includes('clutch') || name.includes('butee') || name.includes('volant')) {
+      return '/images/categories/kit-embrayage.jpg';
+    }
+    if (name.includes('biellette') || (name.includes('bielle') && (name.includes('suspension') || name.includes('stab')))) {
+      return '/images/categories/biellette-suspension.jpg';
+    }
+    if (name.includes('rotule') || name.includes('direction') || name.includes('cremaillere')) {
+      return '/images/categories/rotule-direction.jpg';
+    }
+    if (name.includes('triangle') || name.includes('bras') || name.includes('silentbloc')) {
+      return '/images/categories/triangle-suspension.jpg';
+    }
+    if (name.includes('amortisseur') || name.includes('strut') || name.includes('jambe') || name.includes('ressort')) {
+      return '/images/categories/amortisseur.jpg';
+    }
+    if (name.includes('distribution') || name.includes('distrib') || name.includes('courroie') || name.includes('chaine') || name.includes('galet')) {
+      return '/images/categories/kit-distribution.jpg';
+    }
+    return '/images/categories/piece-auto-generique.jpg';
+  };
 
   const loadProfile = async () => {
     try {
@@ -1052,18 +1083,14 @@ export default function MesDevisPage() {
                                 onClick={() => setSelectedPartModal(p)}
                                 title="Cliquer pour ouvrir la fiche article et la photo grand format"
                               >
-                                {imgUrl ? (
-                                  <img
-                                    src={imgUrl}
-                                    alt={p.name || p.reference}
-                                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                                  />
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center text-zinc-400 p-2 text-center">
-                                    <Package className="w-10 h-10 mb-1 text-zinc-300 opacity-70" />
-                                    <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Photo Non Fournie</span>
-                                  </div>
-                                )}
+                                <img
+                                  src={imgUrl}
+                                  alt={p.name || p.reference}
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src = '/images/categories/piece-auto-generique.jpg';
+                                  }}
+                                />
 
                                 <div className="absolute top-2.5 left-2.5">
                                   <span className="px-2.5 py-1 bg-slate-950/90 border border-slate-700/80 rounded-lg text-white font-mono font-black text-[11px] shadow">
