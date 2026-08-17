@@ -2360,21 +2360,6 @@ function SectionGestionArticles() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Helper to extract image URL from product object
-  const getProductImageUrl = (p: any) => {
-    if (!p) return '';
-    if (p.imageUrl) return p.imageUrl;
-    if (p.image) return p.image;
-    try {
-      const parsed = p.images ? JSON.parse(p.images) : [];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
-      if (typeof parsed === 'string') return parsed;
-    } catch {
-      if (typeof p.images === 'string' && (p.images.startsWith('http') || p.images.startsWith('/'))) return p.images;
-    }
-    return '';
-  };
-
   // Formulaire manuel
   const [form, setForm] = useState({
     reference: '',
@@ -2427,6 +2412,56 @@ function SectionGestionArticles() {
     } catch {
       alert("Erreur reseau.");
       setBulkImageStatus('');
+    }
+  };
+
+  const getProductImageUrl = (p: any): string => {
+    if (!p) return '/images/categories/piece-auto-generique.jpg';
+    if (p.imageUrl) return p.imageUrl;
+    if (p.image) return p.image;
+    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
+      return p.images[0];
+    }
+    if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
+      try {
+        const parsed = JSON.parse(p.images);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) return parsed[0];
+        if (typeof parsed === 'string' && parsed.trim()) return parsed;
+      } catch {
+        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images;
+      }
+    }
+    const name = (p.name || '').toLowerCase();
+    if (name.includes('plaquette') || name.includes('patin') || (name.includes('frein') && !name.includes('disque'))) return '/images/categories/plaquettes-frein.jpg';
+    if (name.includes('disque') || name.includes('rotor')) return '/images/categories/disque-frein.jpg';
+    if (name.includes('filtre') && (name.includes('air') || name.includes('admission'))) return '/images/categories/filtre-air.jpg';
+    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) return '/images/categories/filtre-huile.jpg';
+    if (name.includes('filtre')) return '/images/categories/filtre-air.jpg';
+    if (name.includes('embrayage') || name.includes('clutch')) return '/images/categories/kit-embrayage.jpg';
+    if (name.includes('triangle') || name.includes('bras')) return '/images/categories/triangle-suspension.jpg';
+    if (name.includes('biellette') || name.includes('bielle')) return '/images/categories/biellette-suspension.jpg';
+    if (name.includes('rotule') || name.includes('direction')) return '/images/categories/rotule-direction.jpg';
+    if (name.includes('amortisseur') || name.includes('strut')) return '/images/categories/amortisseur.jpg';
+    if (name.includes('distribution') || name.includes('courroie')) return '/images/categories/kit-distribution.jpg';
+    return '/images/categories/piece-auto-generique.jpg';
+  };
+
+  const [enriching, setEnriching] = useState(false);
+  const handleAutoEnrichImages = async () => {
+    setEnriching(true);
+    try {
+      const res = await fetch('/api/products/auto-enrich-images', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ Succès : ${data.enriched || 0} articles enrichis automatiquement !`);
+        fetchProducts();
+      } else {
+        alert(`Erreur : ${data.error || 'Impossible d\'enrichir'}`);
+      }
+    } catch {
+      alert('Erreur réseau lors de l\'enrichissement.');
+    } finally {
+      setEnriching(false);
     }
   };
 
@@ -2755,13 +2790,22 @@ function SectionGestionArticles() {
           </h2>
           <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">RECHERCHEZ, MODIFIEZ ET SUPPRIMEZ LES ARTICLES DU STOCK DE PIÈCES</p>
 
-          <div className="flex gap-2 mb-3">
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input type="text" placeholder="RECHERCHER DANS LES ARTICLES (RÉF, NOM, MARQUE, VÉHICULE)..."
                 value={search} onChange={e => setSearch(e.target.value)}
                 className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
             </div>
+            <button
+              onClick={handleAutoEnrichImages}
+              disabled={enriching}
+              className="px-4 h-10 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-sm transition shrink-0 disabled:opacity-50"
+              title="Associer automatiquement les photos par référence ou par désignation à tous les articles"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{enriching ? 'ENRICHISSEMENT...' : '⚡ AUTO-ENRICHIR PHOTOS'}</span>
+            </button>
           </div>
 
           {showBulkImageModal && (

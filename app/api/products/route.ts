@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
 import { ensureCatalogSeeded } from '@/lib/autoSeed';
+import { resolveProductImage } from '@/lib/productImageResolver';
 
 
 
@@ -87,6 +88,11 @@ export async function POST(req: NextRequest) {
       imagesVal = body.images.startsWith('[') ? body.images : JSON.stringify([body.images]);
     } else if (rawImage && typeof rawImage === 'string' && rawImage.trim()) {
       imagesVal = JSON.stringify([rawImage.trim()]);
+    }
+
+    if (imagesVal === '[]') {
+      const autoImg = resolveProductImage({ reference, sku, name });
+      if (autoImg) imagesVal = JSON.stringify([autoImg]);
     }
 
     const existing = await prisma.product.findFirst({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { slugify } from '@/lib/utils';
+import { resolveProductImage } from '@/lib/productImageResolver';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,7 +34,11 @@ export async function POST(req: NextRequest) {
       const vehicleCompat = prod.vehicleCompat || '';
 
       const rawImg = prod.imageUrl || prod.image || prod.urlImage || prod.images || '';
-      const imagesVal = rawImg ? (String(rawImg).startsWith('[') ? String(rawImg) : JSON.stringify([String(rawImg).trim()])) : '[]';
+      let imagesVal = rawImg ? (String(rawImg).startsWith('[') ? String(rawImg) : JSON.stringify([String(rawImg).trim()])) : '[]';
+      if (imagesVal === '[]') {
+        const autoImg = resolveProductImage({ reference, sku: reference, name });
+        if (autoImg) imagesVal = JSON.stringify([autoImg]);
+      }
 
       await prisma.product.upsert({
         where: { reference },
