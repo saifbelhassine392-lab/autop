@@ -316,33 +316,33 @@ export default function AdminDashboard() {
       {/* Main */}
       <div className="flex-1 flex flex-col h-screen overflow-y-auto">
         {/* Top bar */}
-        <header className="bg-slate-900 border-b border-zinc-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
+        <header className="bg-white/95 backdrop-blur-md border-b border-zinc-200 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-10 shadow-xs">
           <div className="flex items-center gap-3">
             <button 
-              className="md:hidden text-slate-400 hover:text-zinc-950 transition p-1.5"
+              className="md:hidden text-zinc-600 hover:text-zinc-950 transition p-1.5 rounded-lg hover:bg-zinc-100"
               onClick={() => setIsSidebarOpen(true)}
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="w-10 h-8 relative hidden md:block">
+            <div className="w-9 h-7 relative hidden md:block">
               <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
             </div>
             <span className="text-zinc-950 font-black uppercase tracking-widest text-[10px] md:text-sm">CONSOLE ADMIN</span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
-            <button className="text-slate-400 hover:text-zinc-950 transition p-1.5 hidden sm:block">
+            <button className="text-zinc-500 hover:text-zinc-950 transition p-2 rounded-xl hover:bg-zinc-100 hidden sm:block">
               <Bell className="w-4 h-4" />
             </button>
-            <button className="text-slate-400 hover:text-zinc-950 transition p-1.5 hidden sm:block">
+            <button className="text-zinc-500 hover:text-zinc-950 transition p-2 rounded-xl hover:bg-zinc-100 hidden sm:block">
               <Settings className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 border-l border-slate-700 pl-2 md:pl-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-zinc-950 font-black text-sm shrink-0">
+            <div className="flex items-center gap-2.5 border-l border-zinc-200 pl-2.5 md:pl-3.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
                 {(activeProfile || session?.user?.name || 'A').charAt(0).toUpperCase()}
               </div>
               <div className="hidden sm:block">
-                <p className="text-zinc-950 font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name}</p>
-                <p className="text-zinc-600 text-[9px] uppercase">{role}</p>
+                <p className="text-zinc-950 font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name || 'ADMIN'}</p>
+                <p className="text-zinc-500 text-[10px] uppercase font-bold mt-0.5">{role || 'ADMIN'}</p>
               </div>
             </div>
           </div>

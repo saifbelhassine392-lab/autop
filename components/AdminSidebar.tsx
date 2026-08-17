@@ -7,9 +7,9 @@ import Image from 'next/image';
 import {
   Inbox, Clock, FileText, ShoppingBag, MessageSquare,
   FilePlus, FileDown, Send,
-  Building2, UserPlus, List, ClipboardList,
+  UserPlus, List, ClipboardList,
   Package, PlusCircle, Edit, BarChart2, TrendingUp,
-  LogOut, ChevronRight, Receipt
+  LogOut, ChevronRight, Receipt, ShieldCheck
 } from 'lucide-react';
 
 const playNotificationSound = () => {
@@ -21,8 +21,8 @@ const playNotificationSound = () => {
     const gain = ctx.createGain();
     
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
     
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
@@ -47,25 +47,22 @@ type SidebarItem = {
 
 type SidebarSection = {
   title: string;
-  color: string;
   items: SidebarItem[];
 };
 
 const sections: SidebarSection[] = [
   {
     title: "DEMANDES CLIENTS",
-    color: "text-red-400",
     items: [
-      { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-500/80' },
-      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-blue-100 text-blue-700/80' },
-      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-green-100 text-green-700/80' },
-      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-purple-100 text-purple-700/80' },
-      { id: 'chat-interne', label: 'CHAT INTERNE / PRIX', icon: MessageSquare },
+      { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-600 text-white' },
+      { id: 'traitement', label: 'EN TRAITEMENT', icon: Clock, badge: 5, badgeColor: 'bg-amber-500 text-white' },
+      { id: 'devis-gen', label: 'DEVIS GÉNÉRÉS', icon: FileText, badge: 12, badgeColor: 'bg-emerald-600 text-white' },
+      { id: 'bons', label: 'BONS DE COMMANDE', icon: ShoppingBag, badge: 8, badgeColor: 'bg-indigo-600 text-white' },
+      { id: 'chat-interne', label: 'CHAT INTERNE / PRIX', icon: MessageSquare, badgeColor: 'bg-rose-600 text-white' },
     ]
   },
   {
     title: "GESTION DEVIS",
-    color: "text-amber-400",
     items: [
       { id: 'creer-devis', label: 'CRÉER / MODIFIER DEVIS', icon: FilePlus },
       { id: 'generer-pdf', label: 'GÉNÉRER PDF', icon: FileDown },
@@ -74,7 +71,6 @@ const sections: SidebarSection[] = [
   },
   {
     title: "FOURNISSEURS",
-    color: "text-green-400",
     items: [
       { id: 'ajouter-fournisseur', label: 'AJOUTER FOURNISSEUR', icon: UserPlus },
       { id: 'liste-fournisseurs', label: 'LISTE FOURNISSEURS', icon: List },
@@ -87,7 +83,6 @@ const sections: SidebarSection[] = [
   },
   {
     title: "GESTION ARTICLES",
-    color: "text-cyan-400",
     items: [
       { id: 'ajouter-article', label: 'AJOUTER ARTICLE', icon: PlusCircle },
       { id: 'modifier-article', label: 'MODIFIER / SUPPRIMER', icon: Edit },
@@ -96,14 +91,12 @@ const sections: SidebarSection[] = [
   },
   {
     title: "COMPTABILITÉ",
-    color: "text-purple-400",
     items: [
       { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt }
     ]
   },
   {
     title: "STATISTIQUES",
-    color: "text-pink-400",
     items: [
       { id: 'tableau-bord', label: 'TABLEAU DE BORD', icon: BarChart2 },
       { id: 'chiffre', label: "CHIFFRE D'AFFAIRES", icon: TrendingUp },
@@ -174,7 +167,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
 
   useEffect(() => {
     fetchBadgeCounts();
-    const interval = setInterval(fetchBadgeCounts, 15000); // refresh every 15s
+    const interval = setInterval(fetchBadgeCounts, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -197,86 +190,102 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={` border-r border-zinc-300 w-[260px] flex-col overflow-hidden h-screen z-50 shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-      {/* Logo Header */}
-      <div className="flex flex-col items-center justify-center py-5 px-4 border-b border-zinc-300 bg-zinc-200 backdrop-blur-md">
-        <div className="w-32 h-16 relative mb-2">
-          <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
-        </div>
-        <div className="text-[9px] font-bold text-zinc-600 uppercase tracking-[2px]">CONSOLE ADMIN</div>
-      </div>
-
-      {/* User Info */}
-      <div className="flex flex-col gap-1 px-4 py-3 bg-zinc-200 border-b border-zinc-300 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-red-650 to-orange-550 flex items-center justify-center text-zinc-900 font-bold text-xs flex-shrink-0">
-            {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
+      <aside className={`bg-white border-r border-zinc-200 w-[270px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+        
+        {/* Logo Header */}
+        <div className="flex flex-col items-center justify-center pt-5 pb-4 px-4 border-b border-zinc-100 bg-white">
+          <div className="w-36 h-12 relative mb-2">
+            <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
           </div>
-          <div className="min-w-0">
-            <p className="text-zinc-900 font-black text-xs truncate uppercase tracking-wider">
-              {activeProfile || user?.name || 'ADMIN'}
-            </p>
-            <p className="text-zinc-600 text-[9px] truncate">{user?.email}</p>
+          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-100 text-[10px] font-black text-zinc-600 uppercase tracking-widest border border-zinc-200/80">
+            <ShieldCheck className="w-3 h-3 text-red-600" />
+            <span>CONSOLE ADMIN</span>
           </div>
         </div>
-        <button
-          onClick={() => {
-            localStorage.removeItem('activeAdminProfile');
-            window.dispatchEvent(new Event('active-profile-changed'));
-          }}
-          className="text-left text-red-500 hover:text-red-400 text-[8px] font-black uppercase mt-1 tracking-wider transition-colors"
-        >
-          Changer de profil
-        </button>
-      </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
-        {sections.map((section, idx) => (
-          <div key={idx}>
-            <div className={`text-[9px] font-black uppercase tracking-[2px] mb-1.5 px-2 ${section.color}`}>
-              {section.title}
+        {/* User Info Card */}
+        <div className="px-4 py-3 bg-zinc-50/80 border-b border-zinc-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
+                {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-zinc-950 font-black text-xs truncate uppercase tracking-tight">
+                  {activeProfile || user?.name || 'ADMIN'}
+                </p>
+                <p className="text-zinc-400 text-[10px] truncate font-medium">{user?.email || 'admin@autop.tn'}</p>
+              </div>
             </div>
-            {section.items.map((item) => {
-              const Icon = item.icon;
-              const isActive = adminSection === item.id;
-              const badgeVal = getBadgeValue(item.id);
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setAdminSection(item.id)}
-                  className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider mb-1.5 transition-all duration-150 border group ${
-                    isActive
-                      ? 'bg-zinc-300 text-zinc-950 border-l-[3px] border-l-red-600 font-black border-y-transparent border-r-transparent shadow-none'
-                      : 'bg-transparent text-zinc-700 border-transparent hover:bg-zinc-300 hover:text-zinc-900 shadow-none'
-                  }`}
-                >
-                  <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-zinc-900' : 'text-red-400 group-hover:text-red-300'}`} />
-                  <span className={`flex-1 text-left font-black tracking-wide ${isActive ? 'text-zinc-900' : 'text-zinc-700'}`}>{item.label}</span>
-                  {badgeVal !== undefined && badgeVal > 0 && (
-                    <span className={`${item.badgeColor || 'bg-red-600'} text-[9px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow-none`}>
-                      {badgeVal}
-                    </span>
-                  )}
-                  {isActive && <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0 text-zinc-900" />}
-                </button>
-              );
-            })}
+            <button
+              onClick={() => {
+                localStorage.removeItem('activeAdminProfile');
+                window.dispatchEvent(new Event('active-profile-changed'));
+              }}
+              className="text-[9px] font-bold text-red-600 hover:text-red-700 uppercase tracking-wider bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg border border-red-200/60 transition-colors shrink-0"
+              title="Changer d'utilisateur"
+            >
+              Changer
+            </button>
           </div>
-        ))}
-      </nav>
+        </div>
 
-      {/* Logout */}
-      <div className="p-3 border-t border-zinc-300">
-        <button
-          onClick={() => signOut({ callbackUrl: '/connexion' })}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wide text-slate-400 hover:bg-red-600/10 hover:text-red-400 transition-all"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          DÉCONNEXION
-        </button>
-      </div>
-    </aside>
+        {/* Navigation List */}
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4 scrollbar-thin scrollbar-thumb-zinc-200">
+          {sections.map((section, idx) => (
+            <div key={idx} className="space-y-1">
+              <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 px-2.5 py-1">
+                {section.title}
+              </div>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = adminSection === item.id;
+                const badgeVal = getBadgeValue(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setAdminSection(item.id);
+                      if (onClose) onClose();
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-tight transition-all duration-150 group ${
+                      isActive
+                        ? 'bg-zinc-900 text-white shadow-sm font-black'
+                        : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/80 font-semibold'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                      isActive ? 'text-red-500' : 'text-zinc-400 group-hover:text-zinc-700'
+                    }`} />
+                    <span className="flex-1 text-left truncate">{item.label}</span>
+                    {badgeVal !== undefined && badgeVal > 0 && (
+                      <span className={`${
+                        isActive 
+                          ? 'bg-red-500 text-white' 
+                          : item.badgeColor || 'bg-zinc-200 text-zinc-800'
+                      } text-[10px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow-xs shrink-0`}>
+                        {badgeVal}
+                      </span>
+                    )}
+                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-1 shrink-0 text-zinc-400" />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Logout Footer */}
+        <div className="p-3 border-t border-zinc-100 bg-white">
+          <button
+            onClick={() => signOut({ callbackUrl: '/connexion' })}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all duration-150"
+          >
+            <LogOut className="w-4 h-4 text-zinc-400 group-hover:text-red-600" />
+            <span>DÉCONNEXION</span>
+          </button>
+        </div>
+      </aside>
     </>
   );
 }
