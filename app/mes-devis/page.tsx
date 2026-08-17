@@ -7,16 +7,27 @@ import Link from "next/link"
 import { 
   Download, CheckCircle, MessageCircle, FileText, 
   Plus, FileSpreadsheet, ClipboardList, Package, Receipt, X, Search, Home,
-  User, MapPin, Phone, Building, Save, AlertCircle, RefreshCw, Key, ShieldCheck
+  User, MapPin, Phone, Building, Save, AlertCircle, RefreshCw, Key, ShieldCheck,
+  ShoppingCart, Sparkles, Tag, Car, Layers, Check, ChevronRight, Info, Eye, ArrowRight, ExternalLink
 } from 'lucide-react'
 
 export default function MesDevisPage() {
   const { data: session, status } = useSession()
-  const [activeTab, setActiveTab] = useState<'devis' | 'commandes' | 'factures' | 'profil'>('devis')
+  const { addItem } = useCart()
+  const [activeTab, setActiveTab] = useState<'devis' | 'commandes' | 'recherche' | 'factures' | 'profil'>('devis')
   const [devis, setDevis] = useState<any[]>([])
   const [orders, setOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [clientSearch, setClientSearch] = useState('')
+
+  // Recherche Pièces Catalogue Client
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+  const [partCategory, setPartCategory] = useState('TOUTES')
+  const [partQuery, setPartQuery] = useState('')
+  const [addingToCartId, setAddingToCartId] = useState<string | null>(null)
+  const [addedSuccessId, setAddedSuccessId] = useState<string | null>(null)
+  const [selectedPartModal, setSelectedPartModal] = useState<any | null>(null)
 
   // Profil Client State
   const [profile, setProfile] = useState({
@@ -54,6 +65,70 @@ export default function MesDevisPage() {
       setShippingAddress('')
     }
   }, [shippingMethod])
+
+  const loadCatalog = async () => {
+    if (catalogProducts.length > 0) return
+    try {
+      setLoadingCatalog(true)
+      const res = await fetch('/api/products')
+      if (res.ok) {
+        const data = await res.json()
+        setCatalogProducts(Array.isArray(data) ? data : [])
+      }
+    } catch (e) {
+      console.error('Erreur chargement catalogue:', e)
+    } finally {
+      setLoadingCatalog(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'recherche') {
+      loadCatalog()
+    }
+  }, [activeTab])
+
+  const handleAddToCart = async (p: any) => {
+    try {
+      setAddingToCartId(p.id)
+      await addItem(p.id, 1)
+      setAddedSuccessId(p.id)
+      setTimeout(() => setAddedSuccessId(null), 3000)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setAddingToCartId(null)
+    }
+  }
+
+  const getPartImage = (p: any): string => {
+    if (!p) return '/images/categories/piece-auto-generique.jpg'
+    if (p.imageUrl) return p.imageUrl
+    if (p.image) return p.image
+    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) return p.images[0]
+    if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
+      try {
+        const parsed = JSON.parse(p.images)
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) return parsed[0]
+        if (typeof parsed === 'string' && parsed.trim()) return parsed
+      } catch {
+        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images
+      }
+    }
+    const name = (p.name || '').toLowerCase()
+    if (name.includes('plaquette') || name.includes('patin') || (name.includes('frein') && !name.includes('disque'))) return '/images/categories/plaquettes-frein.jpg'
+    if (name.includes('disque') || name.includes('rotor')) return '/images/categories/disque-frein.jpg'
+    if (name.includes('filtre') && (name.includes('air') || name.includes('admission'))) return '/images/categories/filtre-air.jpg'
+    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) return '/images/categories/filtre-huile.jpg'
+    if (name.includes('filtre')) return '/images/categories/filtre-air.jpg'
+    if (name.includes('embrayage') || name.includes('clutch')) return '/images/categories/kit-embrayage.jpg'
+    if (name.includes('triangle') || name.includes('bras')) return '/images/categories/triangle-suspension.jpg'
+    if (name.includes('biellette') || name.includes('bielle')) return '/images/categories/biellette-suspension.jpg'
+    if (name.includes('rotule') || name.includes('direction')) return '/images/categories/rotule-direction.jpg'
+    if (name.includes('amortisseur') || name.includes('strut')) return '/images/categories/amortisseur.jpg'
+    if (name.includes('distribution') || name.includes('courroie')) return '/images/categories/kit-distribution.jpg'
+    return '/images/categories/piece-auto-generique.jpg'
+  }
 
   const loadProfile = async () => {
     try {
@@ -571,6 +646,7 @@ export default function MesDevisPage() {
                 {[
                   { id: "devis", label: "LISTE DEVIS", icon: ClipboardList },
                   { id: "commandes", label: "SUIVI COMMANDES", icon: Package },
+                  { id: "recherche", label: "RECHERCHE PIÈCE", icon: Search },
                   { id: "factures", label: "MES FACTURES", icon: Receipt },
                   { id: "profil", label: "MON PROFIL & INFOS", icon: User },
                 ].map((tab) => (
@@ -823,6 +899,256 @@ export default function MesDevisPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              );
+            })()}
+
+            {/* TAB RECHERCHE PIÈCE (ESPACE CLIENT) */}
+            {activeTab === 'recherche' && (() => {
+              const query = (partQuery || clientSearch).toLowerCase().trim();
+
+              const filteredCatalog = catalogProducts.filter(p => {
+                // Filtre par catégorie
+                if (partCategory !== 'TOUTES') {
+                  const catText = `${p.name || ''} ${p.category?.name || ''}`.toLowerCase();
+                  if (partCategory === 'FREINAGE' && !catText.includes('frein') && !catText.includes('plaquette') && !catText.includes('disque') && !catText.includes('patin')) return false;
+                  if (partCategory === 'FILTRATION' && !catText.includes('filtre') && !catText.includes('huile') && !catText.includes('air') && !catText.includes('gasoil')) return false;
+                  if (partCategory === 'SUSPENSION' && !catText.includes('suspension') && !catText.includes('triangle') && !catText.includes('biellette') && !catText.includes('rotule') && !catText.includes('amortisseur') && !catText.includes('direction') && !catText.includes('bras')) return false;
+                  if (partCategory === 'EMBRAYAGE' && !catText.includes('embrayage') && !catText.includes('clutch') && !catText.includes('butee') && !catText.includes('cardan') && !catText.includes('transmission')) return false;
+                  if (partCategory === 'DISTRIBUTION' && !catText.includes('distribution') && !catText.includes('courroie') && !catText.includes('galet') && !catText.includes('pompe')) return false;
+                }
+
+                // Filtre par texte de recherche
+                if (!query) return true;
+                return (
+                  p.reference?.toLowerCase().includes(query) ||
+                  p.sku?.toLowerCase().includes(query) ||
+                  p.name?.toLowerCase().includes(query) ||
+                  p.brand?.toLowerCase().includes(query) ||
+                  p.vehicleCompat?.toLowerCase().includes(query) ||
+                  p.description?.toLowerCase().includes(query)
+                );
+              });
+
+              return (
+                <div className="space-y-6">
+                  {/* Bannière Moteur de Recherche */}
+                  <div className="bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden">
+                    <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                      <div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-500/10 border border-red-500/20 rounded-full text-red-400 text-[10px] font-black uppercase tracking-wider mb-2">
+                          <Sparkles className="w-3.5 h-3.5" /> RECHERCHE RAPIDE CATALOGUE
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black text-white uppercase tracking-wider">
+                          Moteur de Recherche Pièces Détachées
+                        </h2>
+                        <p className="text-xs text-slate-400 mt-1 uppercase tracking-wider">
+                          Trouvez immédiatement vos références OEM, marques et prix en stock direct
+                        </p>
+                      </div>
+                      <Link
+                        href="/catalogue"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition"
+                      >
+                        <ExternalLink className="w-4 h-4 text-cyan-400" />
+                        <span>Catalogue Complet</span>
+                      </Link>
+                    </div>
+
+                    {/* Champ de recherche dédié */}
+                    <div className="relative mb-4">
+                      <Search className="w-5 h-5 text-red-500 absolute left-4 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="RECHERCHER PAR RÉFÉRENCE (EX: 1611273080, W732), DÉSIGNATION, MARQUE, VÉHICULE..."
+                        value={partQuery}
+                        onChange={e => setPartQuery(e.target.value)}
+                        className="w-full bg-slate-950 border-2 border-slate-800 focus:border-red-500 rounded-2xl pl-12 pr-10 py-3.5 text-sm text-white font-semibold uppercase placeholder:text-slate-500 placeholder:normal-case placeholder:font-normal focus:outline-none transition shadow-inner"
+                      />
+                      {partQuery && (
+                        <button
+                          onClick={() => setPartQuery('')}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-xs font-mono font-bold"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Raccourcis de Catégories */}
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">
+                      {[
+                        { id: 'TOUTES', label: 'TOUTES LES PIÈCES' },
+                        { id: 'FREINAGE', label: 'FREINAGE' },
+                        { id: 'FILTRATION', label: 'FILTRATION & HUILE' },
+                        { id: 'SUSPENSION', label: 'SUSPENSION & DIRECTION' },
+                        { id: 'EMBRAYAGE', label: 'EMBRAYAGE & CARDAN' },
+                        { id: 'DISTRIBUTION', label: 'DISTRIBUTION' },
+                      ].map(cat => (
+                        <button
+                          key={cat.id}
+                          onClick={() => setPartCategory(cat.id)}
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition ${
+                            partCategory === cat.id
+                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
+                              : 'bg-slate-950/80 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Compteur & Résultats */}
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                      {loadingCatalog ? 'CHARGEMENT DES PIÈCES...' : `${filteredCatalog.length} PIÈCE(S) TROUVÉE(S)`}
+                    </span>
+                    {filteredCatalog.length > 0 && (
+                      <span className="text-[11px] font-bold text-slate-500 uppercase">
+                        Prix en Dinars Tunisiens (TND) TTC
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Grille de Pièces */}
+                  {loadingCatalog ? (
+                    <div className="text-center py-16 bg-slate-900/30 border border-slate-800 rounded-3xl">
+                      <div className="inline-block animate-spin rounded-full h-10 w-10 border-2 border-red-500 border-t-transparent mb-3" />
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Recherche et chargement des articles en stock...
+                      </p>
+                    </div>
+                  ) : filteredCatalog.length === 0 ? (
+                    <div className="text-center py-16 bg-slate-900/30 border border-slate-800 rounded-3xl p-8">
+                      <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                      <h3 className="text-base font-black text-white uppercase tracking-wider mb-2">
+                        Aucune pièce ne correspond à votre recherche
+                      </h3>
+                      <p className="text-xs text-slate-400 mb-6 max-w-md mx-auto">
+                        Vous ne trouvez pas la référence souhaitée ? Soumettez une demande de devis sur-mesure, notre équipe comptoir vous répond en moins de 15 minutes.
+                      </p>
+                      <Link
+                        href="/devis"
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-red-600/25"
+                      >
+                        <Plus className="w-4 h-4" /> DEMANDER UN DEVIS IMMÉDIAT
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                      {filteredCatalog.map(p => {
+                        const imgUrl = getPartImage(p);
+                        const isAdded = addedSuccessId === p.id;
+                        const isAdding = addingToCartId === p.id;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className="bg-slate-900/40 border border-slate-800/80 hover:border-slate-700/90 rounded-3xl p-5 flex flex-col justify-between transition duration-300 shadow-lg group hover:shadow-2xl hover:shadow-black/40"
+                          >
+                            <div>
+                              {/* Image & Badges */}
+                              <div className="relative w-full h-44 bg-white/95 rounded-2xl overflow-hidden mb-4 flex items-center justify-center p-3 border border-slate-800/50">
+                                <img
+                                  src={imgUrl}
+                                  alt={p.name || p.reference}
+                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src = '/images/categories/piece-auto-generique.jpg';
+                                  }}
+                                />
+                                <div className="absolute top-2.5 left-2.5">
+                                  <span className="px-2.5 py-1 bg-slate-950/90 border border-slate-700/80 rounded-lg text-white font-mono font-black text-[11px] shadow">
+                                    {p.reference || p.sku}
+                                  </span>
+                                </div>
+                                {p.brand && (
+                                  <div className="absolute top-2.5 right-2.5">
+                                    <span className="px-2 py-0.5 bg-red-600 text-white rounded-md text-[9px] font-black uppercase tracking-wider shadow">
+                                      {p.brand}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Infos Pièce */}
+                              <h3 className="text-sm font-black text-white uppercase tracking-wide line-clamp-2 mb-1 group-hover:text-red-400 transition-colors">
+                                {p.name}
+                              </h3>
+
+                              {p.vehicleCompat && (
+                                <div className="flex items-start gap-1.5 text-[11px] text-slate-400 uppercase mb-3 line-clamp-2">
+                                  <Car className="w-3.5 h-3.5 shrink-0 text-slate-500 mt-0.5" />
+                                  <span>{p.vehicleCompat}</span>
+                                </div>
+                              )}
+
+                              {/* Stock & Prix */}
+                              <div className="flex items-center justify-between pt-3 pb-4 border-t border-slate-800/60">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                  (p.stock > 0)
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${p.stock > 0 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                  {p.stock > 0 ? `En Stock (${p.stock})` : 'Sur Commande'}
+                                </span>
+
+                                <div className="text-right">
+                                  <span className="text-[10px] text-slate-500 uppercase block leading-none">PRIX VENTE</span>
+                                  <span className="text-base font-black text-green-400 font-mono">
+                                    {p.price > 0 ? `${p.price.toFixed(3)} TND` : 'Sur Devis'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                              <button
+                                onClick={() => handleAddToCart(p)}
+                                disabled={isAdding || isAdded}
+                                className={`py-2.5 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow ${
+                                  isAdded
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-800 hover:bg-slate-700 text-white hover:border-slate-600 border border-slate-750'
+                                }`}
+                              >
+                                {isAdded ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Ajouté !</span>
+                                  </>
+                                ) : isAdding ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                                    <span>Ajout...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShoppingCart className="w-3.5 h-3.5 text-cyan-400" />
+                                    <span>Panier</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <Link
+                                href={`/devis?ref=${encodeURIComponent(p.reference || '')}&name=${encodeURIComponent(p.name || '')}`}
+                                className="py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Devis</span>
+                              </Link>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })()}
