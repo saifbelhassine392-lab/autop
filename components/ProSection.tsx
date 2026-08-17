@@ -7,59 +7,59 @@ export default function ProSection() {
   const { setIsAdmin, setCurrentPage, setAdminSection } = useApp();
 
   return (
-    <div className="bg-bg-card border-2 border-gold rounded-[20px] p-5 md:p-6 mb-8 md:mb-10">
-      <div className="flex items-center justify-between mb-4 md:mb-5">
-        <div className="flex items-center gap-2 md:gap-2.5 text-sm md:text-base font-extrabold text-gold">
-          <Lock size={16} /> ESPACE COMMERCIAL (PRO)
+    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 md:p-6 mb-8 md:mb-10 shadow-xl shadow-black/25">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2 md:gap-2.5 text-sm md:text-base font-black text-amber-400 uppercase tracking-wider">
+          <Lock size={18} /> ESPACE COMMERCIAL (PRO)
         </div>
         <button
           onClick={() => { setIsAdmin(true); setCurrentPage('admin'); setAdminSection('reception'); }}
-          className="bg-accent-red text-white px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-[11px] font-bold hover:bg-accent-red-hover transition-colors cursor-pointer"
+          className="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider hover:bg-red-500 transition-all shadow-md shadow-red-600/25 active:scale-95 cursor-pointer"
         >
-          ACCES PRIVE
+          ACCÈS PRIVÉ
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-4 mb-5 md:mb-6">
-        <div className="bg-bg-dark rounded-xl md:rounded-[14px] p-4 md:p-5 text-center">
-          <div className="text-3xl md:text-4xl font-extrabold text-accent-green mb-1">12</div>
-          <div className="text-[10px] text-accent-green uppercase tracking-wider">DEMANDES EN ATTENTE</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-6">
+        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-center shadow-inner">
+          <div className="text-3xl md:text-4xl font-black text-emerald-400 mb-1 font-mono">12</div>
+          <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">DEMANDES EN ATTENTE</div>
         </div>
-        <div className="bg-bg-dark rounded-xl md:rounded-[14px] p-4 md:p-5 text-center">
-          <div className="text-3xl md:text-4xl font-extrabold text-accent-blue mb-1">8</div>
-          <div className="text-[10px] text-accent-blue uppercase tracking-wider">EN PREPARATION</div>
+        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-center shadow-inner">
+          <div className="text-3xl md:text-4xl font-black text-blue-400 mb-1 font-mono">8</div>
+          <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">EN PRÉPARATION</div>
         </div>
       </div>
 
-      <div className="text-xs md:text-[13px] font-bold text-text-muted uppercase tracking-wider mb-2.5 md:mb-3 flex items-center gap-1.5 md:gap-2">
+      <div className="text-xs md:text-sm font-black text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
         TABLEAU COMPARATIF PRIX FOURNISSEURS
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-xs md:text-[13px] mb-3 md:mb-4">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 mb-5 bg-slate-950/60">
+        <table className="w-full border-collapse text-xs md:text-sm">
           <thead>
-            <tr className="bg-bg-dark">
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">DESIGNATION</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">QTE</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">REFERENCE</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">DISPO</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">MARQUE</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">FOUR 1</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">FOUR 2</th>
-              <th className="p-2 md:p-3 text-left font-bold text-gold uppercase text-[10px] md:text-[11px] tracking-wider border-b-2 border-border-custom">ACTIONS</th>
+            <tr className="bg-slate-950/90 border-b border-slate-800 text-slate-400">
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">DÉSIGNATION</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">QTÉ</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">RÉFÉRENCE</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">DISPO</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">MARQUE</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">FOUR 1</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">FOUR 2</th>
+              <th className="p-3 text-left font-black uppercase text-[10px] md:text-[11px] tracking-wider">ACTIONS</th>
             </tr>
           </thead>
-          <tbody>
-            <tr className="hover:bg-white/[0.02] transition-colors">
-              <td className="p-2 md:p-3.5 border-b border-border-custom font-bold">Kit Embrayage</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom">1</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom">1611273080</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom text-accent-green font-bold">OUI</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom">ORIGINE</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom text-accent-cyan font-bold">210 HT</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom text-accent-cyan font-bold">241 HT</td>
-              <td className="p-2 md:p-3.5 border-b border-border-custom">
-                <button className="bg-accent-blue text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg font-semibold text-[10px] md:text-xs flex items-center gap-1 md:gap-1.5 hover:opacity-90 transition-opacity">
-                  <Edit3 size={10} /> MODIFIER
+          <tbody className="divide-y divide-slate-800/60">
+            <tr className="hover:bg-slate-800/40 transition-colors">
+              <td className="p-3 font-bold text-slate-100">Kit Embrayage</td>
+              <td className="p-3 text-slate-300 font-mono">1</td>
+              <td className="p-3 text-slate-300 font-mono font-bold">1611273080</td>
+              <td className="p-3 text-emerald-400 font-black">OUI</td>
+              <td className="p-3 text-slate-300 font-bold">ORIGINE</td>
+              <td className="p-3 text-cyan-400 font-mono font-bold">210 HT</td>
+              <td className="p-3 text-cyan-400 font-mono font-bold">241 HT</td>
+              <td className="p-3">
+                <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 transition border border-slate-700">
+                  <Edit3 size={12} /> MODIFIER
                 </button>
               </td>
             </tr>
@@ -67,24 +67,24 @@ export default function ProSection() {
         </table>
       </div>
 
-      <div className="flex gap-2 md:gap-2.5 flex-wrap mb-5 md:mb-0">
-        <button className="bg-accent-red text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold text-[10px] md:text-xs flex items-center gap-1 md:gap-1.5 hover:opacity-90 transition-opacity">
-          <FileText size={12} /> GENERER PDF
+      <div className="flex gap-3 flex-wrap mb-5 md:mb-0">
+        <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2 transition border border-slate-700 shadow-sm active:scale-95 cursor-pointer">
+          <FileText size={14} /> GÉNÉRER PDF
         </button>
-        <button className="bg-accent-green text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold text-[10px] md:text-xs flex items-center gap-1 md:gap-1.5 hover:opacity-90 transition-opacity">
-          <Mail size={12} /> ENVOYER EMAIL
+        <button className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2 transition shadow-md shadow-blue-600/25 active:scale-95 cursor-pointer">
+          <Mail size={14} /> ENVOYER EMAIL
         </button>
-        <button className="bg-accent-green text-white px-4 md:px-6 py-2 md:py-3 rounded-xl font-bold text-[10px] md:text-xs flex items-center gap-1 md:gap-1.5 hover:opacity-90 transition-opacity">
-          <MessageCircle size={12} /> ENVOYER WHATSAPP
+        <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-xl font-black text-xs uppercase flex items-center gap-2 transition shadow-md shadow-emerald-600/25 active:scale-95 cursor-pointer">
+          <MessageCircle size={14} /> ENVOYER WHATSAPP
         </button>
       </div>
 
-      <div className="text-center mt-5 md:mt-8 md:hidden">
+      <div className="text-center mt-6 md:hidden">
         <button
           onClick={() => { setIsAdmin(true); setCurrentPage('admin'); setAdminSection('reception'); }}
-          className="bg-accent-red text-white px-6 md:px-8 py-2.5 md:py-3.5 rounded-xl font-bold text-xs md:text-sm hover:bg-accent-red-hover transition-colors pulse-glow"
+          className="w-full bg-red-600 hover:bg-red-500 text-white px-6 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-red-600/25 active:scale-95"
         >
-          ACCEDER A L'ESPACE COMMERCIAL PRO
+          ACCÉDER À L'ESPACE COMMERCIAL PRO
         </button>
       </div>
     </div>

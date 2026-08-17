@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
-const inputCls = "w-full bg-white text-zinc-900 font-semibold border border-zinc-200 text-sm px-3 h-10 rounded-lg border border-zinc-200 bg-white text-slate-200 focus:outline-none focus:border-zinc-300 uppercase placeholder:text-zinc-600 placeholder:font-normal placeholder:normal-case transition-colors";
-const labelCls = "block text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1";
-const cardCls = "bg-zinc-50/50 border border-zinc-200/50 rounded-xl md:rounded-2xl p-4 md:p-5 mb-4 w-full";
+const inputCls = "w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-sm px-3.5 h-10 rounded-xl focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-500 placeholder:font-normal placeholder:normal-case transition-colors";
+const labelCls = "block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5";
+const cardCls = "bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-4 w-full shadow-xl shadow-black/20 hover:border-slate-700/80 transition-all";
 
 // ─── SECTION: RÉCEPTION DEMANDES ──────────────────────────────────────────────
 interface SectionReceptionProps {
@@ -149,48 +149,52 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       ) : (
         filtered.map((q) => (
           <div key={q.id} className={cardCls}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
               <div>
-                <span className="font-black text-red-400 text-sm uppercase font-mono">#{q.id?.slice(-6).toUpperCase()}</span>
-                <h4 className="font-black text-zinc-950 uppercase text-sm mt-0.5">{q.clientName?.toUpperCase()}</h4>
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wide mt-0.5">
-                  {q.clientEmail} · {q.createdAt ? new Date(q.createdAt).toLocaleDateString('fr-FR') : ''}
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-red-500 text-sm uppercase font-mono tracking-wider">#{q.id?.slice(-6).toUpperCase()}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">·</span>
+                  <span className="text-[11px] text-slate-400 font-bold uppercase">{q.createdAt ? new Date(q.createdAt).toLocaleDateString('fr-FR') : ''}</span>
+                </div>
+                <h4 className="font-black text-slate-100 uppercase text-base mt-1 tracking-tight">{q.clientName?.toUpperCase()}</h4>
+                <div className="text-[11px] text-slate-400 lowercase tracking-normal mt-0.5 font-sans">
+                  {q.clientEmail}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2.5">
                 {/* Sélecteur de profil admin */}
-                <div className="flex items-center gap-1.5 bg-white border border-zinc-200 rounded-xl px-2.5 py-1">
-                  <span className="text-[8px] text-zinc-950 font-black uppercase tracking-wider">Assigné à :</span>
+                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 shadow-inner">
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Assigné à :</span>
                   <select
                     value={q.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
                     onChange={(e) => handleAssignProfile(q.id, e.target.value)}
-                    className="bg-transparent text-slate-200 font-bold text-[9px] focus:outline-none cursor-pointer uppercase"
+                    className="bg-transparent text-slate-100 font-bold text-[10px] focus:outline-none cursor-pointer uppercase"
                   >
-                    <option value="NON ASSIGNÉ" className="bg-white text-zinc-600">NON ASSIGNÉ</option>
-                    <option value="SAIF" className="bg-white text-zinc-950">SAIF</option>
-                    <option value="AMINE" className="bg-white text-zinc-950">AMINE</option>
-                    <option value="SAIFALLAH" className="bg-white text-zinc-950">SAIFALLAH</option>
+                    <option value="NON ASSIGNÉ" className="bg-slate-900 text-slate-400">NON ASSIGNÉ</option>
+                    <option value="SAIF" className="bg-slate-900 text-slate-100">SAIF</option>
+                    <option value="AMINE" className="bg-slate-900 text-slate-100">AMINE</option>
+                    <option value="SAIFALLAH" className="bg-slate-900 text-slate-100">SAIFALLAH</option>
                   </select>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
-                  q.status === 'TREATED' ? 'bg-green-500/15 text-green-400 border-green-500/20' : 'bg-amber-500/15 text-amber-400 border-amber-500/20'
+                <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                  q.status === 'TREATED' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                 }`}>{q.status === 'TREATED' ? 'TRAITÉ' : 'EN ATTENTE'}</span>
               </div>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-zinc-200 mb-4 w-full">
-              <div className="text-xs font-black text-zinc-950 uppercase mb-1">{q.brand} {q.model} {q.vin && `· VIN: ${q.vin}`}</div>
-              <div className="text-xs text-zinc-500 uppercase">
+            <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 mb-4 w-full">
+              <div className="text-xs font-black text-slate-100 uppercase mb-1.5 tracking-wide">{q.brand} {q.model} {q.vin && <span className="text-slate-400 font-mono">· VIN: {q.vin}</span>}</div>
+              <div className="text-xs text-slate-300 uppercase leading-relaxed">
                 {q.items?.map((it: any) => `${it.designation} (x${it.quantity})`).join(' · ')}
               </div>
-              {q.remarks && <div className="text-xs text-zinc-600 mt-1 uppercase">NOTE: {q.remarks}</div>}
+              {q.remarks && <div className="text-xs text-amber-400/90 mt-1.5 uppercase font-medium">NOTE: {q.remarks}</div>}
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 mt-4">
+            <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-2 border-t border-slate-800/60">
               {q.status !== 'TREATED' && (
                 <button 
                   onClick={() => onTreatQuote && onTreatQuote(q)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-red-650 hover:bg-red-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase tracking-wide transition shadow shadow-red-600/20"
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 active:scale-95 cursor-pointer"
                 >
                   <Edit3 className="w-3.5 h-3.5" /> CRÉER DEVIS
                 </button>
@@ -199,15 +203,15 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                 href={`https://wa.me/${q.phone || '21698774525'}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2 bg-zinc-50 hover:bg-slate-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-zinc-200"
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600/15 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-emerald-500/30 active:scale-95"
               >
                 <Phone className="w-3.5 h-3.5" /> CONTACTER
               </a>
               <a 
                 href={`mailto:${q.clientEmail}`}
-                className="flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-600 text-zinc-950 rounded-xl text-[11px] font-black uppercase tracking-wide transition"
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600/15 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-blue-500/30 active:scale-95 lowercase"
               >
-                <Mail className="w-3.5 h-3.5" /> ENVOYER EMAIL
+                <Mail className="w-3.5 h-3.5" /> <span className="uppercase">ENVOYER EMAIL</span>
               </a>
               <button 
                 onClick={async () => {
@@ -226,7 +230,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                     }
                   }
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/15 hover:bg-red-500 hover:text-zinc-950 text-red-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-red-500/20"
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-rose-500/20 active:scale-95 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
               </button>
@@ -234,7 +238,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={q.photo} 
                    download={q.photoName || `photo-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-blue-600/20 hover:bg-blue-600 hover:text-zinc-950 text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                   className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
                  >
                    <Paperclip className="w-3.5 h-3.5" /> PIÈCE (IMAGE)
                  </a>
@@ -243,7 +247,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={q.chassisPhoto} 
                    download={q.chassisPhotoName || `chassis-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-blue-600/20 hover:bg-blue-600 hover:text-zinc-950 text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-blue-500/30"
+                   className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
                  >
                    <Paperclip className="w-3.5 h-3.5" /> CARTE GRISE
                  </a>
@@ -252,7 +256,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                  <a 
                    href={`data:${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'text/csv' : 'application/pdf'};base64,${q.fileBase64}`} 
                    download={q.fileName || `demande-${q.id}.${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'csv' : 'pdf'}`}
-                   className="flex items-center gap-1.5 h-10 px-4 flex justify-center items-center bg-indigo-600/20 hover:bg-indigo-600 hover:text-zinc-950 text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wide transition border border-indigo-500/30"
+                   className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600/15 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-indigo-500/30 active:scale-95"
                  >
                    <Download className="w-3.5 h-3.5" /> DEVIS CLIENT
                  </a>
@@ -732,20 +736,20 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
   return (
     <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1">CRÉER / MODIFIER DEVIS</h2>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">GÉNÉREZ ET MODIFIEZ VOS DEVIS CLIENTS</p>
+      <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 mb-1">CRÉER / MODIFIER DEVIS</h2>
+      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">GÉNÉREZ ET MODIFIEZ VOS DEVIS CLIENTS</p>
 
       {/* Client Info */}
       <div className={cardCls}>
         <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-3">INFORMATIONS CLIENT</div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>NOM CLIENT *</label>
             <input type="text" className={inputCls} placeholder="NOM COMPLET" value={clientName} onChange={e => setClientName(e.target.value)} />
           </div>
           <div>
             <label className={labelCls}>EMAIL CLIENT *</label>
-            <input type="email" className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" placeholder="email@client.com" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
+            <input type="email" className={inputCls} placeholder="email@client.com" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
           </div>
           <div>
             <label className={labelCls}>VÉHICULE</label>
@@ -758,7 +762,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         </div>
         <div className="mt-3">
           <label className={labelCls}>NOTES / OBSERVATIONS</label>
-          <textarea rows={2} className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" placeholder="Notes additionnelles..." value={notes} onChange={e => setNotes(e.target.value)} />
+          <textarea rows={2} className="w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-sm p-3 rounded-xl focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-500 transition-colors" placeholder="Notes additionnelles..." value={notes} onChange={e => setNotes(e.target.value)} />
         </div>
       </div>
 
@@ -1311,24 +1315,24 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 mt-4">
+        <div className="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-slate-800/60">
           <button 
             onClick={handlePrintPDF}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-zinc-50 hover:bg-slate-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase border border-zinc-200 transition"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-black uppercase border border-slate-700 transition shadow-sm active:scale-95 cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5" /> IMPRIMER / PDF
           </button>
           <button
             onClick={() => handleSaveDevis(true)}
             disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[11px] font-black uppercase transition disabled:opacity-50 font-sans"
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md shadow-blue-600/25 disabled:opacity-50 font-sans active:scale-95 cursor-pointer"
           >
-            <Mail className="w-3.5 h-3.5" /> {saving ? 'ENVOI...' : 'ENVOYER CLIENT'}
+            <Mail className="w-3.5 h-3.5" /> {saving ? 'ENVOI...' : 'ENVOYER EMAIL CLIENT'}
           </button>
           <button
             onClick={() => handleSaveDevis(false)}
             disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase transition disabled:opacity-50 font-sans"
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md shadow-red-600/25 disabled:opacity-50 font-sans active:scale-95 cursor-pointer"
           >
             <Save className="w-3.5 h-3.5" /> {saving ? 'ENREGISTREMENT...' : 'ENREGISTRER DEVIS'}
           </button>
