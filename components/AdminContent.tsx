@@ -2420,22 +2420,22 @@ function SectionGestionArticles() {
 
   const getProductImageUrl = (p: any): string | null => {
     if (!p) return null;
-    if (p.imageUrl && !p.imageUrl.includes('/images/categories/')) return p.imageUrl;
-    if (p.image && !p.image.includes('/images/categories/')) return p.image;
+    if (p.imageUrl) return p.imageUrl;
+    if (p.image) return p.image;
     if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
-      if (!p.images[0].includes('/images/categories/')) return p.images[0];
+      return p.images[0];
     }
     if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
       try {
         const parsed = JSON.parse(p.images);
         if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) {
-          if (!parsed[0].includes('/images/categories/')) return parsed[0];
+          return parsed[0];
         }
         if (typeof parsed === 'string' && parsed.trim()) {
-          if (!parsed.includes('/images/categories/')) return parsed;
+          return parsed;
         }
       } catch {
-        if ((p.images.startsWith('http') || p.images.startsWith('/')) && !p.images.includes('/images/categories/')) {
+        if (p.images.startsWith('http') || p.images.startsWith('/')) {
           return p.images;
         }
       }
