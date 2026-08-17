@@ -79,6 +79,16 @@ export async function POST(req: NextRequest) {
     const price = parseFloat(body.price) || parseFloat(body.sellingPrice) || 0;
     const costPrice = parseFloat(body.costPrice) || (price * 0.8);
 
+    const rawImage = body.imageUrl || body.image;
+    let imagesVal = '[]';
+    if (Array.isArray(body.images)) {
+      imagesVal = JSON.stringify(body.images);
+    } else if (body.images && typeof body.images === 'string') {
+      imagesVal = body.images.startsWith('[') ? body.images : JSON.stringify([body.images]);
+    } else if (rawImage && typeof rawImage === 'string' && rawImage.trim()) {
+      imagesVal = JSON.stringify([rawImage.trim()]);
+    }
+
     const existing = await prisma.product.findFirst({
       where: { OR: [{ reference }, { sku }] }
     });
@@ -95,6 +105,7 @@ export async function POST(req: NextRequest) {
           description: body.description || existing.description,
           brand: body.brand || existing.brand,
           status: body.status || existing.status,
+          ...(rawImage || body.images !== undefined ? { images: imagesVal } : {}),
         },
         include: { category: true }
       });
@@ -109,7 +120,7 @@ export async function POST(req: NextRequest) {
           costPrice,
           oldPrice: parseFloat(body.oldPrice) || null,
           stock: parseInt(body.stock) || parseInt(body.stockQty) || 0,
-          images: Array.isArray(body.images) ? JSON.stringify(body.images) : (body.images || '[]'),
+          images: imagesVal,
           reference,
           brand: body.brand,
           vehicleCompat: body.vehicleCompat || null,

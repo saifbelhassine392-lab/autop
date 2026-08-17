@@ -55,6 +55,16 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
+    const rawImage = body.imageUrl || body.image;
+    let imagesVal: string | undefined = undefined;
+    if (Array.isArray(body.images)) {
+      imagesVal = JSON.stringify(body.images);
+    } else if (body.images && typeof body.images === 'string') {
+      imagesVal = body.images.startsWith('[') ? body.images : JSON.stringify([body.images]);
+    } else if (rawImage && typeof rawImage === 'string') {
+      imagesVal = rawImage.trim() ? JSON.stringify([rawImage.trim()]) : '[]';
+    }
+
     const product = await prisma.product.update({
       where: { slug: params.slug },
       data: {
@@ -65,7 +75,8 @@ export async function PATCH(
         brand: body.brand || null,
         vehicleCompat: body.vehicleCompat || null,
         reference: body.reference || null,
-        status: body.status || 'ACTIVE'
+        status: body.status || 'ACTIVE',
+        ...(imagesVal !== undefined ? { images: imagesVal } : {})
       }
     });
     return NextResponse.json({ success: true, data: product });

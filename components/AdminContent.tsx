@@ -2360,12 +2360,28 @@ function SectionGestionArticles() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Helper to extract image URL from product object
+  const getProductImageUrl = (p: any) => {
+    if (!p) return '';
+    if (p.imageUrl) return p.imageUrl;
+    if (p.image) return p.image;
+    try {
+      const parsed = p.images ? JSON.parse(p.images) : [];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      if (typeof p.images === 'string' && (p.images.startsWith('http') || p.images.startsWith('/'))) return p.images;
+    }
+    return '';
+  };
+
   // Formulaire manuel
   const [form, setForm] = useState({
     reference: '',
     name: '',
     brand: '',
     vehicleCompat: '',
+    imageUrl: '',
     costPrice: 0,
     price: 0,
     stock: 0,
@@ -2445,6 +2461,7 @@ function SectionGestionArticles() {
           name: '',
           brand: '',
           vehicleCompat: '',
+          imageUrl: '',
           costPrice: 0,
           price: 0,
           stock: 0,
@@ -2474,7 +2491,8 @@ function SectionGestionArticles() {
           vehicleCompat: editingProduct.vehicleCompat,
           stock: editingProduct.stock,
           costPrice: editingProduct.costPrice,
-          price: editingProduct.price
+          price: editingProduct.price,
+          imageUrl: editingProduct.imageUrl
         })
       });
       if (res.ok) {
@@ -2540,7 +2558,8 @@ function SectionGestionArticles() {
         const mrqIdx   = findCol('MARQUE', 'BRAND');
         const vehIdx   = findCol('VEHICULE', 'CONCERNEE', 'COMPAT');
         const coutIdx  = findCol('COUT', 'REVIENT', 'ACHAT');
-        const venteIdx = findCol('PRIX VENTE', 'VENTE', 'PV');
+        const venteIdx = findCol('PRIX VENTE', 'VENTE', 'PV', 'PRIX');
+        const imgIdx   = findCol('URL_IMAGE', 'URL', 'IMAGE', 'PHOTO', 'LIEN', 'IMG', 'PICTURE');
 
         const parseNum = (v: any) => {
           const n = parseFloat(String(v).replace(',', '.').replace(/\s/g, '').replace(/[^\d.-]/g, ''));
@@ -2556,12 +2575,13 @@ function SectionGestionArticles() {
 
           parsed.push({
             reference,
-            designation: designation || 'ARTICLE ' + reference,
+            designation:   designation || 'ARTICLE ' + reference,
             stock:         qteIdx   !== -1 ? parseInt(String(row[qteIdx] || '0')) || 0 : 0,
             brand:         mrqIdx   !== -1 ? String(row[mrqIdx]  || '').trim() : '',
             vehicleCompat: vehIdx   !== -1 ? String(row[vehIdx]  || '').trim() : '',
             costPrice:     coutIdx  !== -1 ? parseNum(row[coutIdx])  : 0,
             sellingPrice:  venteIdx !== -1 ? parseNum(row[venteIdx]) : 0,
+            imageUrl:      imgIdx   !== -1 ? String(row[imgIdx]  || '').trim() : '',
           });
         }
         setCsvPreview(parsed);
@@ -2647,6 +2667,29 @@ function SectionGestionArticles() {
                   </div>
                 </div>
 
+                <div>
+                  <label className={labelCls}>LIEN DE L'IMAGE (URL)</label>
+                  <div className="flex gap-2 items-center">
+                    <input 
+                      type="url" 
+                      className={inputCls} 
+                      placeholder="EX: https://images.com/photo.jpg ou /images/parts/CAN1306J5.jpg" 
+                      value={form.imageUrl} 
+                      onChange={e => setForm({...form, imageUrl: e.target.value})} 
+                    />
+                    {form.imageUrl && (
+                      <div className="w-10 h-10 shrink-0 rounded-xl overflow-hidden border border-zinc-200 bg-zinc-100 flex items-center justify-center shadow-sm">
+                        <img 
+                          src={form.imageUrl} 
+                          alt="Aperçu" 
+                          className="w-full h-full object-cover" 
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <label className={labelCls}>QTÉ EN STOCK</label>
@@ -2673,7 +2716,7 @@ function SectionGestionArticles() {
               <div className="text-[10px] font-black uppercase tracking-widest text-green-400 mb-4 border-b border-zinc-200 pb-2">IMPORTER DEPUIS UN FICHIER EXCEL (CSV)</div>
               <p className="text-xs text-zinc-500 mb-4 leading-relaxed uppercase">
                 IMPORTEZ DES CENTAINES DE PIÈCES D'UN SEUL COUP. LE FICHIER CSV DOIT EN TÊTE DES COLONNES COMPORTER :<br />
-                <code className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors">REFERENCE | DESIGNATION | QTE | MARQUE | VEHICULES CONCERNEES | COUT REVIENT | PRIX VENTE</code>
+                <code className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors">REFERENCE | DESIGNATION | QTE | MARQUE | VEHICULES | COUT | PRIX | URL_IMAGE</code>
               </p>
 
               <div className="space-y-4">
@@ -2795,6 +2838,16 @@ function SectionGestionArticles() {
                     <label className={labelCls}>VÉHICULES COMPATIBLES</label>
                     <input type="text" className={inputCls} value={editingProduct.vehicleCompat || ''} onChange={e => setEditingProduct({...editingProduct, vehicleCompat: e.target.value})} />
                   </div>
+                  <div>
+                    <label className={labelCls}>LIEN DE L'IMAGE (URL)</label>
+                    <input 
+                      type="url" 
+                      className={inputCls} 
+                      placeholder="EX: https://images.com/photo.jpg" 
+                      value={editingProduct.imageUrl || ''} 
+                      onChange={e => setEditingProduct({...editingProduct, imageUrl: e.target.value})} 
+                    />
+                  </div>
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className={labelCls}>STOCK EN COURS</label>
@@ -2840,59 +2893,54 @@ function SectionGestionArticles() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(p => (
-                      <tr key={p.id} className="border-b border-slate-850 hover:bg-white/20 transition">
-                        <td className="px-4 py-2.5">
-                          <div className="flex items-center justify-center">
-                            {(() => {
-                              try {
-                                const imgs = p.images ? JSON.parse(p.images) : [];
-                                if (imgs && imgs.length > 0) {
-                                  return (
-                                    <div className="relative w-12 h-12">
-                                      <img 
-                                        src={imgs[0]} 
-                                        alt={p.reference} 
-                                        className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm"
-                                        onError={(e) => { 
-                                          (e.currentTarget as HTMLImageElement).style.display = 'none'; 
-                                          ((e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement).style.display = 'flex'; 
-                                        }}
-                                      />
-                                      <div className="hidden absolute inset-0 rounded-lg bg-zinc-100 border border-zinc-200 items-center justify-center text-zinc-400 shadow-inner">
-                                        <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                              } catch (e) {}
-                              return (
+                    {filtered.map(p => {
+                      const imgUrl = getProductImageUrl(p);
+                      return (
+                        <tr key={p.id} className="border-b border-slate-850 hover:bg-white/20 transition">
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center justify-center">
+                              {imgUrl ? (
+                                <div className="relative w-12 h-12">
+                                  <img 
+                                    src={imgUrl} 
+                                    alt={p.reference || p.name} 
+                                    className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm bg-white"
+                                    onError={(e) => { 
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none'; 
+                                      ((e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement).style.display = 'flex'; 
+                                    }}
+                                  />
+                                  <div className="hidden absolute inset-0 rounded-lg bg-zinc-100 border border-zinc-200 items-center justify-center text-zinc-400 shadow-inner">
+                                    <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
+                                  </div>
+                                </div>
+                              ) : (
                                 <div className="w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 shadow-inner">
                                   <span className="text-[10px] font-bold text-center leading-tight">SANS<br/>PHOTO</span>
                                 </div>
-                              );
-                            })()}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5 font-mono font-bold text-zinc-900 text-sm">{p.reference}</td>
-                        <td className="px-4 py-2.5 font-bold text-zinc-950 uppercase">{p.name}</td>
-                        <td className="px-4 py-2.5 font-bold text-zinc-500 uppercase">{p.brand || '-'}</td>
-                        <td className="px-4 py-2.5 text-zinc-500 uppercase">{p.vehicleCompat || '-'}</td>
-                        <td className="px-4 py-2.5 text-center font-mono font-bold text-slate-300">{p.stock}</td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-red-450/90">{(p.costPrice || p.oldPrice || 0).toFixed(2)} TND</td>
-                        <td className="px-4 py-2.5 text-right font-mono font-bold text-green-400">{p.price.toFixed(2)} TND</td>
-                        <td className="px-4 py-2.5 text-center">
-                          <div className="flex gap-1.5 justify-center">
-                            <button onClick={() => setEditingProduct(p)} className="p-1.5 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-600 hover:text-zinc-950 rounded-lg border border-cyan-500/10 transition">
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => handleDelete(p.slug)} className="p-1.5 bg-red-950/20 text-red-500 hover:bg-red-600 hover:text-zinc-950 rounded-lg border border-red-500/10 transition">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 font-mono font-bold text-zinc-900 text-sm">{p.reference}</td>
+                          <td className="px-4 py-2.5 font-bold text-zinc-950 uppercase">{p.name}</td>
+                          <td className="px-4 py-2.5 font-bold text-zinc-500 uppercase">{p.brand || '-'}</td>
+                          <td className="px-4 py-2.5 text-zinc-500 uppercase">{p.vehicleCompat || '-'}</td>
+                          <td className="px-4 py-2.5 text-center font-mono font-bold text-slate-300">{p.stock}</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-red-450/90">{(p.costPrice || p.oldPrice || 0).toFixed(2)} TND</td>
+                          <td className="px-4 py-2.5 text-right font-mono font-bold text-green-400">{p.price.toFixed(2)} TND</td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="flex gap-1.5 justify-center">
+                              <button onClick={() => setEditingProduct({ ...p, imageUrl: imgUrl })} className="p-1.5 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-600 hover:text-zinc-950 rounded-lg border border-cyan-500/10 transition">
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDelete(p.slug)} className="p-1.5 bg-red-950/20 text-red-500 hover:bg-red-600 hover:text-zinc-950 rounded-lg border border-red-500/10 transition">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

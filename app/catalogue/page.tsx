@@ -61,118 +61,162 @@ export default function CustomerCatalogue() {
     reader.readAsDataURL(file);
   };
 
-  const filtered = products.filter(p => 
+  const getProductImg = (product: any) => {
+    if (!product) return null;
+    if (product.imageUrl) return product.imageUrl;
+    if (product.image) return product.image;
+    if (Array.isArray(product.images) && product.images.length > 0) return product.images[0];
+    if (typeof product.images === 'string') {
+      try {
+        const parsed = JSON.parse(product.images);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+        if (typeof parsed === 'string') return parsed;
+      } catch {
+        if (product.images.startsWith('http') || product.images.startsWith('/')) return product.images;
+      }
+    }
+    return null;
+  };
+
+  const filteredProducts = products.filter(p => 
     (p.name || '').toLowerCase().includes(search.toLowerCase()) || 
     (p.reference || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-[#0a0e1a] min-h-screen mt-6">
-      <Link href="/" className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 hover:text-white hover:border-red-500 transition mb-6 font-bold text-sm">
-        <Home className="w-4 h-4" /> Accueil
-      </Link>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-6 gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-white">🗂️ Catalogue Général Articles</h1>
-          <p className="text-xs text-slate-400 mt-1">Disponibilités & Tarifs en Temps Réel</p>
-        </div>
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text" 
-            placeholder="Rechercher une pièce, référence..." 
-            value={search} 
-            onChange={(e) => setSearch(e.target.value)} 
-            className="w-full pl-9 pr-3 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 outline-none focus:border-red-500 transition" 
-          />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-[#1e293b]/20 border border-slate-800/80 rounded-2xl p-5 animate-pulse h-80 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <div className="w-20 h-4 bg-slate-800 rounded"></div>
-                  <div className="w-16 h-4 bg-slate-800 rounded"></div>
-                </div>
-                <div className="w-full h-40 bg-slate-800/50 rounded-xl mb-4"></div>
-                <div className="w-3/4 h-4 bg-slate-800 rounded mb-2"></div>
+    <div className="min-h-screen bg-[#070b14] text-slate-100 flex flex-col justify-between font-sans">
+      {/* Header Bar */}
+      <header className="border-b border-slate-800/80 bg-slate-900/40 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="w-9 h-9 rounded-xl bg-red-650 flex items-center justify-center font-black text-white text-lg tracking-tighter shadow-lg shadow-red-650/30 group-hover:scale-105 transition-transform">
+                A
               </div>
-              <div className="border-t border-slate-800/60 pt-3 flex justify-between items-center">
-                <div className="w-24 h-4 bg-slate-800 rounded"></div>
-                <div className="w-16 h-7 bg-slate-800 rounded-xl"></div>
-              </div>
+              <span className="font-black text-lg tracking-wider text-white uppercase">AUTOP<span className="text-red-500">.</span></span>
+            </Link>
+            <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-slate-400">
+              <span>/</span>
+              <span className="uppercase tracking-widest text-slate-200">Catalogue Pièces & Tarifs</span>
             </div>
-          ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 bg-slate-900/30 border border-slate-800/60 rounded-2xl">
-          <Package className="w-12 h-12 text-slate-600 mx-auto mb-3 stroke-[1.5]" />
-          <h3 className="text-slate-300 font-bold text-sm mb-1">Aucun article trouvé pour cette recherche</h3>
-          <p className="text-xs text-slate-500">Essayez avec une autre référence ou consultez notre robot B2B.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((product) => (
-            <div key={product.id} className="bg-[#1e293b]/30 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
-              <div>
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-400 font-bold">{product.reference}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${(product.stock || product.stockQty || 0) > 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-                    {(product.stock || product.stockQty || 0) > 0 ? '✓ En Stock' : '⏳ Sur Commande'}
-                  </span>
-                </div>
-                
-                {/* Image Container */}
-                <div className="w-full h-44 bg-slate-950/60 rounded-xl mb-4 relative flex items-center justify-center border border-slate-800/80 group overflow-hidden">
-                  {product.images && product.images.length > 0 ? (
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-contain p-3 transition-transform duration-300 hover:scale-110"
-                      onError={(e: any) => {
-                        e.target.src = "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=300&auto=format&fit=crop&q=60";
-                      }}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center justify-center text-slate-500">
-                      <Package className="w-12 h-12 stroke-[1.5] mb-2 text-red-500/60" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Photo Pièce</span>
-                    </div>
-                  )}
-                  <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
-                    <span className="text-white text-xs font-bold px-3 py-1.5 bg-red-600 rounded-lg shadow-lg">Changer Photo</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, product)} />
-                  </label>
-                </div>
+          </div>
 
-                <h3 className="text-sm font-bold text-slate-200 mb-4 line-clamp-2">{product.name}</h3>
-              </div>
-              <div className="border-t border-slate-800/60 pt-3 flex justify-between items-center">
-                <div>
-                  <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-wider">Prix Unitaire</span>
-                  <span className="text-sm font-bold text-red-400 font-mono">{product.price > 0 ? `${product.price.toFixed(3)} TND` : "Prix sur demande"}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    window.dispatchEvent(
-                      new CustomEvent('open-chat', {
-                        detail: { reference: product.reference, name: product.name }
-                      })
-                    );
-                  }}
-                  className="px-4 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl transition flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-95"
-                  title="Demander le prix par Chat"
+          <div className="flex items-center gap-3">
+            <Link 
+              href="/admin/login" 
+              className="px-3.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800/60 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5"
+            >
+              <Home className="w-3.5 h-3.5" />
+              <span>Administration</span>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 py-8 flex-1 w-full">
+        {/* Title & Search bar */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white flex items-center gap-3">
+              <Package className="w-8 h-8 text-red-500" />
+              Catalogue des Pièces
+            </h1>
+            <p className="text-xs text-slate-400 font-medium mt-1">
+              Consultez nos pièces détachées en stock et demandez un devis immédiat
+            </p>
+          </div>
+
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Rechercher par réf ou nom..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-slate-900/80 border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-red-500 transition"
+            />
+          </div>
+        </div>
+
+        {/* Loading / Empty States */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <span className="text-xs uppercase tracking-widest font-bold">Chargement des pièces...</span>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-20 bg-slate-900/20 border border-slate-800/60 rounded-2xl">
+            <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+            <p className="text-slate-400 text-sm font-bold uppercase">Aucune pièce trouvée</p>
+            <p className="text-slate-500 text-xs mt-1">Essayez un autre mot-clé ou réinitialisez votre recherche</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            {filteredProducts.map((product) => {
+              const imgSrc = getProductImg(product);
+              return (
+                <div 
+                  key={product.id}
+                  className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between hover:border-slate-700 transition shadow-lg group"
                 >
-                  <MessageSquare className="w-3.5 h-3.5" /> CHAT
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                  <div>
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-400 font-bold">{product.reference}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${(product.stock || product.stockQty || 0) > 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
+                        {(product.stock || product.stockQty || 0) > 0 ? '✓ En Stock' : '⏳ Sur Commande'}
+                      </span>
+                    </div>
+                    
+                    <div className="w-full h-44 bg-slate-950/60 rounded-xl mb-4 relative flex items-center justify-center border border-slate-800/80 group overflow-hidden">
+                      {imgSrc ? (
+                        <img
+                          src={imgSrc}
+                          alt={product.name}
+                          className="w-full h-full object-contain p-3 transition-transform duration-300 hover:scale-110"
+                          onError={(e: any) => {
+                            e.target.src = "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=300&auto=format&fit=crop&q=60";
+                          }}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-500">
+                          <Package className="w-12 h-12 stroke-[1.5] mb-2 text-red-500/60" />
+                          <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Photo Pièce</span>
+                        </div>
+                      )}
+                      <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
+                        <span className="text-white text-xs font-bold px-3 py-1.5 bg-red-600 rounded-lg shadow-lg">Changer Photo</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, product)} />
+                      </label>
+                    </div>
+
+                    <h3 className="text-sm font-bold text-slate-200 mb-4 line-clamp-2">{product.name}</h3>
+                  </div>
+                  <div className="border-t border-slate-800/60 pt-3 flex justify-between items-center">
+                    <div>
+                      <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-wider">Prix Unitaire</span>
+                      <span className="text-sm font-bold text-red-400 font-mono">{product.price > 0 ? `${product.price.toFixed(3)} TND` : "Prix sur demande"}</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(
+                          new CustomEvent('open-chat', {
+                            detail: { reference: product.reference, name: product.name }
+                          })
+                        );
+                      }}
+                      className="px-4 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl transition flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-95"
+                      title="Demander le prix par Chat"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" /> CHAT
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

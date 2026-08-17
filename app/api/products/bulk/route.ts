@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
       const brand = prod.brand || '';
       const vehicleCompat = prod.vehicleCompat || '';
 
+      const rawImg = prod.imageUrl || prod.image || prod.urlImage || prod.images || '';
+      const imagesVal = rawImg ? (String(rawImg).startsWith('[') ? String(rawImg) : JSON.stringify([String(rawImg).trim()])) : '[]';
+
       await prisma.product.upsert({
         where: { reference },
         update: {
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
           stock,
           brand,
           vehicleCompat,
+          ...(rawImg ? { images: imagesVal } : {}),
         },
         create: {
           reference,
@@ -52,6 +56,7 @@ export async function POST(req: NextRequest) {
           stock,
           brand,
           vehicleCompat,
+          images: imagesVal,
           status: 'ACTIVE',
           categoryId: category.id,
         },

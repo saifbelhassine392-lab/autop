@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useCart } from '@/contexts/CartContext'
 import { Search, ShoppingCart, Filter, MessageSquare, Home } from 'lucide-react'
-import Image from 'next/image'
 import Link from 'next/link'
 
 interface Product {
@@ -11,17 +10,18 @@ interface Product {
   name: string
   price: number
   oldPrice?: number
-  images: string[]
+  images?: string | string[]
+  imageUrl?: string
   reference: string
   brand: string
   stock: number
-  category: { name: string }
-  compatible: string[]
+  category?: { name: string }
+  compatible?: string[]
 }
 
 export default function PiecesPage() {
   const [products, setProducts] = useState<Product[]>([])
-  const [categories, setCategories] = useState([])
+  const [categories, setCategories] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [loading, setLoading] = useState(true)
@@ -33,21 +33,30 @@ export default function PiecesPage() {
   }, [])
 
   const fetchCategories = async () => {
-    const res = await fetch('/api/categories')
-    if (res.ok) {
-      const data = await res.json()
-      setCategories(data)
+    try {
+      const res = await fetch('/api/categories')
+      if (res.ok) {
+        const data = await res.json()
+        setCategories(Array.isArray(data) ? data : [])
+      }
+    } catch (e) {
+      console.error(e)
     }
   }
 
   const fetchProducts = async (params = '') => {
     setLoading(true)
-    const res = await fetch(`/api/products?${params}`)
-    if (res.ok) {
-      const data = await res.json()
-      setProducts(data)
+    try {
+      const res = await fetch(`/api/products?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setProducts(Array.isArray(data) ? data : [])
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const handleSearch = () => {
@@ -55,6 +64,23 @@ export default function PiecesPage() {
     if (search) params.append('search', search)
     if (selectedCategory) params.append('category', selectedCategory)
     fetchProducts(params.toString())
+  }
+
+  const getProductImg = (product: any) => {
+    if (!product) return null
+    if (product.imageUrl) return product.imageUrl
+    if (product.image) return product.image
+    if (Array.isArray(product.images) && product.images.length > 0) return product.images[0]
+    if (typeof product.images === 'string') {
+      try {
+        const parsed = JSON.parse(product.images)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0]
+        if (typeof parsed === 'string') return parsed
+      } catch {
+        if (product.images.startsWith('http') || product.images.startsWith('/')) return product.images
+      }
+    }
+    return null
   }
 
   return (
@@ -88,9 +114,9 @@ export default function PiecesPage() {
           }}
           className="px-4 py-3 bg-slate-900/60 backdrop-blur-sm border border-slate-800 text-slate-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
         >
-          <option value="" className="bg-slate-900/60 backdrop-blur-sm/60 backdrop-blur-sm text-slate-100">Toutes les catégories</option>
+          <option value="" className="bg-slate-900 text-slate-100">Toutes les catégories</option>
           {Array.isArray(categories) && categories.map((cat: any) => (
-            <option key={cat.id} value={cat.slug} className="bg-slate-900/60 backdrop-blur-sm/60 backdrop-blur-sm text-slate-100">{cat.name}</option>
+            <option key={cat.id} value={cat.slug} className="bg-slate-900 text-slate-100">{cat.name}</option>
           ))}
         </select>
         <button
@@ -111,66 +137,71 @@ export default function PiecesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {Array.isArray(products) && products.map((product) => (
-            <div key={product.id} className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-xl overflow-hidden hover:border-red-500/50 transition duration-300 shadow-xl flex flex-col justify-between">
-              <div className="relative h-48 bg-slate-950 flex items-center justify-center">
-                {product.images && product.images[0] ? (
-                  <Image
-                    src={product.images[0]}
-                    alt={product.name}
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full text-slate-600 text-sm">
-                    Pas d'image
-                  </div>
-                )}
-                {product.oldPrice && product.oldPrice > product.price && (
-                  <span className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
-                    -{Math.round((1 - product.price / product.oldPrice) * 100)}%
-                  </span>
-                )}
-              </div>
-              <div className="p-5 flex-1 flex flex-col justify-between">
-                <div>
-                  <p className="text-[10px] font-mono text-slate-400 mb-1">{product.brand || 'Générique'} | {product.reference}</p>
-                  <h3 className="font-bold text-slate-100 text-sm mb-3 line-clamp-2">{product.name}</h3>
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-bold text-slate-400">PRIX SUR DEMANDE</span>
-                    <button
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent('open-chat', {
-                            detail: { reference: product.reference, name: product.name }
-                          })
-                        );
+          {Array.isArray(products) && products.map((product: any) => {
+            const imgSrc = getProductImg(product)
+            return (
+              <div key={product.id} className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-xl overflow-hidden hover:border-red-500/50 transition duration-300 shadow-xl flex flex-col justify-between">
+                <div className="relative h-48 bg-slate-950 flex items-center justify-center overflow-hidden">
+                  {imgSrc ? (
+                    <img
+                      src={imgSrc}
+                      alt={product.name}
+                      className="w-full h-full object-contain p-2 hover:scale-105 transition-transform"
+                      onError={(e: any) => {
+                        e.target.style.display = 'none'
                       }}
-                      className="p-1.5 bg-red-650 hover:bg-red-600 text-white rounded-lg transition"
-                      title="Demander le prix par Chat"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-slate-600 text-sm">
+                      Pas d'image
+                    </div>
+                  )}
+                  {product.oldPrice && product.oldPrice > product.price && (
+                    <span className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                      -{Math.round((1 - product.price / product.oldPrice) * 100)}%
+                    </span>
+                  )}
+                </div>
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                  <div>
+                    <p className="text-[10px] font-mono text-slate-400 mb-1">{product.brand || 'Générique'} | {product.reference}</p>
+                    <h3 className="font-bold text-slate-100 text-sm mb-3 line-clamp-2">{product.name}</h3>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-bold text-slate-400">PRIX SUR DEMANDE</span>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent('open-chat', {
+                              detail: { reference: product.reference, name: product.name }
+                            })
+                          )
+                        }}
+                        className="p-1.5 bg-red-650 hover:bg-red-600 text-white rounded-lg transition"
+                        title="Demander le prix par Chat"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${product.stock > 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {product.stock > 0 ? `${product.stock} disponibles` : 'Rupture de stock'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => addItem(product.id)}
+                      disabled={product.stock <= 0}
+                      className="w-full bg-red-600 text-white py-2.5 rounded-xl font-bold hover:bg-red-700 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition duration-200"
                     >
-                      <MessageSquare className="w-3.5 h-3.5" />
+                      <ShoppingCart className="w-4 h-4" />
+                      Ajouter au panier
                     </button>
                   </div>
-                  <div className="flex items-center justify-between mb-4">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${product.stock > 0 ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                      {product.stock > 0 ? `${product.stock} disponibles` : 'Rupture de stock'}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => addItem(product.id)}
-                    disabled={product.stock <= 0}
-                    className="w-full bg-red-600 text-white py-2.5 rounded-xl font-bold hover:bg-red-700 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition duration-200"
-                  >
-                    <ShoppingCart className="w-4 h-4" />
-                    Ajouter au panier
-                  </button>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
