@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MessageSquare, Home, Package, Search } from 'lucide-react';
+import { MessageSquare, Home, Package, Search, Eye } from 'lucide-react';
 import Link from 'next/link';
+import ModalFicheArticle from '@/components/ModalFicheArticle';
 
 export default function CustomerCatalogue() {
   const [products, setProducts] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -162,20 +164,29 @@ export default function CustomerCatalogue() {
                 >
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-400 font-bold">{product.reference}</span>
+                      <span 
+                        onClick={() => setSelectedProduct(product)}
+                        className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-slate-400 font-bold cursor-pointer hover:text-white"
+                      >
+                        {product.reference}
+                      </span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${(product.stock || product.stockQty || 0) > 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
                         {(product.stock || product.stockQty || 0) > 0 ? '✓ En Stock' : '⏳ Sur Commande'}
                       </span>
                     </div>
                     
-                    <div className="w-full h-44 bg-slate-950/60 rounded-xl mb-4 relative flex items-center justify-center border border-slate-800/80 group overflow-hidden">
+                    <div 
+                      onClick={() => setSelectedProduct(product)}
+                      className="w-full h-44 bg-slate-950/60 rounded-xl mb-4 relative flex items-center justify-center border border-slate-800/80 group overflow-hidden cursor-pointer"
+                      title="Cliquer pour voir la fiche article et la photo"
+                    >
                       {imgSrc ? (
                         <img
                           src={imgSrc}
                           alt={product.name}
-                          className="w-full h-full object-contain p-3 transition-transform duration-300 hover:scale-110"
+                          className="w-full h-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
                           onError={(e: any) => {
-                            e.target.src = "https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=300&auto=format&fit=crop&q=60";
+                            e.target.style.display = 'none';
                           }}
                         />
                       ) : (
@@ -184,32 +195,42 @@ export default function CustomerCatalogue() {
                           <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">Photo Pièce</span>
                         </div>
                       )}
-                      <label className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer rounded-xl">
-                        <span className="text-white text-xs font-bold px-3 py-1.5 bg-red-600 rounded-lg shadow-lg">Changer Photo</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, product)} />
-                      </label>
                     </div>
 
-                    <h3 className="text-sm font-bold text-slate-200 mb-4 line-clamp-2">{product.name}</h3>
+                    <h3 
+                      onClick={() => setSelectedProduct(product)}
+                      className="text-sm font-bold text-slate-200 mb-4 line-clamp-2 cursor-pointer hover:text-red-400 transition-colors"
+                    >
+                      {product.name}
+                    </h3>
                   </div>
-                  <div className="border-t border-slate-800/60 pt-3 flex justify-between items-center">
+                  <div className="border-t border-slate-800/60 pt-3 flex justify-between items-center gap-2">
                     <div>
                       <span className="text-[9px] text-slate-500 font-bold block uppercase tracking-wider">Prix Unitaire</span>
                       <span className="text-sm font-bold text-red-400 font-mono">{product.price > 0 ? `${product.price.toFixed(3)} TND` : "Prix sur demande"}</span>
                     </div>
-                    <button
-                      onClick={() => {
-                        window.dispatchEvent(
-                          new CustomEvent('open-chat', {
-                            detail: { reference: product.reference, name: product.name }
-                          })
-                        );
-                      }}
-                      className="px-4 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl transition flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-95"
-                      title="Demander le prix par Chat"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" /> CHAT
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setSelectedProduct(product)}
+                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl transition flex items-center gap-1 text-[10px] font-black uppercase tracking-wider"
+                        title="Voir la fiche détaillée"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Fiche
+                      </button>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent('open-chat', {
+                              detail: { reference: product.reference, name: product.name }
+                            })
+                          );
+                        }}
+                        className="px-3 py-2 bg-red-650 hover:bg-red-600 text-white rounded-xl transition flex items-center gap-1 text-[10px] font-black uppercase tracking-wider shadow-sm active:scale-95"
+                        title="Demander le prix par Chat"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> CHAT
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -217,6 +238,14 @@ export default function CustomerCatalogue() {
           </div>
         )}
       </main>
+
+      {/* Modale Fiche Article Complète */}
+      {selectedProduct && (
+        <ModalFicheArticle
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
     </div>
   );
 }

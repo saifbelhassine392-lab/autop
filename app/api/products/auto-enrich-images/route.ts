@@ -25,17 +25,18 @@ export async function POST() {
         const resolved = resolveProductImage({
           reference: p.reference,
           sku: p.sku,
-          name: p.name,
-          category: p.category
+          name: p.name
         });
 
-        await prisma.product.update({
-          where: { id: p.id },
-          data: {
-            images: JSON.stringify([resolved])
-          }
-        });
-        updatedCount++;
+        if (resolved) {
+          await prisma.product.update({
+            where: { id: p.id },
+            data: {
+              images: JSON.stringify([resolved])
+            }
+          });
+          updatedCount++;
+        }
       }
     }
 

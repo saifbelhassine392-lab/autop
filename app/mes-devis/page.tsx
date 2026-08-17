@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useCart } from "@/contexts/CartContext"
 import Link from "next/link"
+import ModalFicheArticle from "@/components/ModalFicheArticle"
 import { 
   Download, CheckCircle, MessageCircle, FileText, 
   Plus, FileSpreadsheet, ClipboardList, Package, Receipt, X, Search, Home,
@@ -101,33 +102,27 @@ export default function MesDevisPage() {
     }
   }
 
-  const getPartImage = (p: any): string => {
-    if (!p) return '/images/categories/piece-auto-generique.jpg'
-    if (p.imageUrl) return p.imageUrl
-    if (p.image) return p.image
-    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) return p.images[0]
+  const getPartImage = (p: any): string | null => {
+    if (!p) return null
+    if (p.imageUrl && !p.imageUrl.includes('/images/categories/')) return p.imageUrl
+    if (p.image && !p.image.includes('/images/categories/')) return p.image
+    if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
+      if (!p.images[0].includes('/images/categories/')) return p.images[0]
+    }
     if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
       try {
         const parsed = JSON.parse(p.images)
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) return parsed[0]
-        if (typeof parsed === 'string' && parsed.trim()) return parsed
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) {
+          if (!parsed[0].includes('/images/categories/')) return parsed[0]
+        }
+        if (typeof parsed === 'string' && parsed.trim()) {
+          if (!parsed.includes('/images/categories/')) return parsed
+        }
       } catch {
-        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images
+        if ((p.images.startsWith('http') || p.images.startsWith('/')) && !p.images.includes('/images/categories/')) return p.images
       }
     }
-    const name = (p.name || '').toLowerCase()
-    if (name.includes('plaquette') || name.includes('patin') || (name.includes('frein') && !name.includes('disque'))) return '/images/categories/plaquettes-frein.jpg'
-    if (name.includes('disque') || name.includes('rotor')) return '/images/categories/disque-frein.jpg'
-    if (name.includes('filtre') && (name.includes('air') || name.includes('admission'))) return '/images/categories/filtre-air.jpg'
-    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) return '/images/categories/filtre-huile.jpg'
-    if (name.includes('filtre')) return '/images/categories/filtre-air.jpg'
-    if (name.includes('embrayage') || name.includes('clutch')) return '/images/categories/kit-embrayage.jpg'
-    if (name.includes('triangle') || name.includes('bras')) return '/images/categories/triangle-suspension.jpg'
-    if (name.includes('biellette') || name.includes('bielle')) return '/images/categories/biellette-suspension.jpg'
-    if (name.includes('rotule') || name.includes('direction')) return '/images/categories/rotule-direction.jpg'
-    if (name.includes('amortisseur') || name.includes('strut')) return '/images/categories/amortisseur.jpg'
-    if (name.includes('distribution') || name.includes('courroie')) return '/images/categories/kit-distribution.jpg'
-    return '/images/categories/piece-auto-generique.jpg'
+    return null
   }
 
   const loadProfile = async () => {
@@ -1051,16 +1046,25 @@ export default function MesDevisPage() {
                             className="bg-slate-900/40 border border-slate-800/80 hover:border-slate-700/90 rounded-3xl p-5 flex flex-col justify-between transition duration-300 shadow-lg group hover:shadow-2xl hover:shadow-black/40"
                           >
                             <div>
-                              {/* Image & Badges */}
-                              <div className="relative w-full h-44 bg-white/95 rounded-2xl overflow-hidden mb-4 flex items-center justify-center p-3 border border-slate-800/50">
-                                <img
-                                  src={imgUrl}
-                                  alt={p.name || p.reference}
-                                  className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                                  onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).src = '/images/categories/piece-auto-generique.jpg';
-                                  }}
-                                />
+                              {/* Image & Badges - Clickable */}
+                              <div 
+                                className="relative w-full h-44 bg-white rounded-2xl overflow-hidden mb-4 flex items-center justify-center p-3 border border-slate-800/50 cursor-pointer"
+                                onClick={() => setSelectedPartModal(p)}
+                                title="Cliquer pour ouvrir la fiche article et la photo grand format"
+                              >
+                                {imgUrl ? (
+                                  <img
+                                    src={imgUrl}
+                                    alt={p.name || p.reference}
+                                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center text-zinc-400 p-2 text-center">
+                                    <Package className="w-10 h-10 mb-1 text-zinc-300 opacity-70" />
+                                    <span className="text-[10px] font-black uppercase text-zinc-500 tracking-wider">Photo Non Fournie</span>
+                                  </div>
+                                )}
+
                                 <div className="absolute top-2.5 left-2.5">
                                   <span className="px-2.5 py-1 bg-slate-950/90 border border-slate-700/80 rounded-lg text-white font-mono font-black text-[11px] shadow">
                                     {p.reference || p.sku}
@@ -1075,8 +1079,11 @@ export default function MesDevisPage() {
                                 )}
                               </div>
 
-                              {/* Infos Pièce */}
-                              <h3 className="text-sm font-black text-white uppercase tracking-wide line-clamp-2 mb-1 group-hover:text-red-400 transition-colors">
+                              {/* Infos Pièce - Clickable */}
+                              <h3 
+                                className="text-sm font-black text-white uppercase tracking-wide line-clamp-2 mb-1 group-hover:text-red-400 transition-colors cursor-pointer"
+                                onClick={() => setSelectedPartModal(p)}
+                              >
                                 {p.name}
                               </h3>
 
@@ -1108,11 +1115,20 @@ export default function MesDevisPage() {
                             </div>
 
                             {/* Actions */}
-                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80">
+                              <button
+                                onClick={() => setSelectedPartModal(p)}
+                                className="py-2.5 px-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1 border border-slate-750"
+                                title="Voir la fiche complète"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Fiche</span>
+                              </button>
+
                               <button
                                 onClick={() => handleAddToCart(p)}
                                 disabled={isAdding || isAdded}
-                                className={`py-2.5 px-3 rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow ${
+                                className={`py-2.5 px-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1 shadow ${
                                   isAdded
                                     ? 'bg-emerald-600 text-white'
                                     : 'bg-slate-800 hover:bg-slate-700 text-white hover:border-slate-600 border border-slate-750'
@@ -1121,12 +1137,12 @@ export default function MesDevisPage() {
                                 {isAdded ? (
                                   <>
                                     <Check className="w-3.5 h-3.5" />
-                                    <span>Ajouté !</span>
+                                    <span>Ajouté</span>
                                   </>
                                 ) : isAdding ? (
                                   <>
                                     <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
-                                    <span>Ajout...</span>
+                                    <span>...</span>
                                   </>
                                 ) : (
                                   <>
@@ -1138,7 +1154,7 @@ export default function MesDevisPage() {
 
                               <Link
                                 href={`/devis?ref=${encodeURIComponent(p.reference || '')}&name=${encodeURIComponent(p.name || '')}`}
-                                className="py-2.5 px-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1.5 shadow-lg shadow-red-600/20"
+                                className="py-2.5 px-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition flex items-center justify-center gap-1 shadow-lg shadow-red-600/20"
                               >
                                 <FileText className="w-3.5 h-3.5" />
                                 <span>Devis</span>
@@ -1148,6 +1164,16 @@ export default function MesDevisPage() {
                         );
                       })}
                     </div>
+                  )}
+
+                  {/* Modale Fiche Article Complète Client */}
+                  {selectedPartModal && (
+                    <ModalFicheArticle
+                      product={selectedPartModal}
+                      onClose={() => setSelectedPartModal(null)}
+                      onAddToCart={handleAddToCart}
+                      isAdmin={false}
+                    />
                   )}
                 </div>
               );

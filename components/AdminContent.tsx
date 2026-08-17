@@ -5,13 +5,14 @@ import { useSession } from 'next-auth/react';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { searchDictionaryAndEquivalents, getEquivalentsForRef, validateCriticalPartCompatibility } from '@/lib/equivalentsDictionary';
 import ModalSyntheseOffres from './ModalSyntheseOffres';
+import ModalFicheArticle from './ModalFicheArticle';
 import {
   Search, Edit3, MessageSquare, FileText, Mail, Phone,
   Plus, Trash2, Save, X, Send,
   Building2, UserPlus, List, ClipboardList, Package,
   CheckCircle, AlertTriangle, Printer, Clock,
   ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle, Loader2,
-  RefreshCw, FileSpreadsheet, Database, Sparkles, CheckCircle2, ExternalLink, Layers
+  RefreshCw, FileSpreadsheet, Database, Sparkles, CheckCircle2, ExternalLink, Layers, Eye
 } from 'lucide-react';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
@@ -2415,35 +2416,31 @@ function SectionGestionArticles() {
     }
   };
 
-  const getProductImageUrl = (p: any): string => {
-    if (!p) return '/images/categories/piece-auto-generique.jpg';
-    if (p.imageUrl) return p.imageUrl;
-    if (p.image) return p.image;
+  const [selectedProductForDetails, setSelectedProductForDetails] = useState<any | null>(null);
+
+  const getProductImageUrl = (p: any): string | null => {
+    if (!p) return null;
+    if (p.imageUrl && !p.imageUrl.includes('/images/categories/')) return p.imageUrl;
+    if (p.image && !p.image.includes('/images/categories/')) return p.image;
     if (Array.isArray(p.images) && p.images.length > 0 && p.images[0]) {
-      return p.images[0];
+      if (!p.images[0].includes('/images/categories/')) return p.images[0];
     }
     if (typeof p.images === 'string' && p.images.trim() && p.images !== '[]') {
       try {
         const parsed = JSON.parse(p.images);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) return parsed[0];
-        if (typeof parsed === 'string' && parsed.trim()) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]) {
+          if (!parsed[0].includes('/images/categories/')) return parsed[0];
+        }
+        if (typeof parsed === 'string' && parsed.trim()) {
+          if (!parsed.includes('/images/categories/')) return parsed;
+        }
       } catch {
-        if (p.images.startsWith('http') || p.images.startsWith('/')) return p.images;
+        if ((p.images.startsWith('http') || p.images.startsWith('/')) && !p.images.includes('/images/categories/')) {
+          return p.images;
+        }
       }
     }
-    const name = (p.name || '').toLowerCase();
-    if (name.includes('plaquette') || name.includes('patin') || (name.includes('frein') && !name.includes('disque'))) return '/images/categories/plaquettes-frein.jpg';
-    if (name.includes('disque') || name.includes('rotor')) return '/images/categories/disque-frein.jpg';
-    if (name.includes('filtre') && (name.includes('air') || name.includes('admission'))) return '/images/categories/filtre-air.jpg';
-    if (name.includes('filtre') && (name.includes('huile') || name.includes('oil'))) return '/images/categories/filtre-huile.jpg';
-    if (name.includes('filtre')) return '/images/categories/filtre-air.jpg';
-    if (name.includes('embrayage') || name.includes('clutch')) return '/images/categories/kit-embrayage.jpg';
-    if (name.includes('triangle') || name.includes('bras')) return '/images/categories/triangle-suspension.jpg';
-    if (name.includes('biellette') || name.includes('bielle')) return '/images/categories/biellette-suspension.jpg';
-    if (name.includes('rotule') || name.includes('direction')) return '/images/categories/rotule-direction.jpg';
-    if (name.includes('amortisseur') || name.includes('strut')) return '/images/categories/amortisseur.jpg';
-    if (name.includes('distribution') || name.includes('courroie')) return '/images/categories/kit-distribution.jpg';
-    return '/images/categories/piece-auto-generique.jpg';
+    return null;
   };
 
   const [enriching, setEnriching] = useState(false);
@@ -2940,15 +2937,19 @@ function SectionGestionArticles() {
                     {filtered.map(p => {
                       const imgUrl = getProductImageUrl(p);
                       return (
-                        <tr key={p.id} className="border-b border-slate-850 hover:bg-white/20 transition">
-                          <td className="px-4 py-2.5">
+                        <tr key={p.id} className="border-b border-slate-850 hover:bg-zinc-100/60 transition group">
+                          <td 
+                            className="px-4 py-2.5 cursor-pointer" 
+                            onClick={() => setSelectedProductForDetails(p)}
+                            title="Cliquer pour voir la fiche article et la grande photo"
+                          >
                             <div className="flex items-center justify-center">
                               {imgUrl ? (
                                 <div className="relative w-12 h-12">
                                   <img 
                                     src={imgUrl} 
                                     alt={p.reference || p.name} 
-                                    className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm bg-white"
+                                    className="w-12 h-12 rounded-lg object-cover border border-zinc-200 shadow-sm bg-white group-hover:scale-105 transition-transform"
                                     onError={(e) => { 
                                       (e.currentTarget as HTMLImageElement).style.display = 'none'; 
                                       ((e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement).style.display = 'flex'; 
@@ -2965,19 +2966,44 @@ function SectionGestionArticles() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-2.5 font-mono font-bold text-zinc-900 text-sm">{p.reference}</td>
-                          <td className="px-4 py-2.5 font-bold text-zinc-950 uppercase">{p.name}</td>
+                          <td 
+                            className="px-4 py-2.5 font-mono font-bold text-zinc-900 text-sm cursor-pointer hover:text-red-600 transition-colors"
+                            onClick={() => setSelectedProductForDetails(p)}
+                          >
+                            {p.reference}
+                          </td>
+                          <td 
+                            className="px-4 py-2.5 font-bold text-zinc-950 uppercase cursor-pointer hover:text-red-600 transition-colors"
+                            onClick={() => setSelectedProductForDetails(p)}
+                          >
+                            {p.name}
+                          </td>
                           <td className="px-4 py-2.5 font-bold text-zinc-500 uppercase">{p.brand || '-'}</td>
-                          <td className="px-4 py-2.5 text-zinc-500 uppercase">{p.vehicleCompat || '-'}</td>
+                          <td className="px-4 py-2.5 text-zinc-500 uppercase line-clamp-2">{p.vehicleCompat || '-'}</td>
                           <td className="px-4 py-2.5 text-center font-mono font-bold text-slate-300">{p.stock}</td>
                           <td className="px-4 py-2.5 text-right font-mono font-bold text-red-450/90">{(p.costPrice || p.oldPrice || 0).toFixed(2)} TND</td>
                           <td className="px-4 py-2.5 text-right font-mono font-bold text-green-400">{p.price.toFixed(2)} TND</td>
                           <td className="px-4 py-2.5 text-center">
                             <div className="flex gap-1.5 justify-center">
-                              <button onClick={() => setEditingProduct({ ...p, imageUrl: imgUrl })} className="p-1.5 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-600 hover:text-zinc-950 rounded-lg border border-cyan-500/10 transition">
+                              <button 
+                                onClick={() => setSelectedProductForDetails(p)} 
+                                className="p-1.5 bg-slate-100 hover:bg-slate-250 text-slate-700 hover:text-zinc-950 rounded-lg border border-slate-300 transition"
+                                title="Voir la fiche article détaillée"
+                              >
+                                <Eye className="w-3.5 h-3.5 text-slate-700" />
+                              </button>
+                              <button 
+                                onClick={() => setEditingProduct({ ...p, imageUrl: imgUrl })} 
+                                className="p-1.5 bg-cyan-950/20 text-cyan-400 hover:bg-cyan-600 hover:text-zinc-950 rounded-lg border border-cyan-500/10 transition"
+                                title="Modifier la pièce"
+                              >
                                 <Edit3 className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => handleDelete(p.slug)} className="p-1.5 bg-red-950/20 text-red-500 hover:bg-red-600 hover:text-zinc-950 rounded-lg border border-red-500/10 transition">
+                              <button 
+                                onClick={() => handleDelete(p.slug)} 
+                                className="p-1.5 bg-red-950/20 text-red-500 hover:bg-red-600 hover:text-zinc-950 rounded-lg border border-red-500/10 transition"
+                                title="Supprimer la pièce"
+                              >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -2989,6 +3015,15 @@ function SectionGestionArticles() {
                 </table>
               </div>
             </div>
+          )}
+
+          {/* Modale Fiche Article Complète */}
+          {selectedProductForDetails && (
+            <ModalFicheArticle
+              product={selectedProductForDetails}
+              onClose={() => setSelectedProductForDetails(null)}
+              isAdmin={true}
+            />
           )}
         </div>
       )}
