@@ -92,7 +92,6 @@ const sections: SidebarSection[] = [
       { id: 'ajouter-article', label: 'AJOUTER ARTICLE', icon: PlusCircle },
       { id: 'modifier-article', label: 'MODIFIER / SUPPRIMER', icon: Edit },
       { id: 'liste-articles', label: 'LISTE COMPLÈTE', icon: Package },
-      { id: 'historique-prix-articles', label: '🟣 ODOO & HISTORIQUE PRIX', icon: ClipboardList },
     ]
   },
   {

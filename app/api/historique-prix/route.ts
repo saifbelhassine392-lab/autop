@@ -46,23 +46,10 @@ export async function GET(request: Request) {
       take
     });
 
-    // Si recherche en direct dans Odoo demandée
-    let liveOdooResults: any[] = [];
-    if (liveOdoo && reference) {
-      try {
-        const { searchOdooByReference } = await import('@/lib/odoo');
-        liveOdooResults = await searchOdooByReference(reference);
-      } catch (odooErr) {
-        console.warn("[Historique Prix] Odoo live query skipped:", odooErr);
-      }
-    }
-
     return NextResponse.json({
       success: true,
       data: histories,
-      liveOdoo: liveOdooResults,
       sourcesCount: {
-        odoo: histories.filter(h => h.source === 'ODOO').length,
         email: histories.filter(h => h.source === 'EMAIL').length,
         sheets: histories.filter(h => h.source === 'GOOGLE_SHEETS').length,
         b2b: histories.filter(h => h.source === 'B2B_ROBOT').length,
