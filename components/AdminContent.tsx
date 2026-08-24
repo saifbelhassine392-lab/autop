@@ -17,9 +17,9 @@ import {
 import { notifyQuotesSync, subscribeQuotesSync } from '@/lib/syncEvents';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
-const inputCls = "w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-sm px-3.5 h-10 rounded-xl focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-500 placeholder:font-normal placeholder:normal-case transition-colors";
-const labelCls = "block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5";
-const cardCls = "bg-slate-900/90 border border-slate-800 rounded-2xl p-5 mb-4 w-full shadow-xl shadow-black/20 hover:border-slate-700/80 transition-all";
+const inputCls = "w-full bg-white text-[#111318] font-semibold border border-[#dcedf2] text-[13px] px-3.5 h-10 rounded-[7px] focus:outline-none focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 uppercase placeholder:text-[#6c757d] placeholder:font-normal placeholder:normal-case transition-colors";
+const labelCls = "block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5";
+const cardCls = "bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] p-5 mb-4 w-full shadow-[0_1px_3px_rgba(0,0,0,0.02)] transition-all";
 
 // ─── SECTION: RÉCEPTION DEMANDES ──────────────────────────────────────────────
 interface SectionReceptionProps {
@@ -85,9 +85,9 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
   });
 
   return (
-    <div>
+    <div className="max-w-[1180px] mx-auto pb-10">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-1">
-        <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950">DEMANDES CLIENTS EN ATTENTE</h2>
+        <h2 className="text-[22px] font-bold text-black tracking-tight font-sans">DEMANDES CLIENTS EN ATTENTE</h2>
         <button
           onClick={async () => {
             if (confirm("⚠️ CONFIRMATION : Réinitialiser la liste et remettre le compteur des devis et demandes à zéro ?")) {
@@ -110,26 +110,30 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
               }
             }
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500 hover:text-white text-red-500 border border-red-500/20 rounded-xl text-[10px] font-black uppercase tracking-wider transition shadow-sm"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:border-[#e8432f] hover:text-[#e8432f] text-[#dc2626] border border-[#dcedf2] rounded-[7px] text-[11px] font-bold uppercase tracking-wider transition shadow-sm"
           title="Remettre le compteur des devis et demandes à zéro"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> REMISE À ZÉRO COMPTEUR
+          <RefreshCw className="w-3.5 h-3.5" /> Remise à zéro compteur
         </button>
       </div>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">TRAITEZ LES DEMANDES REÇUES EN TEMPS RÉEL</p>
+      <p className="text-[#6c757d] text-[12.5px] font-semibold mb-5">Traitez les demandes reçues en temps réel</p>
 
-      <div className="flex flex-col sm:flex-row gap-2 mb-5">
+      <div className="flex flex-col sm:flex-row gap-2.5 mb-5">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input type="text" placeholder="RECHERCHER PAR CLIENT, VÉHICULE, N° DEMANDE..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6c757d]" />
+          <input
+            type="text"
+            placeholder="Rechercher par client, véhicule, n° demande..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white text-black font-semibold border border-[#dcedf2] pl-9 pr-4 h-10 rounded-[7px] text-[13px] focus:outline-none focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 transition-colors placeholder:text-[#6c757d] placeholder:font-normal"
+          />
         </div>
         <div className="flex gap-2">
           <select 
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors"
+            className="bg-white text-black font-bold text-[12px] px-3 h-10 rounded-[7px] border border-[#dcedf2] focus:outline-none focus:border-[#e8432f] cursor-pointer transition-colors"
           >
             <option value="TOUS STATUTS">TOUS STATUTS</option>
             <option value="EN ATTENTE">EN ATTENTE</option>
@@ -138,7 +142,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
           <select 
             value={assigneeFilter}
             onChange={e => setAssigneeFilter(e.target.value)}
-            className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors"
+            className="bg-white text-black font-bold text-[12px] px-3 h-10 rounded-[7px] border border-[#dcedf2] focus:outline-none focus:border-[#e8432f] cursor-pointer transition-colors"
           >
             <option value="TOUS LES PROFILS">TOUS LES PROFILS</option>
             <option value="SAIF">TÂCHES SAIF</option>
@@ -150,75 +154,75 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-widest text-xs animate-pulse">CHARGEMENT...</div>
+        <div className="text-center py-16 text-[#6c757d] font-bold uppercase tracking-widest text-xs animate-pulse">CHARGEMENT...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-zinc-500 font-bold uppercase tracking-widest text-xs">AUCUNE DEMANDE TROUVÉE</div>
+        <div className="text-center py-16 text-[#6c757d] font-bold uppercase tracking-widest text-xs">AUCUNE DEMANDE TROUVÉE</div>
       ) : (
         filtered.map((q) => (
           <div key={q.id} className={cardCls}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-black text-red-500 text-sm uppercase font-mono tracking-wider">#{q.id?.slice(-6).toUpperCase()}</span>
-                  <span className="text-[10px] text-slate-500 font-mono">·</span>
-                  <span className="text-[11px] text-slate-400 font-bold uppercase">{q.createdAt ? new Date(q.createdAt).toLocaleDateString('fr-FR') : ''}</span>
+                  <span className="font-mono font-bold text-[#e8432f] text-sm uppercase tracking-wider">#{q.id?.slice(-6).toUpperCase()}</span>
+                  <span className="text-[10px] text-[#6c757d] font-mono">·</span>
+                  <span className="text-[11px] text-[#6c757d] font-semibold">{q.createdAt ? new Date(q.createdAt).toLocaleDateString('fr-FR') : ''}</span>
                 </div>
-                <h4 className="font-black text-slate-100 uppercase text-base mt-1 tracking-tight">{q.clientName?.toUpperCase()}</h4>
-                <div className="text-[11px] text-slate-400 lowercase tracking-normal mt-0.5 font-sans">
+                <h4 className="font-bold text-black uppercase text-base mt-1 tracking-tight">{q.clientName}</h4>
+                <div className="text-[11.5px] text-[#495057] lowercase tracking-normal mt-0.5 font-sans">
                   {q.clientEmail}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 {/* Sélecteur de profil admin */}
-                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 shadow-inner">
-                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider">Assigné à :</span>
+                <div className="flex items-center gap-1.5 bg-white border border-[#dcedf2] rounded-[7px] px-3 py-1.5 shadow-sm">
+                  <span className="text-[9.5px] text-[#6c757d] font-bold uppercase tracking-wider">Assigné à :</span>
                   <select
                     value={q.managedBy?.name?.toUpperCase() || 'NON ASSIGNÉ'}
                     onChange={(e) => handleAssignProfile(q.id, e.target.value)}
-                    className="bg-transparent text-slate-100 font-bold text-[10px] focus:outline-none cursor-pointer uppercase"
+                    className="bg-transparent text-black font-bold text-[11px] focus:outline-none cursor-pointer uppercase"
                   >
-                    <option value="NON ASSIGNÉ" className="bg-slate-900 text-slate-400">NON ASSIGNÉ</option>
-                    <option value="SAIF" className="bg-slate-900 text-slate-100">SAIF</option>
-                    <option value="AMINE" className="bg-slate-900 text-slate-100">AMINE</option>
-                    <option value="SAIFALLAH" className="bg-slate-900 text-slate-100">SAIFALLAH</option>
+                    <option value="NON ASSIGNÉ">NON ASSIGNÉ</option>
+                    <option value="SAIF">SAIF</option>
+                    <option value="AMINE">AMINE</option>
+                    <option value="SAIFALLAH">SAIFALLAH</option>
                   </select>
                 </div>
-                <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
-                  q.status === 'TREATED' ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                <span className={`px-2.5 py-1 rounded-[6px] text-[10.5px] font-bold uppercase tracking-wider border shadow-xs ${
+                  q.status === 'TREATED' ? 'bg-[#d1fae5] text-[#059669] border-[#a7f3d0]' : 'bg-[#fef3c7] text-[#d97706] border-[#fde68a]'
                 }`}>{q.status === 'TREATED' ? 'TRAITÉ' : 'EN ATTENTE'}</span>
               </div>
             </div>
 
-            <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 mb-4 w-full">
-              <div className="text-xs font-black text-slate-100 uppercase mb-1.5 tracking-wide">{q.brand} {q.model} {q.vin && <span className="text-slate-400 font-mono">· VIN: {q.vin}</span>}</div>
-              <div className="text-xs text-slate-300 uppercase leading-relaxed">
+            <div className="bg-white p-3.5 rounded-[8px] border border-[#dcedf2] mb-4 w-full">
+              <div className="text-[12.5px] font-bold text-black uppercase mb-1 tracking-wide">{q.brand} {q.model} {q.vin && <span className="text-[#6c757d] font-mono font-normal">· VIN: {q.vin}</span>}</div>
+              <div className="text-[12px] text-[#495057] uppercase leading-relaxed">
                 {q.items?.map((it: any) => `${it.designation} (x${it.quantity})`).join(' · ')}
               </div>
-              {q.remarks && <div className="text-xs text-amber-400/90 mt-1.5 uppercase font-medium">NOTE: {q.remarks}</div>}
+              {q.remarks && <div className="text-[11.5px] text-[#d97706] mt-1.5 uppercase font-semibold">NOTE: {q.remarks}</div>}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-2 border-t border-slate-800/60">
+            <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-[#e9ecef]">
               {q.status !== 'TREATED' && (
                 <button 
                   onClick={() => onTreatQuote && onTreatQuote(q)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/25 active:scale-95 cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#e8432f] hover:bg-[#d13a27] text-white rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition shadow-sm cursor-pointer"
                 >
-                  <Edit3 className="w-3.5 h-3.5" /> CRÉER DEVIS
+                  <Edit3 className="w-3.5 h-3.5" /> Créer devis
                 </button>
               )}
               <a 
                 href={`https://wa.me/${q.phone || '21698774525'}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600/15 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-emerald-500/30 active:scale-95"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#f8f9fa] text-[#059669] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2]"
               >
-                <Phone className="w-3.5 h-3.5" /> CONTACTER
+                <Phone className="w-3.5 h-3.5" /> Contacter
               </a>
               <a 
                 href={`mailto:${q.clientEmail}`}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600/15 hover:bg-blue-600 text-blue-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-blue-500/30 active:scale-95 lowercase"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#f8f9fa] text-[#2a5fb8] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2]"
               >
-                <Mail className="w-3.5 h-3.5" /> <span className="uppercase">ENVOYER EMAIL</span>
+                <Mail className="w-3.5 h-3.5" /> <span>Envoyer email</span>
               </a>
               <button 
                 onClick={async () => {
@@ -238,35 +242,35 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                     }
                   }
                 }}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-rose-500/20 active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#f8d7da]/30 text-[#dc2626] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2] cursor-pointer"
               >
-                <Trash2 className="w-3.5 h-3.5" /> SUPPRIMER
+                <Trash2 className="w-3.5 h-3.5" /> Supprimer
               </button>
               {q.photo && (
                  <a 
                    href={q.photo} 
                    download={q.photoName || `photo-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
+                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:border-[#e8432f] text-[#111318] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2]"
                  >
-                   <Paperclip className="w-3.5 h-3.5" /> PIÈCE (IMAGE)
+                   <Paperclip className="w-3.5 h-3.5" /> Pièce (Image)
                  </a>
               )}
               {q.chassisPhoto && (
                  <a 
                    href={q.chassisPhoto} 
                    download={q.chassisPhotoName || `chassis-${q.id}.jpg`}
-                   className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-slate-700 active:scale-95"
+                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:border-[#e8432f] text-[#111318] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2]"
                  >
-                   <Paperclip className="w-3.5 h-3.5" /> CARTE GRISE
+                   <Paperclip className="w-3.5 h-3.5" /> Carte grise
                  </a>
               )}
               {q.fileBase64 && (
                  <a 
                    href={`data:${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'text/csv' : 'application/pdf'};base64,${q.fileBase64}`} 
                    download={q.fileName || `demande-${q.id}.${q.fileFormat === 'excel' || q.fileFormat === 'csv' ? 'csv' : 'pdf'}`}
-                   className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600/15 hover:bg-indigo-600 hover:text-white text-indigo-400 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all border border-indigo-500/30 active:scale-95"
+                   className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:border-[#4a3ab8] text-[#4a3ab8] rounded-[7px] text-[11.5px] font-bold uppercase tracking-wider transition border border-[#dcedf2]"
                  >
-                   <Download className="w-3.5 h-3.5" /> DEVIS CLIENT
+                   <Download className="w-3.5 h-3.5" /> Devis client
                  </a>
               )}
             </div>
