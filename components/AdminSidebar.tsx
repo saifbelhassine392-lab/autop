@@ -191,15 +191,15 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={`bg-[#f4f5f7] border-r border-[#e9ecef] w-[246px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`bg-white border-r border-[#dcedf2] w-[256px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
         {/* Brand Header */}
-        <div className="flex items-center gap-2.5 px-5 pt-5 pb-4 border-b border-[#e9ecef] bg-[#f4f5f7]">
+        <div className="flex items-center gap-2.5 px-5 pt-5 pb-4 border-b border-[#dcedf2] bg-white">
           <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-[#e8432f] to-[#b8281a] flex items-center justify-center font-bold text-white text-[15px] shrink-0 shadow-sm">
             A
           </div>
           <div className="min-w-0">
-            <div className="font-bold text-[15px] text-black tracking-[0.01em] leading-tight">
+            <div className="font-bold text-[15px] text-[#111318] tracking-[0.01em] leading-tight font-sans">
               AUTOP
             </div>
             <div className="text-[10px] font-bold text-[#6c757d] uppercase tracking-[0.08em] mt-0.5">
@@ -214,7 +214,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
             {(activeProfile || user?.name || 'S').charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[12.5px] font-bold text-black truncate">
+            <div className="text-[12.5px] font-bold text-[#111318] truncate">
               {activeProfile || user?.name || 'Saif'}
             </div>
             <div className="text-[10.5px] font-semibold text-[#6c757d]">
@@ -226,7 +226,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
               localStorage.removeItem('activeAdminProfile');
               window.dispatchEvent(new Event('active-profile-changed'));
             }}
-            className="text-[10px] font-bold text-[#495057] hover:border-[#e8432f] hover:text-[#e8432f] border border-[#dcedf2] rounded-[5px] px-1.5 py-0.5 bg-white transition cursor-pointer shrink-0"
+            className="text-[10px] font-bold text-[#495057] hover:border-[#e8432f] hover:text-[#e8432f] border border-[#dcedf2] rounded-[5px] px-2 py-0.5 bg-white transition cursor-pointer shrink-0 shadow-2xs"
             title="Changer de profil"
           >
             Changer
@@ -234,7 +234,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         </div>
 
         {/* Navigation List */}
-        <nav className="flex-1 overflow-y-auto py-1 px-2.5 space-y-3.5 scrollbar-thin scrollbar-thumb-[#dcedf2]">
+        <nav className="flex-1 overflow-y-auto py-1 px-3 space-y-3.5 scrollbar-thin scrollbar-thumb-[#dcedf2]">
           {sections.map((section, idx) => (
             <div key={idx} className="space-y-0.5">
               <div className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#6c757d] px-2.5 pt-2 pb-1">
@@ -252,10 +252,10 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                       setAdminSection(item.id);
                       if (onClose) onClose();
                     }}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors group cursor-pointer text-left ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors group cursor-pointer text-left ${
                       isActive
                         ? 'bg-[#e8432f] text-white font-bold shadow-sm'
-                        : 'text-[#495057] hover:bg-[#f8f9fa] hover:text-black'
+                        : 'text-[#495057] hover:bg-[#f8f9fa] hover:text-[#111318]'
                     }`}
                   >
                     <span className={`w-[5px] h-[5px] rounded-full shrink-0 ${
@@ -281,10 +281,10 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         </nav>
 
         {/* Logout Footer */}
-        <div className="p-3 border-t border-[#e9ecef] bg-[#f4f5f7]">
+        <div className="p-3 border-t border-[#dcedf2] bg-white">
           <button
             onClick={() => signOut({ callbackUrl: '/connexion' })}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[7px] text-[12px] font-bold uppercase tracking-wider text-[#6c757d] hover:text-[#e8432f] hover:bg-white border border-transparent hover:border-[#dcedf2] transition"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[7px] text-[12px] font-bold uppercase tracking-wider text-[#6c757d] hover:text-[#e8432f] hover:bg-[#f8d7da]/30 border border-transparent hover:border-[#dcedf2] transition"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>DÉCONNEXION</span>
