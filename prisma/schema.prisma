@@ -387,13 +387,15 @@ model Review {
 
 model ChatMessage {
   id             String   @id @default(cuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   senderId       String?
   senderName     String
   isAdmin        Boolean  @default(false)
   content        String
   reference      String?
+  guestName      String?
+  guestEmail     String?
   attachmentData String?
   attachmentName String?
   attachmentType String?

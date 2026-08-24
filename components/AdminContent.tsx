@@ -6260,7 +6260,7 @@ function SectionHistoriqueAchats() {
 // ─── SECTION: CHAT INTERNE CLIENT-ADMIN ──────────────────────────────────────
 function SectionChatInterne() {
   const [conversations, setConversations] = useState<any[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedConvKey, setSelectedConvKey] = useState<string | null>(null); // 'user:ID' ou 'guest:email'
   const [messages, setMessages] = useState<any[]>([]);
   const [reply, setReply] = useState('');
   const [loadingConv, setLoadingConv] = useState(true);
@@ -6291,8 +6291,8 @@ function SectionChatInterne() {
       .finally(() => setLoadingConv(false));
   };
 
-  const fetchMessages = (userId: string) => {
-    fetch(`/api/chat?userId=${userId}`, { headers: getAdminHeaders() })
+  const fetchMessages = (convKey: string) => {
+    fetch(`/api/chat?convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders() })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
@@ -6309,11 +6309,11 @@ function SectionChatInterne() {
   }, []);
 
   useEffect(() => {
-    if (!selectedUserId) return;
-    fetchMessages(selectedUserId);
-    const interval = setInterval(() => fetchMessages(selectedUserId), 2000);
+    if (!selectedConvKey) return;
+    fetchMessages(selectedConvKey);
+    const interval = setInterval(() => fetchMessages(selectedConvKey), 2000);
     return () => clearInterval(interval);
-  }, [selectedUserId]);
+  }, [selectedConvKey]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -6340,7 +6340,7 @@ function SectionChatInterne() {
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!reply.trim() && !attachment) || !selectedUserId) return;
+    if ((!reply.trim() && !attachment) || !selectedConvKey) return;
 
     setSending(true);
     try {
@@ -6351,25 +6351,33 @@ function SectionChatInterne() {
         messageContent = reply ? `${reply}\n\n📎 ${attachment.name}` : `📎 ${attachment.name}`;
       }
 
+      // Construire le payload selon le type de conversation
+      const isGuestConv = selectedConvKey.startsWith('guest:');
+      const payload: any = {
+        content: messageContent,
+        senderName: activeProfile || 'Admin',
+        attachment: attachment ? { name: attachment.name, data: attachment.data, type: attachment.type } : undefined
+      };
+      if (isGuestConv) {
+        payload.guestEmail = selectedConvKey.replace('guest:', '');
+      } else {
+        payload.userId = selectedConvKey.replace('user:', '');
+      }
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(activeProfile ? { 'X-Admin-Profile': activeProfile } : {})
         },
-        body: JSON.stringify({
-          content: messageContent,
-          userId: selectedUserId,
-          senderName: activeProfile || 'Admin',
-          attachment: attachment ? { name: attachment.name, data: attachment.data, type: attachment.type } : undefined
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
         setMessages(prev => [...prev, data.data]);
         setReply('');
         setAttachment(null);
-        fetchConversations(); // refresh list
+        fetchConversations();
       } else {
         alert("Erreur: " + (data.error || "Impossible d'envoyer le message"));
       }
@@ -6381,7 +6389,7 @@ function SectionChatInterne() {
     }
   };
 
-  const activeConv = conversations.find(c => c.userId === selectedUserId);
+  const activeConv = conversations.find(c => c.convKey === selectedConvKey);
 
   return (
     <div className="h-[calc(100vh-120px)] flex bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-2xl">
@@ -6396,18 +6404,24 @@ function SectionChatInterne() {
           {loadingConv ? (
             <div className="text-center py-10 text-zinc-600 font-bold uppercase tracking-wider text-[10px] animate-pulse">Chargement...</div>
           ) : conversations.length === 0 ? (
-            <div className="text-center py-10 text-zinc-600 font-bold uppercase tracking-wider text-[10px]">Aucun message</div>
+            <div className="text-center py-10 text-zinc-600 font-bold uppercase tracking-wider text-[10px]">Aucune conversation</div>
           ) : (
             conversations.map(c => {
-              const isSelected = c.userId === selectedUserId;
-              const userName = c.user?.name || `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.trim() || 'Client';
+              const isSelected = c.convKey === selectedConvKey;
+              // Nom du client : compte enregistré OU visiteur anonyme
+              const userName = c.user?.name ||
+                `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.trim() ||
+                c.guestName ||
+                c.guestEmail ||
+                'Client';
               const hasUnread = c.lastMessage && !c.lastMessage.isAdmin;
+              const isGuest = c.convKey?.startsWith('guest:');
               return (
                 <button
-                  key={c.userId}
-                  onClick={() => setSelectedUserId(c.userId)}
+                  key={c.convKey}
+                  onClick={() => setSelectedConvKey(c.convKey)}
                   className={`w-full text-left p-4 transition-colors flex flex-col gap-1.5 ${
-                    isSelected ? 'bg-red-650/10 border-l-4 border-red-500 bg-slate-850/30' : 'hover:bg-zinc-50/20'
+                    isSelected ? 'bg-red-50 border-l-4 border-red-500' : 'hover:bg-zinc-50/20'
                   }`}
                 >
                   <div className="flex justify-between items-start w-full">
@@ -6416,6 +6430,7 @@ function SectionChatInterne() {
                         <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse flex-shrink-0" />
                       )}
                       <span className={`font-black text-xs uppercase truncate max-w-[70%] ${hasUnread && !isSelected ? 'text-cyan-400' : 'text-zinc-950'}`}>{userName}</span>
+                      {isGuest && <span className="text-[7px] bg-amber-100 text-amber-700 font-black uppercase px-1.5 py-0.5 rounded-full">Invité</span>}
                     </div>
                     <span className="text-[8px] text-zinc-600 font-mono">
                       {c.lastMessage ? new Date(c.lastMessage.createdAt).toLocaleDateString('fr-FR') : ''}
@@ -6433,15 +6448,15 @@ function SectionChatInterne() {
 
       {/* Fenêtre de chat */}
       <div className="flex-1 flex flex-col bg-white">
-        {selectedUserId ? (
+        {selectedConvKey ? (
           <>
             {/* User Header */}
             <div className="p-4 bg-white/40 border-b border-zinc-200 flex justify-between items-center">
               <div>
                 <h4 className="text-zinc-950 text-xs font-black uppercase tracking-wider">
-                  {activeConv?.user?.name || `${activeConv?.user?.firstName || ''} ${activeConv?.user?.lastName || ''}`.trim() || 'Client'}
+                  {activeConv?.user?.name || `${activeConv?.user?.firstName || ''} ${activeConv?.user?.lastName || ''}`.trim() || activeConv?.guestName || 'Client'}
                 </h4>
-                <p className="text-[9px] text-zinc-600 font-bold mt-0.5">{activeConv?.user?.email}</p>
+                <p className="text-[9px] text-zinc-600 font-bold mt-0.5">{activeConv?.user?.email || activeConv?.guestEmail}</p>
               </div>
             </div>
 

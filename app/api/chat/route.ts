@@ -3,195 +3,250 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
-// IDs réels des admins hardcodés en base
+export const dynamic = 'force-dynamic';
+
+// IDs réels des admins hardcodés (pour résoudre les IDs fictifs)
 const HARDCODED_ADMIN_IDS: Record<string, string> = {
-  'admin-id':    'cms5ys5r2000111h9o9zxmrd4', // admin@autop.tn
-  'admin-id-fr': 'cms59idvc0000vrogaeuuq3h8', // admin@autop.fr
+  'admin-id':    'cms5ys5r2000111h9o9zxmrd4',
+  'admin-id-fr': 'cms59idvc0000vrogaeuuq3h8',
 };
 
-// Helper: check if user is admin (handles all role variants)
 function isAdminRole(role: string | undefined): boolean {
   if (!role) return false;
   const r = role.toUpperCase();
   return r === 'ADMIN' || r === 'PROFESSIONAL';
 }
 
-// Helper: résoudre un senderId fictif vers un ID réel en DB
-function resolveAdminSenderId(userId: string): string | null {
-  return HARDCODED_ADMIN_IDS[userId] || null;
-}
-
-// Helper: vérifier l'en-tête X-Admin-Profile pour les sessions localStorage
+// Récupérer la session admin depuis l'en-tête X-Admin-Profile (fallback localStorage)
 async function getAdminFromHeader(req: NextRequest): Promise<{ id: string; name: string; role: string } | null> {
   const profileName = req.headers.get('X-Admin-Profile');
   if (!profileName) return null;
-
-  // Essayer de trouver un admin en DB par son rôle
   try {
     const adminUser = await prisma.user.findFirst({
       where: { role: { in: ['ADMIN', 'PROFESSIONAL'] } },
       select: { id: true, name: true, role: true }
     });
     if (adminUser) {
-      return {
-        id: adminUser.id,
-        name: profileName, // Utiliser le nom du profil local (SAIF/AMINE/etc.)
-        role: adminUser.role
-      };
+      return { id: adminUser.id, name: profileName, role: adminUser.role };
     }
-  } catch (e) {
-    // Ignorer les erreurs DB
-  }
+  } catch (e) {}
   return null;
 }
 
-// GET - Charger les conversations / messages
+// Résoudre le senderId fictif vers un ID réel
+function resolveSenderId(rawId: string | null | undefined): string | null {
+  if (!rawId) return null;
+  return HARDCODED_ADMIN_IDS[rawId] || rawId;
+}
+
+// ─── GET ──────────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    // Fallback: vérifier le header admin si pas de session
     const adminFromHeader = !session ? await getAdminFromHeader(req) : null;
+    const user = session ? (session.user as any) : adminFromHeader;
+    const userRole = session ? (session.user as any)?.role : adminFromHeader?.role;
 
-    if (!session && !adminFromHeader) {
-      return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
+    const { searchParams } = new URL(req.url);
+    const targetConvKey = searchParams.get('convKey'); // 'user:ID' ou 'guest:email'
+    const targetUserId = searchParams.get('userId');   // backward compat
+
+    // ── ADMIN ──────────────────────────────────────────────────────────────
+    if (user && isAdminRole(userRole)) {
+      if (targetConvKey || targetUserId) {
+        const key = targetConvKey || targetUserId!;
+        let messages: any[];
+        if (key.startsWith('guest:')) {
+          const guestEmail = key.replace('guest:', '');
+          messages = await prisma.chatMessage.findMany({
+            where: { guestEmail },
+            orderBy: { createdAt: 'asc' }
+          });
+        } else {
+          const uid = key.replace('user:', '');
+          messages = await prisma.chatMessage.findMany({
+            where: { userId: uid },
+            orderBy: { createdAt: 'asc' }
+          });
+        }
+        return NextResponse.json({ success: true, data: messages });
+      }
+
+      // Liste toutes les conversations uniques (par userId ou guestEmail)
+      const allMessages = await prisma.chatMessage.findMany({
+        where: {
+          OR: [
+            { userId: { not: null } },
+            { guestEmail: { not: null } }
+          ]
+        },
+        include: {
+          user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Dédupliquer par clé de conversation
+      const seen = new Set<string>();
+      const conversations: any[] = [];
+      for (const msg of allMessages) {
+        const key = msg.userId ? `user:${msg.userId}` : `guest:${msg.guestEmail}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          conversations.push({
+            convKey: key,
+            userId: msg.userId,
+            user: msg.user,
+            guestEmail: msg.guestEmail,
+            guestName: msg.guestName,
+            lastMessage: msg
+          });
+        }
+      }
+
+      return NextResponse.json({ success: true, data: conversations });
     }
 
-    const user = session ? (session.user as any) : adminFromHeader;
-    const userRole = session ? (session.user as any).role : adminFromHeader?.role;
-    const { searchParams } = new URL(req.url);
-    const targetUserId = searchParams.get('userId');
-
-    // Si admin
-    if (isAdminRole(userRole)) {
-      if (targetUserId) {
-        // Charger tous les messages pour cet utilisateur
-        const messages = await prisma.chatMessage.findMany({
-          where: { userId: targetUserId },
-          orderBy: { createdAt: 'asc' }
-        });
-        return NextResponse.json({ success: true, data: messages });
-      } else {
-        // Liste de toutes les conversations actives (utilisateurs uniques ayant envoyé/reçu des messages)
-        const conversations = await prisma.chatMessage.findMany({
-          distinct: ['userId'],
-          orderBy: { userId: 'asc' },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          }
-        });
-
-        // Pour chaque conversation, récupérer le dernier message
-        const data = await Promise.all(
-          conversations.map(async (c) => {
-            const lastMsg = await prisma.chatMessage.findFirst({
-              where: { userId: c.userId },
-              orderBy: { createdAt: 'desc' }
-            });
-            return {
-              userId: c.userId,
-              user: c.user,
-              lastMessage: lastMsg
-            };
-          })
-        );
-
-        // Trier par date du dernier message descendant
-        data.sort((a: any, b: any) => {
-          return new Date(b.lastMessage?.createdAt || 0).getTime() - new Date(a.lastMessage?.createdAt || 0).getTime();
-        });
-
-        return NextResponse.json({ success: true, data });
-      }
-    } else {
-      // Si client normal : charger uniquement ses propres messages
-      const userId = (user as any).id;
+    // ── CLIENT CONNECTÉ ────────────────────────────────────────────────────
+    if (session && session.user) {
+      const userId = (session.user as any).id;
+      // Résoudre si ID fictif
+      const realUserId = HARDCODED_ADMIN_IDS[userId] || userId;
       const messages = await prisma.chatMessage.findMany({
-        where: { userId },
+        where: { userId: realUserId },
         orderBy: { createdAt: 'asc' }
       });
       return NextResponse.json({ success: true, data: messages });
     }
+
+    // ── VISITEUR ANONYME (par guestEmail dans header ou param) ─────────────
+    const guestEmail = searchParams.get('guestEmail');
+    if (guestEmail) {
+      const messages = await prisma.chatMessage.findMany({
+        where: { guestEmail: guestEmail.toLowerCase() },
+        orderBy: { createdAt: 'asc' }
+      });
+      return NextResponse.json({ success: true, data: messages });
+    }
+
+    return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
   } catch (error: any) {
     console.error('Chat GET error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 
-// POST - Envoyer un message
+// ─── POST ─────────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    
-    // Fallback: vérifier le header admin si pas de session
     const adminFromHeader = !session ? await getAdminFromHeader(req) : null;
+    const sessionUser = session ? (session.user as any) : adminFromHeader;
+    const userRole = session ? (session.user as any)?.role : adminFromHeader?.role;
 
-    if (!session && !adminFromHeader) {
-      return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
-    }
-
-    const user = session ? (session.user as any) : adminFromHeader;
-    const userRole = session ? (session.user as any).role : adminFromHeader?.role;
     const body = await req.json();
-    const { content, reference, userId, senderName: providedSenderName, attachment } = body;
+    const {
+      content,
+      reference,
+      attachment,
+      // Pour envoi client authentifié ou admin
+      userId: targetUserId,
+      guestEmail: targetGuestEmail,
+      senderName: providedSenderName,
+      // Pour visiteurs anonymes
+      guestName,
+      guestEmail,
+    } = body;
 
     if ((!content || content.trim() === '') && !attachment) {
-      return NextResponse.json({ success: false, error: 'Le contenu du message ou une pièce jointe est requis' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Le message est requis' }, { status: 400 });
     }
 
-    let finalUserId = user.id;
-    let isAdmin = false;
+    // ── CAS 1 : ADMIN répond à un client ──────────────────────────────────
+    if (sessionUser && isAdminRole(userRole)) {
+      const activeProfile = req.headers.get('X-Admin-Profile') || providedSenderName || 'Admin';
+      const rawSenderId = sessionUser.id;
+      const resolvedSenderId = resolveSenderId(rawSenderId);
 
-    if (isAdminRole(userRole)) {
-      isAdmin = true;
-      if (!userId) {
-        return NextResponse.json({ success: false, error: 'Identifiant client requis pour répondre' }, { status: 400 });
-      }
-      finalUserId = userId;
-    }
-
-    // Résoudre le senderId — si l'ID est fictif, utiliser le vrai ID en DB
-    let resolvedSenderId: string | null = user.id;
-    if (resolvedSenderId && HARDCODED_ADMIN_IDS[resolvedSenderId]) {
-      resolvedSenderId = HARDCODED_ADMIN_IDS[resolvedSenderId];
-    }
-    // Si toujours pas résolu, tenter de trouver un admin en DB
-    if (isAdmin && (!resolvedSenderId || !HARDCODED_ADMIN_IDS[user.id] && !await prisma.user.findUnique({ where: { id: resolvedSenderId || '' } }).catch(() => null))) {
-      const fallbackAdmin = await prisma.user.findFirst({
-        where: { role: { in: ['ADMIN', 'PROFESSIONAL'] } },
-        select: { id: true }
-      });
-      resolvedSenderId = fallbackAdmin?.id || null;
-    }
-
-    // For admin replies, use the provided senderName (active profile name like SAIF/AMINE/SAIFALLAH)
-    const resolvedSenderName = isAdmin && providedSenderName
-      ? providedSenderName
-      : user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Utilisateur';
-
-    const message = await prisma.chatMessage.create({
-      data: {
-        userId: finalUserId,
+      let messageData: any = {
         senderId: resolvedSenderId,
-        senderName: resolvedSenderName,
-        isAdmin,
+        senderName: activeProfile,
+        isAdmin: true,
         content: content || '',
         reference: reference || null,
         attachmentData: attachment?.data || null,
         attachmentName: attachment?.name || null,
-        attachmentType: attachment?.type || null
-      }
-    });
+        attachmentType: attachment?.type || null,
+      };
 
-    return NextResponse.json({ success: true, data: message });
+      if (targetUserId && !targetUserId.startsWith('guest:')) {
+        // Répondre à un client authentifié
+        messageData.userId = targetUserId;
+      } else if (targetGuestEmail || (targetUserId && targetUserId.startsWith('guest:'))) {
+        // Répondre à un visiteur anonyme
+        const email = targetGuestEmail || targetUserId!.replace('guest:', '');
+        messageData.guestEmail = email;
+        // Récupérer le guestName depuis les messages existants
+        const prevMsg = await prisma.chatMessage.findFirst({ where: { guestEmail: email } });
+        messageData.guestName = prevMsg?.guestName || null;
+      } else {
+        return NextResponse.json({ success: false, error: 'Destinataire requis pour répondre' }, { status: 400 });
+      }
+
+      const message = await prisma.chatMessage.create({ data: messageData });
+      return NextResponse.json({ success: true, data: message });
+    }
+
+    // ── CAS 2 : CLIENT CONNECTÉ envoie un message ─────────────────────────
+    if (session && session.user) {
+      const userId = (session.user as any).id;
+      const realUserId = HARDCODED_ADMIN_IDS[userId] || userId;
+      const senderName = (session.user as any).name ||
+        `${(session.user as any).firstName || ''} ${(session.user as any).lastName || ''}`.trim() ||
+        (session.user as any).email || 'Client';
+
+      const message = await prisma.chatMessage.create({
+        data: {
+          userId: realUserId,
+          senderId: realUserId,
+          senderName,
+          isAdmin: false,
+          content: content || '',
+          reference: reference || null,
+          attachmentData: attachment?.data || null,
+          attachmentName: attachment?.name || null,
+          attachmentType: attachment?.type || null,
+        }
+      });
+      return NextResponse.json({ success: true, data: message });
+    }
+
+    // ── CAS 3 : VISITEUR ANONYME (guestName + guestEmail fournis) ─────────
+    if (guestName && guestEmail) {
+      const normalizedEmail = guestEmail.toLowerCase().trim();
+      const message = await prisma.chatMessage.create({
+        data: {
+          userId: null,
+          senderId: null,
+          senderName: guestName,
+          isAdmin: false,
+          content: content || '',
+          reference: reference || null,
+          guestName,
+          guestEmail: normalizedEmail,
+          attachmentData: attachment?.data || null,
+          attachmentName: attachment?.name || null,
+          attachmentType: attachment?.type || null,
+        }
+      });
+      return NextResponse.json({ success: true, data: message });
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: 'Authentification requise ou nom/email invité manquant'
+    }, { status: 401 });
+
   } catch (error: any) {
     console.error('Chat POST error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
