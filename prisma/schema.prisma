@@ -389,7 +389,7 @@ model ChatMessage {
   id             String   @id @default(cuid())
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  senderId       String
+  senderId       String?
   senderName     String
   isAdmin        Boolean  @default(false)
   content        String

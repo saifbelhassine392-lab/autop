@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 
+// IDs réels des admins hardcodés en base
+const HARDCODED_ADMIN_IDS: Record<string, string> = {
+  'admin-id':    'cms5ys5r2000111h9o9zxmrd4', // admin@autop.tn
+  'admin-id-fr': 'cms59idvc0000vrogaeuuq3h8', // admin@autop.fr
+};
+
 // Helper: check if user is admin (handles all role variants)
 function isAdminRole(role: string | undefined): boolean {
   if (!role) return false;
@@ -10,20 +16,54 @@ function isAdminRole(role: string | undefined): boolean {
   return r === 'ADMIN' || r === 'PROFESSIONAL';
 }
 
+// Helper: résoudre un senderId fictif vers un ID réel en DB
+function resolveAdminSenderId(userId: string): string | null {
+  return HARDCODED_ADMIN_IDS[userId] || null;
+}
+
+// Helper: vérifier l'en-tête X-Admin-Profile pour les sessions localStorage
+async function getAdminFromHeader(req: NextRequest): Promise<{ id: string; name: string; role: string } | null> {
+  const profileName = req.headers.get('X-Admin-Profile');
+  if (!profileName) return null;
+
+  // Essayer de trouver un admin en DB par son rôle
+  try {
+    const adminUser = await prisma.user.findFirst({
+      where: { role: { in: ['ADMIN', 'PROFESSIONAL'] } },
+      select: { id: true, name: true, role: true }
+    });
+    if (adminUser) {
+      return {
+        id: adminUser.id,
+        name: profileName, // Utiliser le nom du profil local (SAIF/AMINE/etc.)
+        role: adminUser.role
+      };
+    }
+  } catch (e) {
+    // Ignorer les erreurs DB
+  }
+  return null;
+}
+
 // GET - Charger les conversations / messages
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    
+    // Fallback: vérifier le header admin si pas de session
+    const adminFromHeader = !session ? await getAdminFromHeader(req) : null;
+
+    if (!session && !adminFromHeader) {
       return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = session.user as any;
+    const user = session ? (session.user as any) : adminFromHeader;
+    const userRole = session ? (session.user as any).role : adminFromHeader?.role;
     const { searchParams } = new URL(req.url);
     const targetUserId = searchParams.get('userId');
 
     // Si admin
-    if (isAdminRole(user.role)) {
+    if (isAdminRole(userRole)) {
       if (targetUserId) {
         // Charger tous les messages pour cet utilisateur
         const messages = await prisma.chatMessage.findMany({
@@ -73,8 +113,9 @@ export async function GET(req: NextRequest) {
       }
     } else {
       // Si client normal : charger uniquement ses propres messages
+      const userId = (user as any).id;
       const messages = await prisma.chatMessage.findMany({
-        where: { userId: user.id },
+        where: { userId },
         orderBy: { createdAt: 'asc' }
       });
       return NextResponse.json({ success: true, data: messages });
@@ -89,11 +130,16 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    
+    // Fallback: vérifier le header admin si pas de session
+    const adminFromHeader = !session ? await getAdminFromHeader(req) : null;
+
+    if (!session && !adminFromHeader) {
       return NextResponse.json({ success: false, error: 'Non authentifié' }, { status: 401 });
     }
 
-    const user = session.user as any;
+    const user = session ? (session.user as any) : adminFromHeader;
+    const userRole = session ? (session.user as any).role : adminFromHeader?.role;
     const body = await req.json();
     const { content, reference, userId, senderName: providedSenderName, attachment } = body;
 
@@ -104,12 +150,26 @@ export async function POST(req: NextRequest) {
     let finalUserId = user.id;
     let isAdmin = false;
 
-    if (isAdminRole(user.role)) {
+    if (isAdminRole(userRole)) {
       isAdmin = true;
       if (!userId) {
         return NextResponse.json({ success: false, error: 'Identifiant client requis pour répondre' }, { status: 400 });
       }
       finalUserId = userId;
+    }
+
+    // Résoudre le senderId — si l'ID est fictif, utiliser le vrai ID en DB
+    let resolvedSenderId: string | null = user.id;
+    if (resolvedSenderId && HARDCODED_ADMIN_IDS[resolvedSenderId]) {
+      resolvedSenderId = HARDCODED_ADMIN_IDS[resolvedSenderId];
+    }
+    // Si toujours pas résolu, tenter de trouver un admin en DB
+    if (isAdmin && (!resolvedSenderId || !HARDCODED_ADMIN_IDS[user.id] && !await prisma.user.findUnique({ where: { id: resolvedSenderId || '' } }).catch(() => null))) {
+      const fallbackAdmin = await prisma.user.findFirst({
+        where: { role: { in: ['ADMIN', 'PROFESSIONAL'] } },
+        select: { id: true }
+      });
+      resolvedSenderId = fallbackAdmin?.id || null;
     }
 
     // For admin replies, use the provided senderName (active profile name like SAIF/AMINE/SAIFALLAH)
@@ -120,7 +180,7 @@ export async function POST(req: NextRequest) {
     const message = await prisma.chatMessage.create({
       data: {
         userId: finalUserId,
-        senderId: user.id,
+        senderId: resolvedSenderId,
         senderName: resolvedSenderName,
         isAdmin,
         content: content || '',

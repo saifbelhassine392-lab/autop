@@ -167,7 +167,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
 
   useEffect(() => {
     fetchBadgeCounts();
-    const interval = setInterval(fetchBadgeCounts, 15000);
+    const interval = setInterval(fetchBadgeCounts, 3000);
     return () => clearInterval(interval);
   }, []);
 

@@ -6270,8 +6270,17 @@ function SectionChatInterne() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Helper: get admin profile header for auth fallback
+  const getAdminHeaders = () => {
+    const activeProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : null;
+    return {
+      'Content-Type': 'application/json',
+      ...(activeProfile ? { 'X-Admin-Profile': activeProfile } : {})
+    };
+  };
+
   const fetchConversations = () => {
-    fetch('/api/chat')
+    fetch('/api/chat', { headers: getAdminHeaders() })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
@@ -6283,7 +6292,7 @@ function SectionChatInterne() {
   };
 
   const fetchMessages = (userId: string) => {
-    fetch(`/api/chat?userId=${userId}`)
+    fetch(`/api/chat?userId=${userId}`, { headers: getAdminHeaders() })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
@@ -6295,7 +6304,7 @@ function SectionChatInterne() {
 
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 4000);
+    const interval = setInterval(fetchConversations, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -6335,7 +6344,7 @@ function SectionChatInterne() {
 
     setSending(true);
     try {
-      const activeProfile = localStorage.getItem('activeAdminProfile') || undefined;
+      const activeProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : undefined;
       
       let messageContent = reply;
       if (attachment) {
@@ -6344,11 +6353,14 @@ function SectionChatInterne() {
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(activeProfile ? { 'X-Admin-Profile': activeProfile } : {})
+        },
         body: JSON.stringify({
           content: messageContent,
           userId: selectedUserId,
-          senderName: activeProfile,
+          senderName: activeProfile || 'Admin',
           attachment: attachment ? { name: attachment.name, data: attachment.data, type: attachment.type } : undefined
         })
       });
