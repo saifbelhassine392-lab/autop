@@ -11,7 +11,6 @@ import {
   Package, PlusCircle, Edit, BarChart2, TrendingUp,
   LogOut, ChevronRight, Receipt, ShieldCheck
 } from 'lucide-react';
-import { subscribeQuotesSync } from '@/lib/syncEvents';
 
 const playNotificationSound = () => {
   try {
@@ -53,12 +52,6 @@ type SidebarSection = {
 
 const sections: SidebarSection[] = [
   {
-    title: "VUE D'ENSEMBLE",
-    items: [
-      { id: 'tableau-bord', label: 'TABLEAU DE BORD', icon: BarChart2 },
-    ]
-  },
-  {
     title: "DEMANDES CLIENTS",
     items: [
       { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-600 text-white' },
@@ -97,9 +90,15 @@ const sections: SidebarSection[] = [
     ]
   },
   {
-    title: "COMPTABILITÉ & STATS",
+    title: "COMPTABILITÉ",
     items: [
-      { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt },
+      { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt }
+    ]
+  },
+  {
+    title: "STATISTIQUES",
+    items: [
+      { id: 'tableau-bord', label: 'TABLEAU DE BORD', icon: BarChart2 },
       { id: 'chiffre', label: "CHIFFRE D'AFFAIRES", icon: TrendingUp },
     ]
   }
@@ -168,8 +167,8 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
 
   useEffect(() => {
     fetchBadgeCounts();
-    const unsubscribe = subscribeQuotesSync(fetchBadgeCounts, 3000);
-    return () => unsubscribe();
+    const interval = setInterval(fetchBadgeCounts, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   const getBadgeValue = (id: string) => {
@@ -191,60 +190,57 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={`bg-white border-r border-[#dcedf2] w-[256px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`bg-[#0e1117] border-r border-slate-800 w-[270px] flex flex-col h-screen z-50 shadow-2xl transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
-        {/* Brand Header */}
-        <div className="flex items-center gap-2.5 px-5 pt-5 pb-4 border-b border-[#dcedf2] bg-white">
-          <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-[#e8432f] to-[#b8281a] flex items-center justify-center font-bold text-white text-[15px] shrink-0 shadow-sm">
-            A
+        {/* Logo Header */}
+        <div className="flex flex-col items-center justify-center pt-5 pb-4 px-4 border-b border-slate-800/80 bg-[#0e1117]">
+          <div className="w-36 h-12 relative mb-2">
+            <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
           </div>
-          <div className="min-w-0">
-            <div className="font-bold text-[15px] text-[#111318] tracking-[0.01em] leading-tight font-sans">
-              AUTOP
-            </div>
-            <div className="text-[10px] font-bold text-[#6c757d] uppercase tracking-[0.08em] mt-0.5">
-              Console admin
-            </div>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-[10px] font-black text-slate-300 uppercase tracking-widest border border-slate-700/80 shadow-inner">
+            <ShieldCheck className="w-3.5 h-3.5 text-red-500" />
+            <span>CONSOLE ADMIN</span>
           </div>
         </div>
 
-        {/* User Card */}
-        <div className="mx-3.5 my-3.5 px-3 py-2.5 bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-          <div className="w-[30px] h-[30px] rounded-[7px] bg-[#f8d7da] text-[#e8432f] flex items-center justify-center font-bold text-[12px] shrink-0">
-            {(activeProfile || user?.name || 'S').charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[12.5px] font-bold text-[#111318] truncate">
-              {activeProfile || user?.name || 'Saif'}
+        {/* User Info Card */}
+        <div className="px-4 py-3 bg-slate-900/90 border-b border-slate-800/80">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-md shadow-red-600/30">
+                {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-slate-100 font-black text-xs truncate uppercase tracking-tight">
+                  {activeProfile || user?.name || 'ADMIN'}
+                </p>
+                <p className="text-slate-400 text-[10px] truncate font-medium">{user?.email || 'admin@autop.tn'}</p>
+              </div>
             </div>
-            <div className="text-[10.5px] font-semibold text-[#6c757d]">
-              Admin
-            </div>
+            <button
+              onClick={() => {
+                localStorage.removeItem('activeAdminProfile');
+                window.dispatchEvent(new Event('active-profile-changed'));
+              }}
+              className="text-[9px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider bg-red-500/10 hover:bg-red-500/20 px-2 py-1 rounded-lg border border-red-500/30 transition-colors shrink-0"
+              title="Changer d'utilisateur"
+            >
+              Changer
+            </button>
           </div>
-          <button
-            onClick={() => {
-              localStorage.removeItem('activeAdminProfile');
-              window.dispatchEvent(new Event('active-profile-changed'));
-            }}
-            className="text-[10px] font-bold text-[#495057] hover:border-[#e8432f] hover:text-[#e8432f] border border-[#dcedf2] rounded-[5px] px-2 py-0.5 bg-white transition cursor-pointer shrink-0 shadow-2xs"
-            title="Changer de profil"
-          >
-            Changer
-          </button>
         </div>
 
         {/* Navigation List */}
-        <nav className="flex-1 overflow-y-auto py-1 px-3 space-y-3.5 scrollbar-thin scrollbar-thumb-[#dcedf2]">
+        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4 scrollbar-thin scrollbar-thumb-slate-800">
           {sections.map((section, idx) => (
-            <div key={idx} className="space-y-0.5">
-              <div className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#6c757d] px-2.5 pt-2 pb-1">
+            <div key={idx} className="space-y-1">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-500 px-2.5 py-1">
                 {section.title}
               </div>
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = adminSection === item.id;
                 const badgeVal = getBadgeValue(item.id);
-                const isGreenBadge = item.id === 'devis-gen';
                 return (
                   <button
                     key={item.id}
@@ -252,27 +248,26 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                       setAdminSection(item.id);
                       if (onClose) onClose();
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors group cursor-pointer text-left ${
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-tight transition-all duration-150 group ${
                       isActive
-                        ? 'bg-[#e8432f] text-white font-bold shadow-sm'
-                        : 'text-[#495057] hover:bg-[#f8f9fa] hover:text-[#111318]'
+                        ? 'bg-red-600 text-white shadow-lg shadow-red-600/30 font-black border border-red-500'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900/80 font-semibold'
                     }`}
                   >
-                    <span className={`w-[5px] h-[5px] rounded-full shrink-0 ${
-                      isActive ? 'bg-white' : 'bg-current opacity-70'
+                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${
+                      isActive ? 'text-white' : 'text-slate-400 group-hover:text-red-400'
                     }`} />
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className="flex-1 text-left truncate">{item.label}</span>
                     {badgeVal !== undefined && badgeVal > 0 && (
-                      <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                        isActive
-                          ? 'bg-white/25 text-white'
-                          : isGreenBadge
-                          ? 'bg-[#059669] text-white'
-                          : 'bg-[#e8432f] text-white'
-                      }`}>
+                      <span className={`${
+                        isActive 
+                          ? 'bg-white text-red-600' 
+                          : item.badgeColor || 'bg-slate-800 text-slate-300'
+                      } text-[10px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow-xs shrink-0`}>
                         {badgeVal}
                       </span>
                     )}
+                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-1 shrink-0 text-white" />}
                   </button>
                 );
               })}
@@ -281,12 +276,12 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         </nav>
 
         {/* Logout Footer */}
-        <div className="p-3 border-t border-[#dcedf2] bg-white">
+        <div className="p-3 border-t border-slate-800/80 bg-[#0e1117]">
           <button
             onClick={() => signOut({ callbackUrl: '/connexion' })}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[7px] text-[12px] font-bold uppercase tracking-wider text-[#6c757d] hover:text-[#e8432f] hover:bg-[#f8d7da]/30 border border-transparent hover:border-[#dcedf2] transition"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all duration-150"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-400" />
             <span>DÉCONNEXION</span>
           </button>
         </div>

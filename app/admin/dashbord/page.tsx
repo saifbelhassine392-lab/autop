@@ -155,16 +155,16 @@ export default function AdminDashboard() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4">
-        <div className="text-center bg-[#f8f9fa] border border-[#dcedf2] rounded-[12px] p-8 max-w-md w-full shadow-sm">
-          <div className="w-24 h-12 relative mx-auto mb-5">
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
+        <div className="text-center">
+          <div className="w-24 h-24 relative mx-auto mb-6">
             <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
           </div>
-          <h2 className="text-xl font-bold text-black uppercase tracking-wider mb-2">Accès Réservé</h2>
-          <p className="text-[#6c757d] text-xs font-semibold uppercase mb-6">Cet espace est réservé aux administrateurs AutoP.</p>
+          <h2 className="text-2xl font-black text-zinc-950 uppercase tracking-widest mb-2">ACCÈS RÉSERVÉ</h2>
+          <p className="text-slate-400 uppercase text-sm mb-6">CET ESPACE EST RÉSERVÉ AUX ADMINISTRATEURS AUTOP.</p>
           <button onClick={() => router.push('/')}
-            className="w-full py-2.5 bg-[#e8432f] hover:bg-[#d13a27] text-white rounded-[7px] font-bold text-xs uppercase tracking-wide transition shadow-sm">
-            Retour à l'accueil
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-zinc-950 rounded-xl font-black uppercase tracking-wide transition">
+            RETOUR À L'ACCUEIL
           </button>
         </div>
       </div>
@@ -174,85 +174,88 @@ export default function AdminDashboard() {
   // Si aucun profil admin n'est sélectionné dans la session locale, afficher l'overlay de sélection
   if (!activeProfile) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12 relative font-sans">
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4 py-12 relative overflow-hidden font-sans">
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none" />
+        
         <div className="relative z-10 max-w-md w-full text-center">
-          <div className="w-28 h-12 relative mx-auto mb-6">
+          <div className="w-28 h-14 relative mx-auto mb-6">
             <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} priority />
           </div>
 
           {authState === 'selection' && (
-            <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[12px] p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-black uppercase tracking-wider mb-1.5 font-sans">
-                Qui commence sa session ?
+            <>
+              <h2 className="text-2xl font-black text-zinc-950 uppercase tracking-[4px] mb-2">
+                QUI COMMENCE SA SESSION ?
               </h2>
-              <p className="text-[#6c757d] text-xs font-semibold mb-6">
-                Sélectionnez votre profil pour sécuriser et suivre vos actions
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-10">
+                SÉLECTIONNEZ VOTRE PROFIL POUR SÉCURISER ET SUIVRE VOS ACTIONS
               </p>
 
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4 max-w-sm mx-auto">
                 {[
-                  { name: 'SAIF', color: 'from-[#e8432f] to-[#b8281a]', initials: 'S' },
-                  { name: 'AMINE', color: 'from-[#d97706] to-[#b45309]', initials: 'A' },
-                  { name: 'SAIFALLAH', color: 'from-[#4a3ab8] to-[#372b8c]', initials: 'SF' },
+                  { name: 'SAIF', color: 'from-red-600 to-orange-500', initials: 'S' },
+                  { name: 'AMINE', color: 'from-orange-500 to-amber-500', initials: 'A' },
+                  { name: 'SAIFALLAH', color: 'from-purple-600 to-indigo-600', initials: 'SF' },
                 ].map((prof) => (
                   <button
                     key={prof.name}
                     disabled={checkingAuth}
                     onClick={() => handleProfileClick(prof.name)}
-                    className="group bg-white border border-[#dcedf2] hover:border-[#e8432f] rounded-[9px] p-3.5 transition-all shadow-xs flex items-center gap-3.5 text-left w-full disabled:opacity-50 cursor-pointer"
+                    className="group relative bg-slate-900 border border-zinc-200 rounded-3xl p-5 hover:border-red-650 transition-all duration-300 transform hover:scale-[1.02] shadow-2xl flex items-center gap-4 overflow-hidden w-full disabled:opacity-50"
                   >
-                    <div className={`w-10 h-10 rounded-[8px] bg-gradient-to-br ${prof.color} flex items-center justify-center text-white font-bold text-sm shadow-xs shrink-0`}>
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${prof.color} flex items-center justify-center text-zinc-950 font-black text-lg shadow-lg`}>
                       {prof.initials}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="block font-bold text-black text-[13.5px] group-hover:text-[#e8432f] transition-colors">
+                    <div className="text-left">
+                      <span className="block font-black text-zinc-950 text-sm tracking-wider group-hover:text-red-400 transition-colors">
                         {prof.name}
                       </span>
-                      <span className="block text-[10.5px] text-[#6c757d] font-semibold uppercase tracking-wider">
-                        Administrateur
+                      <span className="block text-[8px] text-zinc-600 font-extrabold uppercase tracking-[2px]">
+                        ADMINISTRATEUR
                       </span>
                     </div>
                   </button>
                 ))}
               </div>
-            </div>
+            </>
           )}
 
           {authState === 'setup_password' && (
-            <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[12px] p-6 shadow-sm text-center">
-              <h3 className="text-black font-bold text-base uppercase tracking-wide mb-1.5">Première connexion</h3>
-              <p className="text-[#6c757d] text-xs font-semibold mb-5">
-                Choisissez un mot de passe pour le profil <span className="text-[#e8432f] font-bold">{selectedProfName}</span>
+            <div className="bg-slate-900 border border-zinc-200 rounded-[30px] p-8 shadow-2xl text-center">
+              <h3 className="text-zinc-950 font-black text-lg uppercase tracking-wider mb-2">PREMIÈRE CONNEXION</h3>
+              <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-wide">
+                CHOISISSEZ UN MOT DE PASSE POUR LE PROFIL <span className="text-red-400">{selectedProfName}</span>
               </p>
 
-              <form onSubmit={handleSetupPassword} className="space-y-3.5">
+              <form onSubmit={handleSetupPassword} className="space-y-4">
                 <input
                   type="password"
                   required
-                  placeholder="Choisissez votre mot de passe"
+                  placeholder="CHOISISSEZ VOTRE CODE / MOT DE PASSE"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2 text-xs text-black text-center font-bold tracking-widest focus:outline-none focus:border-[#e8432f]"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 text-xs text-zinc-950 text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase animate-pulse"
                 />
                 
                 {authError && (
-                  <p className="text-[#dc2626] text-[11px] font-bold">{authError}</p>
+                  <p className="text-red-500 text-[10px] font-black uppercase tracking-wider">{authError}</p>
                 )}
 
-                <div className="flex gap-2.5 pt-2">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setAuthState('selection')}
-                    className="flex-1 py-2 bg-white border border-[#dcedf2] hover:border-[#e8432f] text-[#111318] rounded-[7px] text-xs font-bold transition"
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-zinc-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition"
                   >
-                    Retour
+                    RETOUR
                   </button>
                   <button
                     type="submit"
                     disabled={checkingAuth}
-                    className="flex-1 py-2 bg-[#e8432f] hover:bg-[#d13a27] text-white rounded-[7px] text-xs font-bold transition disabled:opacity-50"
+                    className="flex-1 py-3 bg-red-650 hover:bg-red-700 text-zinc-950 rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
                   >
-                    {checkingAuth ? 'Enregistrement...' : 'Enregistrer'}
+                    {checkingAuth ? 'ENREGISTREMENT...' : 'ENREGISTRER'}
                   </button>
                 </div>
               </form>
@@ -260,41 +263,41 @@ export default function AdminDashboard() {
           )}
 
           {authState === 'enter_password' && (
-            <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[12px] p-6 shadow-sm text-center">
-              <h3 className="text-black font-bold text-base uppercase tracking-wide mb-1.5">Verrouillage Profil</h3>
-              <p className="text-[#6c757d] text-xs font-semibold mb-5">
-                Entrez le mot de passe de <span className="text-[#e8432f] font-bold">{selectedProfName}</span> pour accéder
+            <div className="bg-slate-900 border border-slate-800 rounded-[30px] p-8 shadow-2xl text-center">
+              <h3 className="text-white font-black text-lg uppercase tracking-wider mb-2">VERROUILLAGE PROFIL</h3>
+              <p className="text-slate-400 text-xs font-bold uppercase mb-6 tracking-wide">
+                ENTREZ LE MOT DE PASSE DE <span className="text-red-400">{selectedProfName}</span> POUR ACCÉDER
               </p>
 
-              <form onSubmit={handleVerifyPassword} className="space-y-3.5">
+              <form onSubmit={handleVerifyPassword} className="space-y-4">
                 <input
                   type="password"
                   required
                   autoFocus
-                  placeholder="Entrez votre mot de passe"
+                  placeholder="ENTREZ VOTRE MOT DE PASSE"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2 text-xs text-black text-center font-bold tracking-widest focus:outline-none focus:border-[#e8432f]"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white text-center font-bold tracking-widest focus:outline-none focus:border-red-500 uppercase"
                 />
                 
                 {authError && (
-                  <p className="text-[#dc2626] text-[11px] font-bold">{authError}</p>
+                  <p className="text-red-500 text-[10px] font-black uppercase tracking-wider">{authError}</p>
                 )}
 
-                <div className="flex gap-2.5 pt-2">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setAuthState('selection')}
-                    className="flex-1 py-2 bg-white border border-[#dcedf2] hover:border-[#e8432f] text-[#111318] rounded-[7px] text-xs font-bold transition"
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition"
                   >
-                    Retour
+                    RETOUR
                   </button>
                   <button
                     type="submit"
                     disabled={checkingAuth}
-                    className="flex-1 py-2 bg-[#e8432f] hover:bg-[#d13a27] text-white rounded-[7px] text-xs font-bold transition disabled:opacity-50"
+                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition disabled:opacity-50"
                   >
-                    {checkingAuth ? 'Vérification...' : 'Déverrouiller'}
+                    {checkingAuth ? 'VERIFICATION...' : 'DÉVERROUILLER'}
                   </button>
                 </div>
               </form>
@@ -306,48 +309,47 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex text-black antialiased overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#14171c] flex text-slate-100 antialiased overflow-hidden">
       {/* Sidebar */}
       <AdminSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       {/* Main */}
-      <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-white">
+      <div className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#14171c]">
         {/* Top bar */}
-        <header className="bg-white border-b border-[#e9ecef] px-5 py-3 flex items-center justify-between sticky top-0 z-20 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <header className="bg-[#14171c]/95 backdrop-blur-md border-b border-slate-800 px-4 md:px-6 py-3 flex items-center justify-between sticky top-0 z-20 shadow-xs">
           <div className="flex items-center gap-3">
             <button 
-              className="md:hidden text-[#495057] hover:text-black transition p-1.5 rounded-[6px] hover:bg-[#f8f9fa]"
+              className="md:hidden text-slate-400 hover:text-white transition p-1.5 rounded-lg hover:bg-slate-800"
               onClick={() => setIsSidebarOpen(true)}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className="w-6 h-6" />
             </button>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-[14px] text-black tracking-tight font-sans">
-                Console Admin
-              </span>
+            <div className="w-9 h-7 relative hidden md:block">
+              <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
             </div>
+            <span className="text-white font-black uppercase tracking-widest text-[10px] md:text-sm">CONSOLE ADMIN</span>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="text-[#6c757d] hover:text-black transition p-1.5 rounded-[6px] hover:bg-[#f8f9fa] hidden sm:block">
+          <div className="flex items-center gap-2 md:gap-3">
+            <button className="text-slate-400 hover:text-white transition p-2 rounded-xl hover:bg-slate-800 hidden sm:block">
               <Bell className="w-4 h-4" />
             </button>
-            <button className="text-[#6c757d] hover:text-black transition p-1.5 rounded-[6px] hover:bg-[#f8f9fa] hidden sm:block">
+            <button className="text-slate-400 hover:text-white transition p-2 rounded-xl hover:bg-slate-800 hidden sm:block">
               <Settings className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2.5 border-l border-[#e9ecef] pl-3">
-              <div className="w-7 h-7 rounded-[6px] bg-[#f8d7da] text-[#e8432f] flex items-center justify-center font-bold text-xs shrink-0">
-                {(activeProfile || session?.user?.name || 'S').charAt(0).toUpperCase()}
+            <div className="flex items-center gap-2.5 border-l border-slate-800 pl-2.5 md:pl-3.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
+                {(activeProfile || session?.user?.name || 'A').charAt(0).toUpperCase()}
               </div>
               <div className="hidden sm:block">
-                <p className="text-black font-bold text-[12px] leading-tight">{activeProfile || session?.user?.name || 'Admin'}</p>
-                <p className="text-[#6c757d] text-[10px] font-semibold">{role || 'Administrateur'}</p>
+                <p className="text-white font-black text-xs uppercase leading-none">{activeProfile || session?.user?.name || 'ADMIN'}</p>
+                <p className="text-slate-400 text-[10px] uppercase font-bold mt-0.5">{role || 'ADMIN'}</p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 bg-white p-5 md:p-7">
+        {/* Content */}
+        <main className="flex-1 bg-[#14171c] p-4 md:p-6 lg:p-8">
           <AdminContent />
         </main>
       </div>
