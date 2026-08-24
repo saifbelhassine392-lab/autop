@@ -5,6 +5,7 @@ import { Download, CheckCircle, MessageCircle, FileText, Plus, FileSpreadsheet, 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import VehicleAutocomplete from '@/components/VehicleAutocomplete';
+import { notifyQuotesSync } from '@/lib/syncEvents';
 
 export default function DevisPage() {
   const { data: session } = useSession();
@@ -376,6 +377,7 @@ ${itemsSummary}
       if (!res.ok) throw new Error("Erreur serveur");
 
       const data = await res.json();
+      notifyQuotesSync();
       setSubmittedQuoteId(data.id);
       setSubmittedSummary({
         id: data.id,

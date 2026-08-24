@@ -11,6 +11,7 @@ import {
   Package, PlusCircle, Edit, BarChart2, TrendingUp,
   LogOut, ChevronRight, Receipt, ShieldCheck
 } from 'lucide-react';
+import { subscribeQuotesSync } from '@/lib/syncEvents';
 
 const playNotificationSound = () => {
   try {
@@ -167,8 +168,8 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
 
   useEffect(() => {
     fetchBadgeCounts();
-    const interval = setInterval(fetchBadgeCounts, 15000);
-    return () => clearInterval(interval);
+    const unsubscribe = subscribeQuotesSync(fetchBadgeCounts, 3000);
+    return () => unsubscribe();
   }, []);
 
   const getBadgeValue = (id: string) => {
@@ -190,57 +191,60 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         />
       )}
       
-      <aside className={`bg-white border-r border-zinc-200 w-[270px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
+      <aside className={`bg-[#f4f5f7] border-r border-[#e9ecef] w-[246px] flex flex-col h-screen z-50 shadow-sm transition-transform duration-300 ease-in-out fixed inset-y-0 left-0 md:sticky md:top-0 md:flex ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         
-        {/* Logo Header */}
-        <div className="flex flex-col items-center justify-center pt-5 pb-4 px-4 border-b border-zinc-100 bg-white">
-          <div className="w-36 h-12 relative mb-2">
-            <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
+        {/* Brand Header */}
+        <div className="flex items-center gap-2.5 px-5 pt-5 pb-4 border-b border-[#e9ecef] bg-[#f4f5f7]">
+          <div className="w-8 h-8 rounded-[8px] bg-gradient-to-br from-[#e8432f] to-[#b8281a] flex items-center justify-center font-bold text-white text-[15px] shrink-0 shadow-sm">
+            A
           </div>
-          <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-zinc-100 text-[10px] font-black text-zinc-600 uppercase tracking-widest border border-zinc-200/80">
-            <ShieldCheck className="w-3 h-3 text-red-600" />
-            <span>CONSOLE ADMIN</span>
+          <div className="min-w-0">
+            <div className="font-bold text-[15px] text-black tracking-[0.01em] leading-tight">
+              AUTOP
+            </div>
+            <div className="text-[10px] font-bold text-[#6c757d] uppercase tracking-[0.08em] mt-0.5">
+              Console admin
+            </div>
           </div>
         </div>
 
-        {/* User Info Card */}
-        <div className="px-4 py-3 bg-zinc-50/80 border-b border-zinc-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-red-600 to-rose-500 flex items-center justify-center text-white font-black text-xs shrink-0 shadow-sm">
-                {(activeProfile || user?.name || 'A').charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <p className="text-zinc-950 font-black text-xs truncate uppercase tracking-tight">
-                  {activeProfile || user?.name || 'ADMIN'}
-                </p>
-                <p className="text-zinc-400 text-[10px] truncate font-medium">{user?.email || 'admin@autop.tn'}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                localStorage.removeItem('activeAdminProfile');
-                window.dispatchEvent(new Event('active-profile-changed'));
-              }}
-              className="text-[9px] font-bold text-red-600 hover:text-red-700 uppercase tracking-wider bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg border border-red-200/60 transition-colors shrink-0"
-              title="Changer d'utilisateur"
-            >
-              Changer
-            </button>
+        {/* User Card */}
+        <div className="mx-3.5 my-3.5 px-3 py-2.5 bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] flex items-center gap-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+          <div className="w-[30px] h-[30px] rounded-[7px] bg-[#f8d7da] text-[#e8432f] flex items-center justify-center font-bold text-[12px] shrink-0">
+            {(activeProfile || user?.name || 'S').charAt(0).toUpperCase()}
           </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[12.5px] font-bold text-black truncate">
+              {activeProfile || user?.name || 'Saif'}
+            </div>
+            <div className="text-[10.5px] font-semibold text-[#6c757d]">
+              Admin
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem('activeAdminProfile');
+              window.dispatchEvent(new Event('active-profile-changed'));
+            }}
+            className="text-[10px] font-bold text-[#495057] hover:border-[#e8432f] hover:text-[#e8432f] border border-[#dcedf2] rounded-[5px] px-1.5 py-0.5 bg-white transition cursor-pointer shrink-0"
+            title="Changer de profil"
+          >
+            Changer
+          </button>
         </div>
 
         {/* Navigation List */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-4 scrollbar-thin scrollbar-thumb-zinc-200">
+        <nav className="flex-1 overflow-y-auto py-1 px-2.5 space-y-3.5 scrollbar-thin scrollbar-thumb-[#dcedf2]">
           {sections.map((section, idx) => (
-            <div key={idx} className="space-y-1">
-              <div className="text-[10px] font-black uppercase tracking-wider text-zinc-400 px-2.5 py-1">
+            <div key={idx} className="space-y-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-[0.09em] text-[#6c757d] px-2.5 pt-2 pb-1">
                 {section.title}
               </div>
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = adminSection === item.id;
                 const badgeVal = getBadgeValue(item.id);
+                const isGreenBadge = item.id === 'devis-gen';
                 return (
                   <button
                     key={item.id}
@@ -248,26 +252,27 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
                       setAdminSection(item.id);
                       if (onClose) onClose();
                     }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-tight transition-all duration-150 group ${
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[7px] text-[12.5px] font-semibold transition-colors group cursor-pointer text-left ${
                       isActive
-                        ? 'bg-zinc-900 text-white shadow-sm font-black'
-                        : 'text-zinc-600 hover:text-zinc-950 hover:bg-zinc-100/80 font-semibold'
+                        ? 'bg-[#e8432f] text-white font-bold shadow-sm'
+                        : 'text-[#495057] hover:bg-[#f8f9fa] hover:text-black'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 transition-colors ${
-                      isActive ? 'text-red-500' : 'text-zinc-400 group-hover:text-zinc-700'
+                    <span className={`w-[5px] h-[5px] rounded-full shrink-0 ${
+                      isActive ? 'bg-white' : 'bg-current opacity-70'
                     }`} />
-                    <span className="flex-1 text-left truncate">{item.label}</span>
+                    <span className="flex-1 truncate">{item.label}</span>
                     {badgeVal !== undefined && badgeVal > 0 && (
-                      <span className={`${
-                        isActive 
-                          ? 'bg-red-500 text-white' 
-                          : item.badgeColor || 'bg-zinc-200 text-zinc-800'
-                      } text-[10px] px-2 py-0.5 rounded-full font-black min-w-[20px] text-center shadow-xs shrink-0`}>
+                      <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                        isActive
+                          ? 'bg-white/25 text-white'
+                          : isGreenBadge
+                          ? 'bg-[#059669] text-white'
+                          : 'bg-[#e8432f] text-white'
+                      }`}>
                         {badgeVal}
                       </span>
                     )}
-                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-1 shrink-0 text-zinc-400" />}
                   </button>
                 );
               })}
@@ -276,12 +281,12 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         </nav>
 
         {/* Logout Footer */}
-        <div className="p-3 border-t border-zinc-100 bg-white">
+        <div className="p-3 border-t border-[#e9ecef] bg-[#f4f5f7]">
           <button
             onClick={() => signOut({ callbackUrl: '/connexion' })}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-zinc-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-100 transition-all duration-150"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-[7px] text-[12px] font-bold uppercase tracking-wider text-[#6c757d] hover:text-[#e8432f] hover:bg-white border border-transparent hover:border-[#dcedf2] transition"
           >
-            <LogOut className="w-4 h-4 text-zinc-400 group-hover:text-red-600" />
+            <LogOut className="w-3.5 h-3.5" />
             <span>DÉCONNEXION</span>
           </button>
         </div>

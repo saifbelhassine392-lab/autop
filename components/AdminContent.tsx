@@ -14,6 +14,7 @@ import {
   ShoppingBag, BarChart2, Download, Receipt, Paperclip, Upload, PlusCircle, Loader2,
   RefreshCw, FileSpreadsheet, Database, Sparkles, CheckCircle2, ExternalLink, Layers, Eye
 } from 'lucide-react';
+import { notifyQuotesSync, subscribeQuotesSync } from '@/lib/syncEvents';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
 const inputCls = "w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-sm px-3.5 h-10 rounded-xl focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-500 placeholder:font-normal placeholder:normal-case transition-colors";
@@ -32,7 +33,8 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
   const [assigneeFilter, setAssigneeFilter] = useState('TOUS LES PROFILS');
   const [loading, setLoading] = useState(true);
 
-  const fetchQuotes = () => {
+  const fetchQuotes = (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     fetch('/api/quotes').then(r => r.json()).then(d => {
       setQuotes(Array.isArray(d) ? d : d.data || []);
     }).finally(() => setLoading(false));
@@ -40,6 +42,8 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
 
   useEffect(() => {
     fetchQuotes();
+    const unsubscribe = subscribeQuotesSync(() => fetchQuotes(true), 3000);
+    return () => unsubscribe();
   }, []);
 
   const handleAssignProfile = async (quoteId: string, name: string) => {
@@ -50,7 +54,8 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
         body: JSON.stringify({ quoteId, managedByName: name })
       });
       if (res.ok) {
-        fetchQuotes();
+        notifyQuotesSync();
+        fetchQuotes(true);
       }
     } catch (err) {
       console.error(err);
@@ -94,6 +99,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                 });
                 const data = await res.json();
                 if (res.ok && data.success) {
+                  notifyQuotesSync();
                   alert("✅ Compteur remis à zéro : Toutes les demandes et devis ont été réinitialisés.");
                   fetchQuotes();
                 } else {
@@ -220,6 +226,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                     try {
                       const res = await fetch(`/api/quotes?id=${q.id}`, { method: 'DELETE' });
                       if (res.ok) {
+                        notifyQuotesSync();
                         alert("Demande supprimée avec succès.");
                         fetchQuotes();
                       } else {
@@ -547,6 +554,7 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         throw new Error(data.error || "Erreur de création");
       }
 
+      notifyQuotesSync();
       setSaved(true);
       alert(`✅ DEVIS ENREGISTRÉ AVEC SUCCÈS ! ${sendNotification ? 'E-mail de confirmation envoyé au client.' : ''}`);
       
@@ -735,54 +743,118 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
     }
   };
 
-  return (
-    <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 mb-1">CRÉER / MODIFIER DEVIS</h2>
-      <p className="text-slate-400 text-xs uppercase tracking-wider mb-5">GÉNÉREZ ET MODIFIEZ VOS DEVIS CLIENTS</p>
+  const devisSeq = quoteToLoad?.id ? `#${quoteToLoad.id.slice(-6).toUpperCase()}` : 'NOUVEAU';
 
-      {/* Client Info */}
-      <div className={cardCls}>
-        <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-3">INFORMATIONS CLIENT</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className={labelCls}>NOM CLIENT *</label>
-            <input type="text" className={inputCls} placeholder="NOM COMPLET" value={clientName} onChange={e => setClientName(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>EMAIL CLIENT *</label>
-            <input type="email" className={inputCls} placeholder="email@client.com" value={clientEmail} onChange={e => setClientEmail(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>VÉHICULE</label>
-            <input type="text" className={inputCls} placeholder="EX: PEUGEOT 208 1.2" value={vehicle} onChange={e => setVehicle(e.target.value)} />
-          </div>
-          <div>
-            <label className={labelCls}>NUMÉRO VIN</label>
-            <input type="text" className={inputCls} placeholder="VIN / CHASSIS" value={vin} onChange={e => setVin(e.target.value)} />
+  return (
+    <div className="max-w-[1180px] mx-auto pb-10">
+      {/* Page Header */}
+      <div className="mb-6">
+        <div className="font-mono text-[10.5px] font-bold text-[#e8432f] tracking-[0.12em] uppercase mb-1.5">
+          DEVIS {devisSeq}
+        </div>
+        <h1 className="text-[22px] font-bold text-[#000000] tracking-tight font-sans">
+          Créer / modifier un devis
+        </h1>
+        <p className="text-[#495057] text-[12.5px] font-semibold mt-1">
+          Gérez et modifiez les devis de vos clients en toute simplicité
+        </p>
+      </div>
+
+      {/* Card 1: Informations Client */}
+      <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] mb-5 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#dcedf2] bg-[#f1f3f5]">
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#000000] flex items-center gap-2">
+            <span className="w-[3px] h-[12px] bg-[#e8432f] rounded-[2px] inline-block" />
+            Informations client
           </div>
         </div>
-        <div className="mt-3">
-          <label className={labelCls}>NOTES / OBSERVATIONS</label>
-          <textarea rows={2} className="w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-sm p-3 rounded-xl focus:outline-none focus:border-red-500 uppercase placeholder:text-slate-500 transition-colors" placeholder="Notes additionnelles..." value={notes} onChange={e => setNotes(e.target.value)} />
+        <div className="p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5">
+                Nom client <span className="text-[#e8432f]">*</span>
+              </label>
+              <input
+                type="text"
+                value={clientName}
+                onChange={e => setClientName(e.target.value)}
+                placeholder="Nom complet du client"
+                className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2.5 text-[13px] font-semibold text-[#000000] focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 outline-none transition"
+              />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5">
+                Email client <span className="text-[#e8432f]">*</span>
+              </label>
+              <input
+                type="email"
+                value={clientEmail}
+                onChange={e => setClientEmail(e.target.value)}
+                placeholder="email@client.com"
+                className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2.5 text-[13px] font-semibold text-[#000000] focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 outline-none transition"
+              />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5">
+                Véhicule
+              </label>
+              <input
+                type="text"
+                value={vehicle}
+                onChange={e => setVehicle(e.target.value)}
+                placeholder="Ex: Peugeot 208 1.2"
+                className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2.5 text-[13px] font-semibold text-[#000000] focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 outline-none transition"
+              />
+            </div>
+            <div>
+              <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5 font-mono">
+                Numéro VIN
+              </label>
+              <input
+                type="text"
+                value={vin}
+                onChange={e => setVin(e.target.value)}
+                placeholder="VIN / N° de Châssis"
+                className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2.5 text-[12.5px] font-semibold font-mono text-[#000000] tracking-wider uppercase focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 outline-none transition"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5">
+                Notes / observations
+              </label>
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Notes additionnelles ou références internes..."
+                className="w-full bg-white border border-[#dcedf2] rounded-[7px] p-2.5 text-[13px] font-semibold text-[#000000] focus:border-[#e8432f] focus:ring-2 focus:ring-[#e8432f]/10 outline-none transition resize-y min-h-[56px]"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Items Table */}
-      <div className={cardCls}>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
-          <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">LIGNES DU DEVIS</div>
+      {/* Card 2: Lignes du Devis */}
+      <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] mb-5 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-5 py-3.5 border-b border-[#dcedf2] bg-[#f1f3f5] gap-3">
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#000000] flex items-center gap-2">
+            <span className="w-[3px] h-[12px] bg-[#e8432f] rounded-[2px] inline-block" />
+            Lignes du devis
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <label className="flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-50 hover:bg-slate-700 text-slate-200 text-[11px] font-black uppercase rounded-lg transition cursor-pointer border border-zinc-200 shadow-sm font-sans" title="Importer un fichier d'offres fournisseur (Excel/CSV) pour remplir le devis et l'historique">
-              <Upload className="w-3.5 h-3.5" /> IMPORTER OFFRES FOURNISSEUR (EXCEL/CSV)
+            <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:border-[#e8432f] hover:text-[#e8432f] text-[#111318] text-[11.5px] font-bold rounded-[7px] border border-[#dcedf2] transition cursor-pointer shadow-sm">
+              <Upload className="w-3.5 h-3.5" />
+              Importer offres fournisseur
               <input type="file" accept=".xlsx,.xls,.csv" onChange={handleImportSupplierOffersFile} className="hidden" />
             </label>
-            <button 
+            <button
               onClick={handleOpenSynthese}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-zinc-50 hover:bg-slate-700 text-slate-200 text-[11px] font-black uppercase rounded-lg transition shadow-sm border border-zinc-200"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:border-[#e8432f] hover:text-[#e8432f] text-[#111318] text-[11.5px] font-bold rounded-[7px] border border-[#dcedf2] transition shadow-sm"
             >
-              <BarChart2 className="w-3.5 h-3.5" /> SYNTHÈSE MEILLEURES OFFRES
+              <BarChart2 className="w-3.5 h-3.5" />
+              Comparer meilleures offres
             </button>
-            <button 
+            <button
               onClick={async () => {
                 const allOffresToSave: any[] = [];
                 items.forEach(it => {
@@ -824,27 +896,44 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                   alert("Erreur de connexion.");
                 }
               }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-700/80 hover:bg-emerald-600 text-zinc-950 text-[11px] font-black uppercase rounded-lg transition shadow-sm border border-emerald-600/50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e8432f] hover:bg-[#d13a27] text-white text-[11.5px] font-bold rounded-[7px] border border-[#e8432f] transition shadow-sm"
             >
-              <Save className="w-3.5 h-3.5" /> ENREGISTRER TOUTES LES OFFRES
+              <Save className="w-3.5 h-3.5" />
+              ✓ Enregistrer toutes les offres
             </button>
-            <button onClick={addLine} className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-50 hover:bg-slate-700 text-slate-300 border border-zinc-200 text-[11px] font-black uppercase rounded-lg transition shadow-sm">
-              <Plus className="w-3.5 h-3.5" /> AJOUTER LIGNE
+            <button
+              onClick={addLine}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-[#dcedf2] text-[#6c757d] hover:border-[#e8432f] hover:text-[#e8432f] text-[11.5px] font-bold rounded-[7px] transition shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              + Ajouter ligne
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+        <div className="p-5 overflow-x-auto">
+          <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-white text-zinc-950 font-bold text-xs px-3 h-10 rounded-xl border border-zinc-200 focus:outline-none focus:border-zinc-300 cursor-pointer transition-colors">
-                <th className="px-3 py-2.5 text-left rounded-l-lg">DÉSIGNATION</th>
-                <th className="px-3 py-2.5 text-left">RÉFÉRENCE</th>
-                <th className="px-3 py-2.5 text-center">QTÉ</th>
-                <th className="px-3 py-2.5 text-right">P.U. HT</th>
-                <th className="px-3 py-2.5 text-right">REMISE %</th>
-                <th className="px-3 py-2.5 text-right">TOTAL HT</th>
-                <th className="px-3 py-2.5 text-center rounded-r-lg">ACTION</th>
+              <tr className="border-b border-[#dcedf2]">
+                <th className="text-left text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[28%]">
+                  Désignation
+                </th>
+                <th className="text-left text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[26%]">
+                  Référence
+                </th>
+                <th className="text-center text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[70px]">
+                  Qté
+                </th>
+                <th className="text-right text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[110px]">
+                  P.U. HT
+                </th>
+                <th className="text-right text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[90px]">
+                  Remise %
+                </th>
+                <th className="text-right text-[10px] font-bold uppercase tracking-[0.06em] text-[#111318] pb-2.5 px-2 w-[120px]">
+                  Total HT
+                </th>
+                <th className="w-[40px] pb-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -853,129 +942,254 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                 const discounted = lineTotal - lineTotal * (it.discount / 100);
                 return (
                   <React.Fragment key={i}>
-                  <tr className="border-b border-zinc-200/50">
-                    <td className="px-2 py-2 relative">
-                      <input type="text" value={it.designation} 
-                        onChange={e => {
-                          updateLine(i, 'designation', e.target.value);
-                          setActiveSuggestRow(i);
-                          setActiveSuggestField('desc');
-                        }}
-                        onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('desc'); }}
-                        onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                        className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" placeholder="DÉSIGNATION" />
-                      {activeSuggestRow === i && activeSuggestField === 'desc' && getSuggestions(it.designation, 'desc').length > 0 && (
-                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-white border border-zinc-200 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
-                          {getSuggestions(it.designation, 'desc').map((p: any) => (
-                            <button key={p.id} type="button"
-                              onClick={() => {
-                                updateLine(i, 'designation', p.name || '');
-                                updateLine(i, 'reference', p.reference || '');
-                                if (p.price) updateLine(i, 'puHT', p.price);
-                              }}
-                              className="w-full text-left px-3 py-2 hover:bg-zinc-50 text-xs font-semibold text-slate-200 border-b border-slate-900 last:border-0 flex items-center justify-between gap-2">
-                              <span className="text-zinc-950 truncate max-w-[140px]">{p.name}</span>
-                              <span className="text-red-400 font-mono text-[9px] shrink-0">{p.reference}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 relative">
-                      <input type="text" value={it.reference}
-                        onChange={e => {
-                          updateLine(i, 'reference', e.target.value);
-                          setActiveSuggestRow(i);
-                          setActiveSuggestField('ref');
-                        }}
-                        onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('ref'); }}
-                        onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
-                        className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" placeholder="RÉF." />
-                      {activeSuggestRow === i && activeSuggestField === 'ref' && getSuggestions(it.reference, 'ref').length > 0 && (
-                        <div className="absolute left-0 z-50 mt-1 min-w-[220px] bg-white border border-zinc-200 rounded-xl max-h-44 overflow-y-auto shadow-2xl">
-                          {getSuggestions(it.reference, 'ref').map((p: any) => (
-                            <button key={p.id} type="button"
-                              onClick={() => {
-                                updateLine(i, 'reference', p.reference || '');
-                                updateLine(i, 'designation', p.name || '');
-                                if (p.price) updateLine(i, 'puHT', p.price);
-                              }}
-                              className="w-full text-left px-3 py-2 hover:bg-zinc-50 text-xs font-semibold text-slate-200 border-b border-slate-900 last:border-0 flex items-center justify-between gap-2">
-                              <span className="text-red-400 font-mono font-bold shrink-0">{p.reference}</span>
-                              <span className="text-zinc-500 text-[10px] truncate">{p.name}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {it.reference && (() => {
-                        const match = catalogue.find(x => x.reference?.toUpperCase() === it.reference?.toUpperCase());
-                        return match ? (
-                          <span className="text-[9px] text-green-400 font-black block mt-0.5 uppercase tracking-wider">✓ DISPO (STOCK: {match.stock})</span>
-                        ) : (
-                          <span className="text-[9px] text-amber-500 font-black block mt-0.5 uppercase tracking-wider">⚡ NOUVEAU (SERA CRÉÉ)</span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" value={it.qty} min={1} onChange={e => updateLine(i, 'qty', parseFloat(e.target.value) || 1)}
-                        className="w-16 bg-white text-zinc-900 border border-zinc-200 font-bold text-xs px-2 h-10 rounded-lg border border-zinc-200 focus:outline-none focus:border-zinc-300 text-center" />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" value={it.puHT || ''} min={0} step={0.001} onChange={e => updateLine(i, 'puHT', parseFloat(e.target.value) || 0)}
-                        className="w-24 bg-white text-zinc-900 border border-zinc-200 font-bold text-xs px-2 h-10 rounded-lg border border-zinc-200 focus:outline-none focus:border-zinc-300 text-right" placeholder="" />
-                    </td>
-                    <td className="px-2 py-2">
-                      <input type="number" value={it.discount || ''} min={0} max={100} step={1} onChange={e => updateLine(i, 'discount', parseFloat(e.target.value) || 0)}
-                        className="w-16 bg-white text-zinc-900 border border-zinc-200 font-bold text-xs px-2 h-10 rounded-lg border border-zinc-200 focus:outline-none focus:border-zinc-300 text-center" placeholder="" />
-                    </td>
-                    <td className="px-2 py-2 text-right font-black text-cyan-400">{discounted.toFixed(3)} TND</td>
-                    <td className="px-2 py-2 text-center">
-                      <button onClick={() => removeLine(i)} className="text-zinc-600 hover:text-red-400 transition p-1">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                  {/* HISTORIQUE PIECE UI */}
-                  <tr className="border-b-2 border-slate-900 bg-white/40">
-                    <td colSpan={7} className="px-3 pb-3 pt-1">
-                      <div className="flex flex-col gap-2 p-2.5 bg-white/80 rounded-lg border border-zinc-200/80">
-                        <div className="flex justify-between items-center">
-                          <div className="text-[9px] text-zinc-950 font-black tracking-widest uppercase">HISTORIQUE ACHAT/VENTE FOURNISSEURS (Optionnel)</div>
-                          {it.reference && (
-                            <button 
-                              onClick={() => fetchPriceHistory(it.reference, i)}
-                              className="text-[9px] bg-indigo-600 hover:bg-indigo-500 text-zinc-950 px-2 py-0.5 rounded font-bold uppercase transition"
-                            >
-                              Charger Historique
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-6">
-                          <div className="col-span-2">
-                            <div className="flex flex-col gap-2">
-                              {/* Header array */}
-                              {it.offres && it.offres.length > 0 && (
-                                <div className="grid grid-cols-12 gap-2 text-[9px] font-black uppercase text-zinc-600 px-2 pb-1 border-b border-zinc-200">
-                                  <div className="col-span-2">TYPE</div>
-                                  <div className="col-span-3">FOURNISSEUR</div>
-                                  <div className="col-span-2">ACHAT HT</div>
-                                  <div className="col-span-1 text-center">REM %</div>
-                                  <div className="col-span-2">VENTE HT</div>
-                                  <div className="col-span-2 text-center">ACTION</div>
-                                </div>
+                    <tr className="border-b border-[#e9ecef] hover:bg-white/60 transition-colors">
+                      {/* Désignation */}
+                      <td className="py-2.5 px-2 relative">
+                        <input
+                          type="text"
+                          value={it.designation}
+                          onChange={e => {
+                            updateLine(i, 'designation', e.target.value);
+                            setActiveSuggestRow(i);
+                            setActiveSuggestField('desc');
+                          }}
+                          onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('desc'); }}
+                          onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
+                          placeholder="Désignation article..."
+                          className="w-full bg-white border border-[#dcedf2] rounded-[6px] px-2.5 py-1.5 text-[12.5px] font-semibold text-[#000000] focus:border-[#e8432f] outline-none"
+                        />
+                        {activeSuggestRow === i && activeSuggestField === 'desc' && getSuggestions(it.designation, 'desc').length > 0 && (
+                          <div className="absolute left-2 z-50 mt-1 min-w-[240px] bg-white border border-[#dcedf2] rounded-[8px] max-h-48 overflow-y-auto shadow-xl">
+                            {getSuggestions(it.designation, 'desc').map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  updateLine(i, 'designation', p.name || '');
+                                  updateLine(i, 'reference', p.reference || '');
+                                  if (p.price) updateLine(i, 'puHT', p.price);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-[#f8f9fa] text-xs font-semibold text-[#111318] border-b border-[#e9ecef] last:border-0 flex items-center justify-between gap-2"
+                              >
+                                <span className="truncate max-w-[150px]">{p.name}</span>
+                                <span className="text-[#e8432f] font-mono text-[10px] shrink-0 font-bold">{p.reference}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Référence */}
+                      <td className="py-2.5 px-2 relative">
+                        <input
+                          type="text"
+                          value={it.reference}
+                          onChange={e => {
+                            updateLine(i, 'reference', e.target.value);
+                            setActiveSuggestRow(i);
+                            setActiveSuggestField('ref');
+                          }}
+                          onFocus={() => { setActiveSuggestRow(i); setActiveSuggestField('ref'); }}
+                          onBlur={() => setTimeout(() => { setActiveSuggestRow(null); setActiveSuggestField(null); }, 200)}
+                          placeholder="RÉF."
+                          className="w-full bg-white border border-[#dcedf2] rounded-[6px] px-2.5 py-1.5 text-[11.5px] font-mono font-semibold text-[#000000] uppercase focus:border-[#e8432f] outline-none"
+                        />
+                        {activeSuggestRow === i && activeSuggestField === 'ref' && getSuggestions(it.reference, 'ref').length > 0 && (
+                          <div className="absolute left-2 z-50 mt-1 min-w-[240px] bg-white border border-[#dcedf2] rounded-[8px] max-h-48 overflow-y-auto shadow-xl">
+                            {getSuggestions(it.reference, 'ref').map((p: any) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => {
+                                  updateLine(i, 'reference', p.reference || '');
+                                  updateLine(i, 'designation', p.name || '');
+                                  if (p.price) updateLine(i, 'puHT', p.price);
+                                }}
+                                className="w-full text-left px-3 py-2 hover:bg-[#f8f9fa] text-xs font-semibold text-[#111318] border-b border-[#e9ecef] last:border-0 flex items-center justify-between gap-2"
+                              >
+                                <span className="text-[#e8432f] font-mono font-bold text-[10px] shrink-0">{p.reference}</span>
+                                <span className="text-[#6c757d] text-[10.5px] truncate">{p.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {it.reference && (() => {
+                          const match = catalogue.find(x => x.reference?.toUpperCase() === it.reference?.toUpperCase());
+                          return match ? (
+                            <span className="text-[9.5px] text-[#059669] font-bold block mt-0.5 uppercase tracking-wider">
+                              ✓ DISPO (STOCK: {match.stock})
+                            </span>
+                          ) : (
+                            <span className="text-[9.5px] text-[#d97706] font-bold block mt-0.5 uppercase tracking-wider">
+                              ⚡ NOUVEAU (SERA CRÉÉ)
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Qté */}
+                      <td className="py-2.5 px-2 text-center">
+                        <input
+                          type="number"
+                          value={it.qty}
+                          min={1}
+                          onChange={e => updateLine(i, 'qty', parseFloat(e.target.value) || 1)}
+                          className="w-[56px] text-center bg-white border border-[#dcedf2] rounded-[6px] px-2 py-1.5 text-[12.5px] font-semibold text-[#000000] focus:border-[#e8432f] outline-none"
+                        />
+                      </td>
+
+                      {/* P.U. HT */}
+                      <td className="py-2.5 px-2 text-right">
+                        <input
+                          type="number"
+                          value={it.puHT || ''}
+                          min={0}
+                          step={0.001}
+                          onChange={e => updateLine(i, 'puHT', parseFloat(e.target.value) || 0)}
+                          placeholder="0.000"
+                          className="w-[88px] text-right bg-white border border-[#dcedf2] rounded-[6px] px-2 py-1.5 text-[12.5px] font-mono font-semibold text-[#000000] focus:border-[#e8432f] outline-none"
+                        />
+                      </td>
+
+                      {/* Remise % */}
+                      <td className="py-2.5 px-2 text-right">
+                        <input
+                          type="number"
+                          value={it.discount || ''}
+                          min={0}
+                          max={100}
+                          step={1}
+                          onChange={e => updateLine(i, 'discount', parseFloat(e.target.value) || 0)}
+                          placeholder="0"
+                          className="w-[64px] text-right bg-white border border-[#dcedf2] rounded-[6px] px-2 py-1.5 text-[12.5px] font-semibold text-[#000000] focus:border-[#e8432f] outline-none"
+                        />
+                      </td>
+
+                      {/* Total HT */}
+                      <td className="py-2.5 px-2 text-right">
+                        <span className="font-mono font-bold text-[#d97706] text-[13px]">
+                          {discounted.toFixed(3)} TND
+                        </span>
+                      </td>
+
+                      {/* Action */}
+                      <td className="py-2.5 px-2 text-center">
+                        <button
+                          onClick={() => removeLine(i)}
+                          className="w-7 h-7 rounded-[6px] border border-[#dcedf2] bg-white text-[#6c757d] hover:border-[#e8432f] hover:text-[#e8432f] inline-flex items-center justify-center font-bold transition"
+                          title="Supprimer la ligne"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+
+                    {/* HISTORIQUE PIÈCES FOURNISSEURS / B2B */}
+                    <tr className="border-b border-[#dcedf2] bg-[#f8f9fa]">
+                      <td colSpan={7} className="px-3 pb-3.5 pt-1">
+                        <div className="bg-white border border-[#dcedf2] rounded-[8px] p-3.5 shadow-sm">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                            <div className="text-[11px] font-bold text-[#000000] flex items-center gap-2">
+                              <span>📦 Historique achat / vente fournisseurs</span>
+                              <span className="text-[#6c757d] font-normal text-[10.5px]">(optionnel)</span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => {
+                                  const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, discount: 0, sellingPrice: 0 }];
+                                  updateLine(i, 'offres', newOffres);
+                                }}
+                                className="px-2.5 py-1.5 bg-white border border-[#dcedf2] hover:border-[#e8432f] text-[#111318] text-[11px] font-bold rounded-[6px] transition flex items-center gap-1 shadow-sm"
+                              >
+                                <Plus className="w-3 h-3" /> Ajouter offre fournisseur
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!it.reference) {
+                                    alert("Veuillez d'abord renseigner la référence de l'article.");
+                                    return;
+                                  }
+                                  if (!it.offres || it.offres.length === 0) {
+                                    alert("Aucune offre à enregistrer pour cet article.");
+                                    return;
+                                  }
+
+                                  const offresToSave = it.offres.map((o: any) => {
+                                    const supp = suppliers.find(s => s.id === o.supplierId);
+                                    return {
+                                      reference: it.reference.trim().toUpperCase(),
+                                      type: o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE'),
+                                      supplierId: o.supplierId || null,
+                                      supplierName: supp?.name || o.supplierName || 'Fournisseur',
+                                      purchasePrice: parseFloat(o.purchasePrice) || 0,
+                                      sellingPrice: parseFloat(o.sellingPrice) || 0
+                                    };
+                                  });
+
+                                  try {
+                                    const res = await fetch('/api/historique-prix', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ offresList: offresToSave })
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                      alert(`✅ ${it.offres.length} offre(s) de l'article (${it.reference}) enregistrée(s) dans l'historique et la synthèse !`);
+                                    } else {
+                                      alert(data.error || "Erreur lors de l'enregistrement des offres");
+                                    }
+                                  } catch (err) {
+                                    console.error(err);
+                                    alert("Erreur de connexion.");
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-[#e8432f] hover:bg-[#d13a27] text-white text-[11px] font-bold rounded-[6px] border border-[#e8432f] transition flex items-center gap-1 shadow-sm"
+                              >
+                                <Save className="w-3 h-3" /> ✓ Enregistrer offres de cet article
+                              </button>
+                              <button
+                                onClick={() => handleB2BSearch(i)}
+                                disabled={searchingB2BIndex === i}
+                                className="px-2.5 py-1.5 bg-white border border-[#4a3ab8] text-[#4a3ab8] hover:bg-[#4a3ab8] hover:text-white text-[11px] font-bold rounded-[6px] transition flex items-center gap-1 shadow-sm disabled:opacity-50"
+                              >
+                                {searchingB2BIndex === i ? (
+                                  <>
+                                    <Loader2 className="w-3 h-3 animate-spin text-[#4a3ab8]" />
+                                    <span>RECHERCHE B2B...</span>
+                                  </>
+                                ) : (
+                                  '🔗 Chercher avec DAV / B2B'
+                                )}
+                              </button>
+                              {it.reference && (
+                                <button
+                                  onClick={() => fetchPriceHistory(it.reference, i)}
+                                  className="px-2 py-1 bg-[#f1f3f5] hover:bg-[#e9ecef] text-[#495057] text-[10.5px] font-bold rounded-[6px] border border-[#dcedf2] transition"
+                                >
+                                  Historique Existant
+                                </button>
                               )}
-                              {/* Rows */}
-                              {it.offres?.map((offre: any, oIdx: number) => (
-                                <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-white/50 p-2 rounded border border-zinc-200 hover:border-zinc-200 transition">
+                            </div>
+                          </div>
+
+                          {/* Offres Rows */}
+                          {it.offres && it.offres.length > 0 && (
+                            <div className="space-y-2 mt-2">
+                              <div className="grid grid-cols-12 gap-2 text-[9.5px] font-bold uppercase tracking-wider text-[#6c757d] px-2 pb-1 border-b border-[#e9ecef]">
+                                <div className="col-span-2">Type</div>
+                                <div className="col-span-3">Fournisseur</div>
+                                <div className="col-span-2 text-right">Achat HT</div>
+                                <div className="col-span-1 text-center">Rem %</div>
+                                <div className="col-span-2 text-right">Vente HT</div>
+                                <div className="col-span-2 text-center">Action</div>
+                              </div>
+                              {it.offres.map((offre: any, oIdx: number) => (
+                                <div key={oIdx} className="grid grid-cols-12 gap-2 items-center bg-[#f8f9fa] p-2 rounded-[6px] border border-[#dcedf2]">
                                   <div className="col-span-2">
-                                    <select 
-                                      className={`w-full text-xs px-2 h-10 rounded border focus:outline-none font-bold ${
-                                        offre.type === 'ORIGINE' ? 'bg-amber-500/15 text-amber-400 border-amber-500/20' :
-                                        offre.type === 'CONCESSIONNAIRE' ? 'bg-purple-500/15 text-purple-300 border-purple-500/20' :
-                                        'bg-cyan-500/15 text-cyan-300 border-cyan-500/20'
-                                      }`}
+                                    <select
+                                      className="w-full bg-white border border-[#dcedf2] rounded-[5px] px-2 py-1 text-[11px] font-bold text-[#111318] focus:outline-none"
                                       value={offre.type || 'ADAPTABLE'}
-                                      onChange={(e) => {
+                                      onChange={e => {
                                         const newType = e.target.value;
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].type = newType;
@@ -997,10 +1211,10 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                     </select>
                                   </div>
                                   <div className="col-span-3">
-                                    <select 
-                                      className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal"
+                                    <select
+                                      className="w-full bg-white border border-[#dcedf2] rounded-[5px] px-2 py-1 text-[11px] font-semibold text-[#111318] focus:outline-none"
                                       value={offre.supplierId || ''}
-                                      onChange={async (e) => {
+                                      onChange={async e => {
                                         if (e.target.value === 'NEW_SUPPLIER') {
                                           const name = prompt("Entrez le nom du nouveau fournisseur à enregistrer :");
                                           if (name && name.trim()) {
@@ -1018,8 +1232,6 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                                 newOffres[oIdx].supplierName = data.data.name;
                                                 updateLine(i, 'offres', newOffres);
                                                 return;
-                                              } else {
-                                                alert(data.error || "Erreur lors de la création du fournisseur");
                                               }
                                             } catch (err) {
                                               console.error(err);
@@ -1035,14 +1247,19 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                       }}
                                     >
                                       <option value="">Fournisseur...</option>
-                                      {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                      <option value="NEW_SUPPLIER" className="font-bold text-green-400 bg-white">+ CRÉER NOUVEAU FOURNISSEUR...</option>
+                                      {suppliers.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                      ))}
+                                      <option value="NEW_SUPPLIER" className="font-bold text-[#059669]">+ Créer nouveau fournisseur...</option>
                                     </select>
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder="Achat HT" className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal"
-                                      value={offre.purchasePrice || ''} 
-                                      onChange={(e) => {
+                                    <input
+                                      type="number"
+                                      placeholder="Achat HT"
+                                      className="w-full bg-white border border-[#dcedf2] rounded-[5px] px-2 py-1 text-right text-[11px] font-mono font-semibold"
+                                      value={offre.purchasePrice || ''}
+                                      onChange={e => {
                                         const pVal = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].purchasePrice = pVal;
@@ -1050,29 +1267,19 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                         if (newOffres[oIdx].type === 'ADAPTABLE') {
                                           newOffres[oIdx].sellingPrice = parseFloat((pVal * 1.30).toFixed(3));
                                         } else if (newOffres[oIdx].type === 'ORIGINE' || newOffres[oIdx].type === 'CONCESSIONNAIRE') {
-                                          if (pVal > 0) {
-                                            newOffres[oIdx].sellingPrice = disc > 0 ? parseFloat((pVal / (1 - disc / 100)).toFixed(3)) : pVal;
-                                          } else {
-                                            newOffres[oIdx].sellingPrice = 0;
-                                          }
-                                        }
-                                        if (newOffres[oIdx].type === 'CONCESSIONNAIRE') {
-                                          const origineIdx = newOffres.findIndex(o => o.type === 'ORIGINE');
-                                          if (origineIdx !== -1) {
-                                            newOffres[origineIdx].sellingPrice = newOffres[oIdx].sellingPrice;
-                                            const origineDisc = parseFloat(newOffres[origineIdx].discount) || 0;
-                                            if (newOffres[oIdx].sellingPrice > 0) {
-                                              newOffres[origineIdx].purchasePrice = parseFloat((newOffres[oIdx].sellingPrice * (1 - origineDisc / 100)).toFixed(3));
-                                            }
-                                          }
+                                          newOffres[oIdx].sellingPrice = pVal > 0 ? (disc > 0 ? parseFloat((pVal / (1 - disc / 100)).toFixed(3)) : pVal) : 0;
                                         }
                                         updateLine(i, 'offres', newOffres);
-                                      }} />
+                                      }}
+                                    />
                                   </div>
                                   <div className="col-span-1">
-                                    <input type="number" placeholder="%" className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal"
-                                      value={offre.discount || ''} 
-                                      onChange={(e) => {
+                                    <input
+                                      type="number"
+                                      placeholder="%"
+                                      className="w-full bg-white border border-[#dcedf2] rounded-[5px] px-1 py-1 text-center text-[11px] font-semibold"
+                                      value={offre.discount || ''}
+                                      onChange={e => {
                                         const disc = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].discount = disc;
@@ -1086,12 +1293,16 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                           }
                                         }
                                         updateLine(i, 'offres', newOffres);
-                                      }} />
+                                      }}
+                                    />
                                   </div>
                                   <div className="col-span-2">
-                                    <input type="number" placeholder={offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE' ? "Prix Comptoir" : "Vente HT"} className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal"
-                                      value={offre.sellingPrice || ''} 
-                                      onChange={(e) => {
+                                    <input
+                                      type="number"
+                                      placeholder="Vente HT"
+                                      className="w-full bg-white border border-[#dcedf2] rounded-[5px] px-2 py-1 text-right text-[11px] font-mono font-semibold"
+                                      value={offre.sellingPrice || ''}
+                                      onChange={e => {
                                         const sVal = parseFloat(e.target.value) || 0;
                                         const newOffres = [...it.offres];
                                         newOffres[oIdx].sellingPrice = sVal;
@@ -1101,172 +1312,39 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
                                             newOffres[oIdx].purchasePrice = parseFloat((sVal * (1 - disc / 100)).toFixed(3));
                                           }
                                         }
-                                        if (newOffres[oIdx].type === 'CONCESSIONNAIRE') {
-                                          const origineIdx = newOffres.findIndex(o => o.type === 'ORIGINE');
-                                          if (origineIdx !== -1) {
-                                            newOffres[origineIdx].sellingPrice = sVal;
-                                            const origineDisc = parseFloat(newOffres[origineIdx].discount) || 0;
-                                            if (sVal > 0) {
-                                              newOffres[origineIdx].purchasePrice = parseFloat((sVal * (1 - origineDisc / 100)).toFixed(3));
-                                            }
-                                          }
-                                        }
                                         updateLine(i, 'offres', newOffres);
-                                      }} />
+                                      }}
+                                    />
                                   </div>
                                   <div className="col-span-2 flex items-center justify-end gap-1">
-                                    <button 
-                                      onClick={async () => {
+                                    <button
+                                      onClick={() => {
                                         updateLine(i, 'puHT', offre.sellingPrice);
                                         updateLine(i, 'partType', offre.type);
                                         updateLine(i, 'supplierName', offre.supplierName);
-                                        if (it.reference) {
-                                          const supp = suppliers.find(s => s.id === offre.supplierId);
-                                          const suppName = supp?.name || offre.supplierName || 'Fournisseur';
-                                          fetch('/api/historique-prix', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                              reference: it.reference.trim().toUpperCase(),
-                                              supplierId: offre.supplierId || null,
-                                              supplierName: suppName,
-                                              type: offre.type,
-                                              isConcessionnaire: offre.type === 'ORIGINE' || offre.type === 'CONCESSIONNAIRE',
-                                              purchasePrice: parseFloat(offre.purchasePrice) || 0,
-                                              sellingPrice: parseFloat(offre.sellingPrice) || 0
-                                            })
-                                          }).catch(err => console.error(err));
-                                        }
                                       }}
-                                      title="Appliquer et enregistrer en historique"
-                                      className="flex-1 bg-green-600/20 hover:bg-green-600 text-green-400 hover:text-zinc-950 text-[9px] font-black px-1.5 py-1.5 rounded transition uppercase text-center border border-green-600/30"
+                                      className="px-2 py-1 bg-[#059669] hover:bg-[#047857] text-white text-[10px] font-bold rounded-[5px] transition uppercase shadow-sm"
                                     >
-                                      CHOISIR
+                                      Choisir
                                     </button>
                                     <button
-                                      onClick={async () => {
-                                        if (!it.reference) {
-                                          alert("Veuillez d'abord renseigner la référence de l'article.");
-                                          return;
-                                        }
-                                        const supp = suppliers.find(s => s.id === offre.supplierId);
-                                        const suppName = supp?.name || offre.supplierName || 'Fournisseur';
-                                        try {
-                                          const res = await fetch('/api/historique-prix', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                              reference: it.reference.trim().toUpperCase(),
-                                              supplierId: offre.supplierId || null,
-                                              supplierName: suppName,
-                                              type: offre.type === 'ORIGINE' ? 'OEM' : (offre.type || 'ADAPTABLE'),
-                                              isConcessionnaire: offre.type === 'ORIGINE',
-                                              purchasePrice: parseFloat(offre.purchasePrice) || 0,
-                                              sellingPrice: parseFloat(offre.sellingPrice) || 0
-                                            })
-                                          });
-                                          const data = await res.json();
-                                          if (data.success) {
-                                            alert(`✅ Offre (${suppName} - ${offre.purchasePrice || 0} TND) enregistrée dans l'historique et la synthèse !`);
-                                          }
-                                        } catch (err) {
-                                          console.error(err);
-                                        }
-                                      }}
-                                      title="Enregistrer cette offre dans l'historique et la synthèse"
-                                      className="p-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-zinc-950 rounded transition border border-blue-600/30"
-                                    >
-                                      <Save className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button 
                                       onClick={() => {
                                         const newOffres = it.offres.filter((_: any, idx: number) => idx !== oIdx);
                                         updateLine(i, 'offres', newOffres);
                                       }}
-                                      className="p-1.5 bg-red-950/50 hover:bg-red-900 text-red-400 rounded transition border border-red-900/30"
+                                      className="p-1 text-[#dc2626] hover:bg-[#dc2626]/10 rounded-[5px] transition"
+                                      title="Supprimer cette offre"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
                                 </div>
                               ))}
-
-                              {/* Controls */}
-                              <div className="flex gap-2 mt-1 flex-wrap">
-                                <button 
-                                  onClick={() => {
-                                    const newOffres = [...(it.offres || []), { type: 'ADAPTABLE', supplierId: '', purchasePrice: 0, discount: 0, sellingPrice: 0 }];
-                                    updateLine(i, 'offres', newOffres);
-                                  }}
-                                  className="text-[10px] bg-zinc-50 hover:bg-slate-700 border border-zinc-200 text-slate-300 px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1"
-                                >
-                                  <Plus className="w-3 h-3" /> AJOUTER OFFRE FOURNISSEUR
-                                </button>
-                                <button 
-                                  onClick={async () => {
-                                    if (!it.reference) {
-                                      alert("Veuillez d'abord renseigner la référence de l'article.");
-                                      return;
-                                    }
-                                    if (!it.offres || it.offres.length === 0) {
-                                      alert("Aucune offre à enregistrer pour cet article.");
-                                      return;
-                                    }
-
-                                    const offresToSave = it.offres.map((o: any) => {
-                                      const supp = suppliers.find(s => s.id === o.supplierId);
-                                      return {
-                                        reference: it.reference.trim().toUpperCase(),
-                                        type: o.type === 'ORIGINE' ? 'OEM' : (o.type || 'ADAPTABLE'),
-                                        supplierId: o.supplierId || null,
-                                        supplierName: supp?.name || o.supplierName || 'Fournisseur',
-                                        purchasePrice: parseFloat(o.purchasePrice) || 0,
-                                        sellingPrice: parseFloat(o.sellingPrice) || 0
-                                      };
-                                    });
-
-                                    try {
-                                      const res = await fetch('/api/historique-prix', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ offresList: offresToSave })
-                                      });
-                                      const data = await res.json();
-                                      if (data.success) {
-                                        alert(`✅ ${it.offres.length} offre(s) de l'article (${it.reference}) enregistrée(s) dans l'historique et la synthèse !`);
-                                      } else {
-                                        alert(data.error || "Erreur lors de l'enregistrement des offres");
-                                      }
-                                    } catch (err) {
-                                      console.error(err);
-                                      alert("Erreur de connexion.");
-                                    }
-                                  }}
-                                  className="text-[10px] bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/30 text-zinc-950 px-3 py-1.5 rounded font-bold uppercase transition flex items-center gap-1 shadow shadow-emerald-700/20"
-                                >
-                                  <Save className="w-3 h-3" /> ENREGISTRER OFFRES DE CET ARTICLE
-                                </button>
-                                <button 
-                                  onClick={() => handleB2BSearch(i)}
-                                  disabled={searchingB2BIndex === i}
-                                  className="text-[10px] bg-indigo-900/40 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-300 hover:text-zinc-950 px-3 py-1.5 rounded font-bold uppercase transition text-center flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  {searchingB2BIndex === i ? (
-                                    <>
-                                      <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
-                                      <span>RECHERCHE...</span>
-                                    </>
-                                  ) : (
-                                    'CHERCHER AUTO B2B'
-                                  )}
-                                </button>
-                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
                   </React.Fragment>
                 );
               })}
@@ -1275,67 +1353,92 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
         </div>
       </div>
 
-      {/* Totals */}
-      <div className={cardCls}>
-        <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-3">RÉCAPITULATIF</div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className={labelCls}>REMISE GLOBALE (%)</label>
-            <input type="number" min={0} max={100} value={globalDiscount} onChange={e => setGlobalDiscount(parseFloat(e.target.value) || 0)}
-              className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
+      {/* Card 3: Récapitulatif et Action Bar */}
+      <div className="bg-[#f8f9fa] border border-[#dcedf2] rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#dcedf2] bg-[#f1f3f5]">
+          <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#000000] flex items-center gap-2">
+            <span className="w-[3px] h-[12px] bg-[#e8432f] rounded-[2px] inline-block" />
+            Récapitulatif
           </div>
-          <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-bold uppercase text-xs">SOUS-TOTAL HT</span>
-              <span className="font-black text-zinc-950">{subtotalHT.toFixed(3)} TND</span>
+        </div>
+
+        <div className="p-5 bg-white flex flex-col sm:flex-row justify-between gap-8">
+          <div className="w-full sm:w-[220px]">
+            <label className="block text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318] mb-1.5">
+              Remise globale (%)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={globalDiscount}
+              onChange={e => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+              className="w-full bg-white border border-[#dcedf2] rounded-[7px] px-3 py-2 text-[13px] font-semibold text-[#000000] focus:border-[#e8432f] outline-none"
+            />
+          </div>
+
+          <div className="w-full sm:w-[340px] space-y-2">
+            <div className="flex justify-between text-[12.5px] font-bold text-[#495057]">
+              <span>Sous-total HT</span>
+              <span className="font-mono text-[#000000]">{subtotalHT.toFixed(3)} TND</span>
             </div>
             {globalDiscount > 0 && (
-              <div className="flex justify-between">
-                <span className="text-red-400 font-bold uppercase text-xs">REMISE GLOBALE ({globalDiscount}%)</span>
-                <span className="font-black text-red-400">-{globalDiscountAmt.toFixed(3)} TND</span>
+              <div className="flex justify-between text-[12.5px] font-bold text-[#e8432f]">
+                <span>Remise globale ({globalDiscount}%)</span>
+                <span className="font-mono">-{globalDiscountAmt.toFixed(3)} TND</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-bold uppercase text-xs">APRÈS REMISE HT</span>
-              <span className="font-black text-zinc-950">{afterDiscount.toFixed(3)} TND</span>
+            <div className="flex justify-between text-[12.5px] font-bold text-[#495057]">
+              <span>Après remise HT</span>
+              <span className="font-mono text-[#000000]">{afterDiscount.toFixed(3)} TND</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-500 font-bold uppercase text-xs">TVA 19%</span>
-              <span className="font-black text-zinc-950">{tva.toFixed(3)} TND</span>
+            <div className="flex justify-between text-[12.5px] font-bold text-[#495057]">
+              <span>TVA 19%</span>
+              <span className="font-mono text-[#000000]">{tva.toFixed(3)} TND</span>
             </div>
-            <div className="flex justify-between pt-2 border-t border-zinc-200">
-              <span className="text-amber-400 font-black uppercase">TOTAL TTC</span>
-              <span className="font-black text-amber-450 text-lg">{totalTTC.toFixed(3)} TND</span>
+            <div className="border-t-2 border-[#dcedf2] mt-2 pt-3 flex justify-between items-baseline">
+              <span className="text-[14px] font-bold text-[#000000] uppercase tracking-wide font-sans">
+                Total TTC
+              </span>
+              <span className="font-mono font-bold text-[22px] text-[#d97706]">
+                {totalTTC.toFixed(3)} TND
+              </span>
             </div>
           </div>
         </div>
 
-        {saved && (
-          <div className="flex items-center gap-2 text-green-400 text-xs font-black uppercase mb-3">
-            <CheckCircle className="w-4 h-4" /> DEVIS ENREGISTRÉ AVEC SUCCÈS
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3 mt-4 pt-3 border-t border-slate-800/60">
-          <button 
+        {/* Action Bar */}
+        <div className="bg-[#f1f3f5] border-t border-[#dcedf2] px-5 py-4 flex items-center gap-3 flex-wrap">
+          <button
             onClick={handlePrintPDF}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-black uppercase border border-slate-700 transition shadow-sm active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white hover:border-[#e8432f] hover:text-[#e8432f] text-[#111318] text-[12px] font-bold rounded-[7px] border border-[#dcedf2] transition shadow-sm"
           >
-            <Printer className="w-3.5 h-3.5" /> IMPRIMER / PDF
+            🖨 Imprimer / PDF
           </button>
           <button
             onClick={() => handleSaveDevis(true)}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md shadow-blue-600/25 disabled:opacity-50 font-sans active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#2a5fb8] text-[#2a5fb8] hover:bg-[#2a5fb8] hover:text-white text-[12px] font-bold rounded-[7px] transition shadow-sm disabled:opacity-50"
           >
-            <Mail className="w-3.5 h-3.5" /> {saving ? 'ENVOI...' : 'ENVOYER EMAIL CLIENT'}
+            <Mail className="w-3.5 h-3.5" />
+            {saving ? 'Envoi...' : '✉ Envoyer email client'}
           </button>
+
+          <div className="flex-1" />
+
+          {saved && (
+            <span className="text-[#059669] text-[12px] font-bold flex items-center gap-1.5 mr-2">
+              <CheckCircle className="w-4 h-4" /> Devis enregistré
+            </span>
+          )}
+
           <button
             onClick={() => handleSaveDevis(false)}
             disabled={saving}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md shadow-red-600/25 disabled:opacity-50 font-sans active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#e8432f] hover:bg-[#d13a27] text-white text-[12px] font-bold rounded-[7px] border border-[#e8432f] transition shadow-sm disabled:opacity-50 cursor-pointer"
           >
-            <Save className="w-3.5 h-3.5" /> {saving ? 'ENREGISTREMENT...' : 'ENREGISTRER DEVIS'}
+            <Save className="w-3.5 h-3.5" />
+            {saving ? 'Enregistrement...' : '💾 Enregistrer devis'}
           </button>
         </div>
       </div>
@@ -3062,8 +3165,8 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const fetchDevis = () => {
-    setLoading(true);
+  const fetchDevis = (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     fetch('/api/devis').then(r => r.json()).then(d => {
       if (Array.isArray(d)) {
         setDevisList(d);
@@ -3075,6 +3178,8 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
 
   useEffect(() => {
     fetchDevis();
+    const unsubscribe = subscribeQuotesSync(() => fetchDevis(true), 3000);
+    return () => unsubscribe();
   }, []);
 
   const handleAssignDevis = async (devisId: string, name: string) => {
@@ -3085,7 +3190,8 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
         body: JSON.stringify({ devisId, managedByName: name })
       });
       if (res.ok) {
-        fetchDevis();
+        notifyQuotesSync();
+        fetchDevis(true);
       }
     } catch (err) {
       console.error(err);
@@ -3494,6 +3600,7 @@ function SectionDevisGeneres({ onEditDevis }: SectionDevisGeneresProps) {
                       try {
                         const res = await fetch(`/api/devis?id=${d.id}`, { method: 'DELETE' });
                         if (res.ok) {
+                          notifyQuotesSync();
                           alert("Devis supprimé avec succès.");
                           fetchDevis();
                         } else {
@@ -3733,12 +3840,12 @@ function SectionBonsEtLivraisons() {
 function SectionTableauBord() {
   const [stats, setStats] = useState({ quotes: 0, orders: 0, suppliers: 0, products: 0 });
 
-  useEffect(() => {
+  const fetchStats = () => {
     Promise.all([
-      fetch('/api/quotes').then(r => r.json()),
-      fetch('/api/orders?limit=1').then(r => r.json()),
-      fetch('/api/suppliers').then(r => r.json()),
-      fetch('/api/products?limit=1').then(r => r.json()),
+      fetch('/api/quotes').then(r => r.json()).catch(() => []),
+      fetch('/api/orders?limit=1').then(r => r.json()).catch(() => ({})),
+      fetch('/api/suppliers').then(r => r.json()).catch(() => ({})),
+      fetch('/api/products?limit=1').then(r => r.json()).catch(() => ({})),
     ]).then(([q, o, s, p]) => {
       setStats({
         quotes: Array.isArray(q) ? q.length : 0,
@@ -3747,6 +3854,12 @@ function SectionTableauBord() {
         products: p.pagination?.total || 0,
       });
     });
+  };
+
+  useEffect(() => {
+    fetchStats();
+    const unsubscribe = subscribeQuotesSync(fetchStats, 3000);
+    return () => unsubscribe();
   }, []);
 
   const cards = [

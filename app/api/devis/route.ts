@@ -317,14 +317,18 @@ export async function DELETE(req: NextRequest) {
     }
 
     const devis = await prisma.devis.findUnique({
-      where: { id }
+      where: { id },
+      include: { user: true }
     })
 
     if (!devis) {
       return NextResponse.json({ error: 'Devis introuvable' }, { status: 404 })
     }
 
-    if (user.role !== 'ADMIN' && devis.userId !== user.id) {
+    const userEmail = (user.email || '').trim().toLowerCase()
+    const devisUserEmail = (devis.user?.email || '').trim().toLowerCase()
+
+    if (user.role !== 'ADMIN' && devis.userId !== user.id && devisUserEmail !== userEmail) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
     }
 

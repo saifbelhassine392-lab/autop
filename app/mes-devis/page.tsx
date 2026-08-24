@@ -9,8 +9,9 @@ import {
   Download, CheckCircle, MessageCircle, FileText, 
   Plus, FileSpreadsheet, ClipboardList, Package, Receipt, X, Search, Home,
   User, MapPin, Phone, Building, Save, AlertCircle, RefreshCw, Key, ShieldCheck,
-  ShoppingCart, Sparkles, Tag, Car, Layers, Check, ChevronRight, Info, Eye, ArrowRight, ExternalLink
+  ShoppingCart, Sparkles, Tag, Car, Layers, Check, ChevronRight, Info, Eye, ArrowRight, ExternalLink, Trash2
 } from 'lucide-react'
+import { notifyQuotesSync, subscribeQuotesSync } from "@/lib/syncEvents"
 
 export default function MesDevisPage() {
   const { data: session, status } = useSession()
@@ -237,10 +238,10 @@ export default function MesDevisPage() {
     }
   }
 
-  const loadData = async () => {
+  const loadData = async (isBackground = false) => {
     if (!session) return;
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
 
       // 1. Charger les devis et demandes
       const devisRes = await fetch("/api/devis");
@@ -252,6 +253,7 @@ export default function MesDevisPage() {
       const unifiedList = [
         ...(Array.isArray(devisData) ? devisData : []).map((d: any) => ({
           id: d.id,
+          source: 'devis',
           createdAt: d.createdAt || new Date().toISOString(),
           date: new Date(d.createdAt || Date.now()).toLocaleDateString('fr-FR'),
           brand: d.vehicleBrand || 'Générique',
@@ -276,6 +278,7 @@ export default function MesDevisPage() {
           .filter((q: any) => q.status !== 'TREATED')
           .map((q: any) => ({
             id: q.id,
+            source: 'quotes',
             createdAt: q.createdAt || new Date().toISOString(),
             date: new Date(q.createdAt || Date.now()).toLocaleDateString('fr-FR'),
           brand: q.brand || 'Générique',
@@ -309,7 +312,29 @@ export default function MesDevisPage() {
     } catch (err) {
       console.error("Erreur chargement données:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
+    }
+  };
+
+  const handleDeleteQuoteOrDevis = async (d: any) => {
+    if (!confirm("Voulez-vous vraiment supprimer ou annuler ce devis ?")) return;
+    try {
+      const endpoint = d.source === 'devis' ? `/api/devis?id=${d.id}` : `/api/quotes?id=${d.id}`;
+      let res = await fetch(endpoint, { method: 'DELETE' });
+      if (!res.ok && res.status === 404) {
+        const altEndpoint = d.source === 'devis' ? `/api/quotes?id=${d.id}` : `/api/devis?id=${d.id}`;
+        res = await fetch(altEndpoint, { method: 'DELETE' });
+      }
+      if (res.ok) {
+        notifyQuotesSync();
+        loadData(true);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || "Erreur lors de la suppression");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("Erreur: " + e.message);
     }
   };
 
@@ -317,6 +342,10 @@ export default function MesDevisPage() {
     if (status === "authenticated") {
       loadData();
       loadProfile();
+      const unsubscribe = subscribeQuotesSync(() => {
+        loadData(true);
+      }, 3000);
+      return () => unsubscribe();
     }
   }, [session, status]);
 
@@ -776,16 +805,26 @@ export default function MesDevisPage() {
                           </div>
                           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                             {d.isTreated && d.status === 'Traité' ? (
-                              <button
-                                onClick={() => {
-                                  setOrderModalDevis(d);
-                                  setEditableItems(d.items.map((it: any) => ({ ...it, discount: it.discount || 0 })));
-                                }}
-                                className="chrome-gloss px-4 py-2 bg-red-650/15 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/30 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                OUVRIR & MODIFIER DEVIS
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => {
+                                    setOrderModalDevis(d);
+                                    setEditableItems(d.items.map((it: any) => ({ ...it, discount: it.discount || 0 })));
+                                  }}
+                                  className="chrome-gloss px-4 py-2 bg-red-650/15 text-red-500 hover:bg-red-600 hover:text-white border border-red-500/30 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                  OUVRIR & MODIFIER DEVIS
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteQuoteOrDevis(d)}
+                                  className="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
+                                  title="Supprimer ce devis"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  SUPPRIMER
+                                </button>
+                              </>
                             ) : (
                               <>
                                 <button
@@ -796,26 +835,11 @@ export default function MesDevisPage() {
                                   VOIR DEVIS
                                 </button>
                                 <button
-                                  onClick={async () => {
-                                    if (confirm("Voulez-vous vraiment supprimer cette demande de devis ?")) {
-                                      try {
-                                        const res = await fetch(`/api/quotes?id=${d.id}`, { method: 'DELETE' });
-                                        if (res.ok) {
-                                          alert("Demande supprimée avec succès.");
-                                          loadData();
-                                        } else {
-                                          const err = await res.json();
-                                          alert(err.error || "Erreur lors de la suppression");
-                                        }
-                                      } catch (e) {
-                                        console.error(e);
-                                      }
-                                    }
-                                  }}
+                                  onClick={() => handleDeleteQuoteOrDevis(d)}
                                   className="px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-xl text-[10px] font-black tracking-widest transition flex items-center gap-1.5 uppercase"
                                   title="Supprimer la demande"
                                 >
-                                  <X className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                   ANNULER
                                 </button>
                               </>
