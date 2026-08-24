@@ -3842,6 +3842,7 @@ function SectionBonsEtLivraisons() {
 
 // ─── SECTION: TABLEAU DE BORD ─────────────────────────────────────────────────
 function SectionTableauBord() {
+  const { setAdminSection } = useApp();
   const [stats, setStats] = useState({ quotes: 0, orders: 0, suppliers: 0, products: 0 });
 
   const fetchStats = () => {
@@ -3852,10 +3853,10 @@ function SectionTableauBord() {
       fetch('/api/products?limit=1').then(r => r.json()).catch(() => ({})),
     ]).then(([q, o, s, p]) => {
       setStats({
-        quotes: Array.isArray(q) ? q.length : 0,
-        orders: o.pagination?.total || 0,
-        suppliers: s.data?.length || 0,
-        products: p.pagination?.total || 0,
+        quotes: Array.isArray(q) ? q.length : (q.data?.length || 0),
+        orders: o.pagination?.total || (Array.isArray(o.data) ? o.data.length : 0),
+        suppliers: s.data?.length || (Array.isArray(s) ? s.length : 0),
+        products: p.pagination?.total || (Array.isArray(p) ? p.length : 0),
       });
     });
   };
@@ -3867,36 +3868,94 @@ function SectionTableauBord() {
   }, []);
 
   const cards = [
-    { label: 'DEMANDES EN ATTENTE', value: stats.quotes, color: 'from-red-600 to-red-400', icon: FileText },
-    { label: 'BONS DE COMMANDE', value: stats.orders, color: 'from-blue-600 to-blue-400', icon: ShoppingBag },
-    { label: 'FOURNISSEURS', value: stats.suppliers, color: 'from-green-600 to-green-400', icon: Building2 },
-    { label: 'ARTICLES EN STOCK', value: stats.products, color: 'from-amber-600 to-amber-400', icon: Package },
+    { 
+      id: 'reception',
+      label: 'DEMANDES EN ATTENTE', 
+      value: stats.quotes, 
+      icon: FileText,
+      iconBg: 'bg-[#f8d7da] text-[#e8432f]',
+      borderColor: 'hover:border-[#e8432f]',
+      desc: 'Demandes clients à traiter'
+    },
+    { 
+      id: 'bons',
+      label: 'BONS DE COMMANDE', 
+      value: stats.orders, 
+      icon: ShoppingBag,
+      iconBg: 'bg-blue-50 text-[#2a5fb8]',
+      borderColor: 'hover:border-[#2a5fb8]',
+      desc: 'Commandes validées'
+    },
+    { 
+      id: 'liste-fournisseurs',
+      label: 'FOURNISSEURS ACTIFS', 
+      value: stats.suppliers, 
+      icon: Building2,
+      iconBg: 'bg-emerald-50 text-[#059669]',
+      borderColor: 'hover:border-[#059669]',
+      desc: 'Fournisseurs partenaires'
+    },
+    { 
+      id: 'liste-articles',
+      label: 'ARTICLES EN CATALOGUE', 
+      value: stats.products, 
+      icon: Package,
+      iconBg: 'bg-amber-50 text-[#d97706]',
+      borderColor: 'hover:border-[#d97706]',
+      desc: 'Références & pièces'
+    },
   ];
 
   return (
-    <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-        <BarChart2 className="w-5 h-5 text-pink-400" /> TABLEAU DE BORD
-      </h2>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">VUE D'ENSEMBLE DE VOTRE ACTIVITÉ</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="border-b border-[#dcedf2] pb-4">
+        <h2 className="text-[20px] font-bold text-[#111318] tracking-tight flex items-center gap-2.5 font-sans">
+          <BarChart2 className="w-5 h-5 text-[#e8432f]" />
+          TABLEAU DE BORD
+        </h2>
+        <p className="text-[12px] font-medium text-[#6c757d] mt-0.5">
+          Vue d'ensemble de l'activité en temps réel
+        </p>
+      </div>
 
-      <div className="isometric-container grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8 pt-4">
+      {/* KPI Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c, i) => {
           const Icon = c.icon;
           return (
-            <div key={i} className={`isometric-card bg-gradient-to-br ${c.color} rounded-3xl p-6 text-zinc-950 border border-white/10 shadow-2xl relative overflow-hidden backdrop-blur-sm`}>
-              {/* Subtle grid pattern overlay */}
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:10px_10px] pointer-events-none" />
-              <div className="relative z-10">
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center mb-4 border border-white/10">
-                  <Icon className="w-5 h-5 opacity-90" />
+            <div 
+              key={i} 
+              onClick={() => setAdminSection(c.id)}
+              className={`bg-[#f8f9fa] border border-[#dcedf2] ${c.borderColor} rounded-[10px] p-5 transition-all shadow-[0_1px_3px_rgba(0,0,0,0.02)] cursor-pointer group flex flex-col justify-between`}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className={`w-9 h-9 rounded-[8px] ${c.iconBg} flex items-center justify-center font-bold text-sm shrink-0`}>
+                  <Icon className="w-4 h-4" />
                 </div>
-                <div className="text-4xl font-black mb-1 tracking-tight">{c.value}</div>
-                <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-85">{c.label}</div>
+                <span className="text-[10px] font-bold text-[#6c757d] uppercase tracking-[0.06em] group-hover:text-[#111318] transition">
+                  Consulter →
+                </span>
+              </div>
+              <div>
+                <div className="text-[28px] font-bold font-mono text-[#111318] tracking-tight leading-none mb-1.5">
+                  {c.value}
+                </div>
+                <div className="text-[10.5px] font-bold uppercase tracking-[0.06em] text-[#111318]">
+                  {c.label}
+                </div>
+                <div className="text-[11px] font-medium text-[#6c757d] mt-0.5">
+                  {c.desc}
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Embedded Live Reception Queue */}
+      <div className="pt-2">
+        <SectionReception />
       </div>
     </div>
   );

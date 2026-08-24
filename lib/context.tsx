@@ -23,7 +23,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentPage, setCurrentPage] = useState('accueil');
   const [isAdmin, setIsAdmin] = useState(false);
-  const [adminSection, setAdminSection] = useState('reception');
+  const [adminSection, setAdminSection] = useState('tableau-bord');
   const [cart, setCart] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');

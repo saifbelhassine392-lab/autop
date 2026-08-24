@@ -53,6 +53,12 @@ type SidebarSection = {
 
 const sections: SidebarSection[] = [
   {
+    title: "VUE D'ENSEMBLE",
+    items: [
+      { id: 'tableau-bord', label: 'TABLEAU DE BORD', icon: BarChart2 },
+    ]
+  },
+  {
     title: "DEMANDES CLIENTS",
     items: [
       { id: 'reception', label: 'RÉCEPTION DEMANDES', icon: Inbox, badge: 3, badgeColor: 'bg-red-600 text-white' },
@@ -91,15 +97,9 @@ const sections: SidebarSection[] = [
     ]
   },
   {
-    title: "COMPTABILITÉ",
+    title: "COMPTABILITÉ & STATS",
     items: [
-      { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt }
-    ]
-  },
-  {
-    title: "STATISTIQUES",
-    items: [
-      { id: 'tableau-bord', label: 'TABLEAU DE BORD', icon: BarChart2 },
+      { id: 'comptabilite', label: 'SERVICE COMPTABILITÉ', icon: Receipt },
       { id: 'chiffre', label: "CHIFFRE D'AFFAIRES", icon: TrendingUp },
     ]
   }
