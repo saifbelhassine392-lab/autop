@@ -27,53 +27,70 @@ export async function GET(req: NextRequest) {
     const isAdminRequest = mode === 'admin' || (Boolean(adminProfileHeader) && mode !== 'client');
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 1. MODE ADMIN CONSOLE (Liste des conversations ou messages d'un client)
+    // 1. CONSOLE ADMIN
     // ─────────────────────────────────────────────────────────────────────────
     if (isAdminRequest || (isAdminSession && mode !== 'client' && (targetConvKey || !targetUserId))) {
-      // 1.A. Récupérer les messages d'un client spécifique
+      // 1.A. Messages d'une conversation sélectionnée
       if (targetConvKey || targetUserId) {
-        const key = (targetConvKey || (targetUserId ? `user:${targetUserId}` : '')).trim();
-        let messages: any[] = [];
+        const rawKey = (targetConvKey || (targetUserId ? `user:${targetUserId}` : '')).trim();
+        let targetUid: string | null = null;
+        let targetEmail: string | null = null;
+        let targetSenderId: string | null = null;
 
-        if (key.startsWith('guest:')) {
-          const email = key.replace('guest:', '').toLowerCase().trim();
-          messages = await prisma.chatMessage.findMany({
-            where: { guestEmail: email },
-            orderBy: { createdAt: 'asc' }
-          });
-        } else if (key.startsWith('client:')) {
-          const cId = key.replace('client:', '').trim();
-          messages = await prisma.chatMessage.findMany({
-            where: {
-              OR: [
-                { senderId: cId },
-                { userId: cId }
-              ]
-            },
-            orderBy: { createdAt: 'asc' }
-          });
+        if (rawKey.startsWith('guest:')) {
+          targetEmail = rawKey.replace('guest:', '').toLowerCase().trim();
+        } else if (rawKey.startsWith('client:')) {
+          targetSenderId = rawKey.replace('client:', '').trim();
+        } else if (rawKey.startsWith('user:')) {
+          targetUid = rawKey.replace('user:', '').trim();
         } else {
-          const uid = key.replace('user:', '').trim();
-          const targetUser = await prisma.user.findUnique({
-            where: { id: uid },
+          targetUid = rawKey;
+        }
+
+        // Si on a un userId, récupérer aussi son email pour grouper tout l'historique
+        if (targetUid) {
+          const userObj = await prisma.user.findUnique({
+            where: { id: targetUid },
             select: { id: true, email: true }
           });
-
-          messages = await prisma.chatMessage.findMany({
-            where: {
-              OR: [
-                { userId: uid },
-                ...(targetUser?.email ? [{ guestEmail: targetUser.email.toLowerCase() }] : [])
-              ]
-            },
-            orderBy: { createdAt: 'asc' }
-          });
+          if (userObj?.email) {
+            targetEmail = userObj.email.toLowerCase();
+          }
         }
+
+        // Si on a un email, récupérer aussi son userId si l'utilisateur est inscrit
+        if (targetEmail && !targetUid) {
+          const userObj = await prisma.user.findUnique({
+            where: { email: targetEmail },
+            select: { id: true }
+          });
+          if (userObj) {
+            targetUid = userObj.id;
+          }
+        }
+
+        const orFilters: any[] = [];
+        if (targetUid) {
+          orFilters.push({ userId: targetUid });
+          orFilters.push({ senderId: targetUid });
+        }
+        if (targetEmail) {
+          orFilters.push({ guestEmail: targetEmail });
+        }
+        if (targetSenderId) {
+          orFilters.push({ senderId: targetSenderId });
+          orFilters.push({ userId: targetSenderId });
+        }
+
+        const messages = await prisma.chatMessage.findMany({
+          where: orFilters.length > 0 ? { OR: orFilters } : {},
+          orderBy: { createdAt: 'asc' }
+        });
 
         return NextResponse.json({ success: true, data: messages });
       }
 
-      // 1.B. Récupérer la liste complète des conversations
+      // 1.B. Liste complète des conversations pour l'Admin
       const allMessages = await prisma.chatMessage.findMany({
         include: {
           user: {
@@ -132,7 +149,7 @@ export async function GET(req: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // 2. MODE CLIENT WIDGET (Toujours renvoyer les messages du client demandeur)
+    // 2. WIDGET CLIENT
     // ─────────────────────────────────────────────────────────────────────────
     const sessionUserId = (session?.user as any)?.id;
     const resolvedSessionUserId = sessionUserId ? (HARDCODED_ADMIN_IDS[sessionUserId] || sessionUserId) : null;
@@ -143,8 +160,13 @@ export async function GET(req: NextRequest) {
     const effectiveEmail = clientGuestEmail?.toLowerCase().trim() || sessionUserEmail;
 
     const orConditions: any[] = [];
-    if (effectiveUserId) orConditions.push({ userId: effectiveUserId });
-    if (effectiveEmail) orConditions.push({ guestEmail: effectiveEmail });
+    if (effectiveUserId) {
+      orConditions.push({ userId: effectiveUserId });
+      orConditions.push({ senderId: effectiveUserId });
+    }
+    if (effectiveEmail) {
+      orConditions.push({ guestEmail: effectiveEmail });
+    }
     if (clientId) {
       orConditions.push({ senderId: clientId });
       orConditions.push({ userId: clientId });
@@ -198,7 +220,7 @@ export async function POST(req: NextRequest) {
     const isAdminAction = mode === 'admin' || (Boolean(adminProfileHeader) && mode !== 'client');
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CAS 1 : ENVOI PAR L'ADMINISTRATEUR (RÉPONSE DANS LA CONSOLE ADMIN)
+    // CAS 1 : RÉPONSE DE L'ADMINISTRATEUR
     // ─────────────────────────────────────────────────────────────────────────
     if (isAdminAction) {
       const activeAdminName = adminProfileHeader || (session?.user as any)?.name || providedSenderName || 'Support AutoP';
@@ -252,7 +274,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // CAS 2 : ENVOI PAR LE CLIENT (WIDGET CLIENT)
+    // CAS 2 : MESSAGE DU CLIENT (WIDGET)
     // ─────────────────────────────────────────────────────────────────────────
     let clientUid: string | null = null;
     let clientName = 'Client';
