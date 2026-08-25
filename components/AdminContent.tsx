@@ -6283,7 +6283,7 @@ function SectionChatInterne() {
   };
 
   const fetchConversations = () => {
-    fetch('/api/chat', { headers: getAdminHeaders(), cache: 'no-store' })
+    fetch('/api/chat?mode=admin', { headers: getAdminHeaders(), cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
@@ -6298,12 +6298,13 @@ function SectionChatInterne() {
   };
 
   const fetchMessages = (convKey: string) => {
-    fetch(`/api/chat?convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders(), cache: 'no-store' })
+    fetch(`/api/chat?mode=admin&convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders(), cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
         if (res.success && Array.isArray(res.data)) {
           const serverMsgs = res.data;
           setMessages(prev => {
+            if (serverMsgs.length === 0 && prev.length > 0) return prev;
             const serverMsgIds = new Set(serverMsgs.map((m: any) => m.id));
             const pendingOptimistic = prev.filter(m => m.id?.startsWith('temp-admin-') && !serverMsgIds.has(m.id));
             return [...serverMsgs, ...pendingOptimistic];
@@ -6384,6 +6385,8 @@ function SectionChatInterne() {
 
       const isGuestConv = selectedConvKey.startsWith('guest:');
       const payload: any = {
+        mode: 'admin',
+        convKey: selectedConvKey,
         content: messageContent,
         senderName: activeProfile || 'Support AutoP',
         attachment: currentAttachment ? { name: currentAttachment.name, data: currentAttachment.data, type: currentAttachment.type } : undefined

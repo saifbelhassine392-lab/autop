@@ -54,10 +54,6 @@ export default function ClientChatWidget() {
   const lastMsgCountRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Les administrateurs ont leur console d'administration
-  const isAdmin = user?.role && ['ADMIN', 'PROFESSIONAL'].includes(user.role.toUpperCase());
-  if (isAdmin) return null;
-
   // Initialisation de l'identifiant client persistant (localStorage)
   useEffect(() => {
     let storedClientId = localStorage.getItem(CLIENT_ID_KEY);
@@ -89,18 +85,17 @@ export default function ClientChatWidget() {
     return () => window.removeEventListener('open-chat', handleOpenChat);
   }, []);
 
-  // Définir l'URL de fetch selon l'état de connexion
+  // Construction de l'URL avec mode=client explicite
   const getFetchUrl = useCallback(() => {
-    if (user) {
-      return `/api/chat?userId=${encodeURIComponent(user.id || '')}`;
-    }
     const params = new URLSearchParams();
+    params.set('mode', 'client');
+    if (user?.id) params.set('userId', user.id);
     if (guestInfo?.email) params.set('guestEmail', guestInfo.email);
     if (clientId) params.set('clientId', clientId);
     return `/api/chat?${params.toString()}`;
   }, [user, guestInfo, clientId]);
 
-  // Récupération des messages avec fusion propre (State Management sans écrasement)
+  // Récupération des messages avec accumulation sécurisée (zéro écrasement à vide)
   const fetchMessages = useCallback(() => {
     const url = getFetchUrl();
     fetch(url, { cache: 'no-store' })
@@ -110,9 +105,12 @@ export default function ClientChatWidget() {
           const serverMessages = res.data;
 
           setMessages(prev => {
-            // Créer une map des IDs du serveur pour éviter tout doublon
+            // Si le serveur renvoie une liste vide mais qu'on a des messages locaux, ne pas vider
+            if (serverMessages.length === 0 && prev.length > 0) {
+              return prev;
+            }
+
             const serverMsgIds = new Set(serverMessages.map((m: any) => m.id));
-            // Conserver les messages en cours d'envoi (temp-) tant qu'ils ne sont pas confirmés
             const pendingOptimistic = prev.filter(m => m.id?.startsWith('temp-') && !serverMsgIds.has(m.id));
             return [...serverMessages, ...pendingOptimistic];
           });
@@ -195,7 +193,6 @@ export default function ClientChatWidget() {
     const currentRef = reference;
     const currentAttachment = attachment;
 
-    // Nom de l'expéditeur
     const currentSenderName = user?.name 
       || guestInfo?.name 
       || (guestInfo?.email ? guestInfo.email.split('@')[0] : 'Client');
@@ -227,6 +224,7 @@ export default function ClientChatWidget() {
       }
 
       const body: any = {
+        mode: 'client',
         content: finalContent,
         reference: currentRef,
         attachment: currentAttachment ? { name: currentAttachment.name, data: currentAttachment.data, type: currentAttachment.type } : undefined,
@@ -243,11 +241,7 @@ export default function ClientChatWidget() {
       const data = await res.json();
 
       if (data.success && data.data) {
-        // Remplacer l'ID temporaire par le message confirmé de la base de données
         setMessages(prev => prev.map(m => m.id === tempId ? data.data : m));
-      } else {
-        // En cas d'erreur de réponse serveur
-        console.warn('Chat send response:', data);
       }
     } catch (err: any) {
       console.error('Chat send error:', err);
@@ -411,7 +405,7 @@ export default function ClientChatWidget() {
                   </button>
                 )}
                 {(user || guestInfo) && (
-                  <span className="text-[9px] text-emerald-400 font-mono">Historique synchronisé</span>
+                  <span className="text-[9px] text-emerald-400 font-mono">Historique actif</span>
                 )}
               </div>
 
