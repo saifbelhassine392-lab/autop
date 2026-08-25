@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
-  MessageCircle, Send, X, Paperclip, Image as ImageIcon, 
-  User, CheckCheck, Sparkles, ChevronDown, RefreshCw, AlertCircle, LogIn
+  MessageCircle, Send, X, Paperclip, 
+  User, CheckCheck, Sparkles, LogIn
 } from 'lucide-react';
 import Link from 'next/link';
 
 const GUEST_STORAGE_KEY = 'autop_chat_guest';
+const CLIENT_ID_KEY = 'autop_chat_client_id';
 
 const playNotificationSound = () => {
   try {
@@ -18,8 +19,8 @@ const playNotificationSound = () => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08);
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
     osc.connect(gain);
@@ -30,7 +31,7 @@ const playNotificationSound = () => {
 };
 
 export default function ClientChatWidget() {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   const user = session?.user as any;
 
   const [isOpen, setIsOpen] = useState(false);
@@ -41,8 +42,9 @@ export default function ClientChatWidget() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [attachment, setAttachment] = useState<{ name: string; data: string; type: string } | null>(null);
 
-  // État Invité (pour visiteurs sans compte)
+  // État Invité (identifiant stable pour ne jamais perdre l'historique)
   const [guestInfo, setGuestInfo] = useState<{ name: string; email: string } | null>(null);
+  const [clientId, setClientId] = useState<string>('');
   const [showGuestForm, setShowGuestForm] = useState(false);
   const [guestNameInput, setGuestNameInput] = useState('');
   const [guestEmailInput, setGuestEmailInput] = useState('');
@@ -52,21 +54,28 @@ export default function ClientChatWidget() {
   const lastMsgCountRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Les administrateurs ont leur propre console "Chat Interne / Prix"
+  // Les administrateurs ont leur console d'administration
   const isAdmin = user?.role && ['ADMIN', 'PROFESSIONAL'].includes(user.role.toUpperCase());
   if (isAdmin) return null;
 
-  // Récupérer le profil invité mémorisé si non connecté
+  // Initialisation de l'identifiant client persistant (localStorage)
   useEffect(() => {
+    let storedClientId = localStorage.getItem(CLIENT_ID_KEY);
+    if (!storedClientId) {
+      storedClientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem(CLIENT_ID_KEY, storedClientId);
+    }
+    setClientId(storedClientId);
+
     if (!user) {
-      const stored = localStorage.getItem(GUEST_STORAGE_KEY);
-      if (stored) {
-        try { setGuestInfo(JSON.parse(stored)); } catch {}
+      const storedGuest = localStorage.getItem(GUEST_STORAGE_KEY);
+      if (storedGuest) {
+        try { setGuestInfo(JSON.parse(storedGuest)); } catch {}
       }
     }
   }, [user]);
 
-  // Écouter les événements d'ouverture rapide (depuis les fiches articles, devis, etc.)
+  // Écouter les événements d'ouverture de chat depuis le catalogue ou devis
   useEffect(() => {
     const handleOpenChat = (e: any) => {
       setIsOpen(true);
@@ -80,52 +89,55 @@ export default function ClientChatWidget() {
     return () => window.removeEventListener('open-chat', handleOpenChat);
   }, []);
 
-  // Définir les paramètres d'interrogation API
-  const getFetchParams = useCallback(() => {
+  // Définir l'URL de fetch selon l'état de connexion
+  const getFetchUrl = useCallback(() => {
     if (user) {
-      return { url: '/api/chat', init: { cache: 'no-store' as RequestCache } };
+      return `/api/chat?userId=${encodeURIComponent(user.id || '')}`;
     }
-    if (guestInfo) {
-      return { url: `/api/chat?guestEmail=${encodeURIComponent(guestInfo.email)}`, init: { cache: 'no-store' as RequestCache } };
-    }
-    return null;
-  }, [user, guestInfo]);
+    const params = new URLSearchParams();
+    if (guestInfo?.email) params.set('guestEmail', guestInfo.email);
+    if (clientId) params.set('clientId', clientId);
+    return `/api/chat?${params.toString()}`;
+  }, [user, guestInfo, clientId]);
 
-  // Récupération des messages
+  // Récupération des messages avec fusion propre (State Management sans écrasement)
   const fetchMessages = useCallback(() => {
-    const params = getFetchParams();
-    if (!params) return;
-
-    fetch(params.url, params.init)
+    const url = getFetchUrl();
+    fetch(url, { cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
-        if (res.success) {
-          const newMessages = res.data || [];
-          setMessages(newMessages);
+        if (res.success && Array.isArray(res.data)) {
+          const serverMessages = res.data;
 
-          // Détecter de nouveaux messages admin pour sonnerie et badge
-          const adminMsgCount = newMessages.filter((m: any) => m.isAdmin).length;
+          setMessages(prev => {
+            // Créer une map des IDs du serveur pour éviter tout doublon
+            const serverMsgIds = new Set(serverMessages.map((m: any) => m.id));
+            // Conserver les messages en cours d'envoi (temp-) tant qu'ils ne sont pas confirmés
+            const pendingOptimistic = prev.filter(m => m.id?.startsWith('temp-') && !serverMsgIds.has(m.id));
+            return [...serverMessages, ...pendingOptimistic];
+          });
+
+          const adminMsgCount = serverMessages.filter((m: any) => m.isAdmin).length;
           if (adminMsgCount > lastMsgCountRef.current && lastMsgCountRef.current > 0) {
             playNotificationSound();
             if (!isOpen) {
-              setUnreadCount(prev => prev + (adminMsgCount - lastMsgCountRef.current));
+              setUnreadCount(count => count + (adminMsgCount - lastMsgCountRef.current));
             }
           }
           lastMsgCountRef.current = adminMsgCount;
         }
       })
-      .catch(err => console.error(err));
-  }, [getFetchParams, isOpen]);
+      .catch(err => console.error('Client Chat fetch error:', err));
+  }, [getFetchUrl, isOpen]);
 
-  // Polling temps réel (1.5s) dès que le client est identifié
+  // Polling temps réel (1.5s)
   useEffect(() => {
-    if (!user && !guestInfo) return;
     fetchMessages();
     const interval = setInterval(fetchMessages, 1500);
     return () => clearInterval(interval);
-  }, [fetchMessages, user, guestInfo]);
+  }, [fetchMessages]);
 
-  // Réinitialiser les non-lus à l'ouverture
+  // Réinitialiser le badge de notification non-lu
   useEffect(() => {
     if (isOpen) {
       setUnreadCount(0);
@@ -136,7 +148,7 @@ export default function ClientChatWidget() {
     }
   }, [isOpen]);
 
-  // Défilement automatique vers le bas à chaque nouveau message
+  // Auto-scroll
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -146,8 +158,8 @@ export default function ClientChatWidget() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      alert('Le fichier ne doit pas dépasser 3 Mo');
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Le fichier ne doit pas dépasser 4 Mo');
       return;
     }
     const reader = new FileReader();
@@ -176,25 +188,25 @@ export default function ClientChatWidget() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!content.trim() && !attachment) || loading) return;
-
-    if (!user && !guestInfo) {
-      setShowGuestForm(true);
-      return;
-    }
+    const textToSend = content.trim();
+    if ((!textToSend && !attachment) || loading) return;
 
     setLoading(true);
-    const sentText = content.trim();
     const currentRef = reference;
     const currentAttachment = attachment;
 
-    // Optimistic UI update (style Messenger instantané)
+    // Nom de l'expéditeur
+    const currentSenderName = user?.name 
+      || guestInfo?.name 
+      || (guestInfo?.email ? guestInfo.email.split('@')[0] : 'Client');
+
+    // 1. Mise à jour instantanée de l'état local (Optimistic UI)
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg = {
       id: tempId,
       isAdmin: false,
-      senderName: user?.name || guestInfo?.name || 'Moi',
-      content: currentAttachment ? (sentText ? `${sentText}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`) : sentText,
+      senderName: currentSenderName,
+      content: currentAttachment ? (textToSend ? `${textToSend}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`) : textToSend,
       reference: currentRef,
       attachmentData: currentAttachment?.data,
       attachmentName: currentAttachment?.name,
@@ -202,27 +214,26 @@ export default function ClientChatWidget() {
       createdAt: new Date().toISOString(),
       pending: true
     };
+
     setMessages(prev => [...prev, optimisticMsg]);
     setContent('');
     setReference(null);
     setAttachment(null);
 
     try {
-      let finalContent = sentText;
+      let finalContent = textToSend;
       if (currentAttachment) {
-        finalContent = sentText ? `${sentText}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`;
+        finalContent = textToSend ? `${textToSend}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`;
       }
 
       const body: any = {
         content: finalContent,
         reference: currentRef,
         attachment: currentAttachment ? { name: currentAttachment.name, data: currentAttachment.data, type: currentAttachment.type } : undefined,
+        clientId: clientId || undefined,
+        guestName: guestInfo?.name || undefined,
+        guestEmail: guestInfo?.email || undefined
       };
-
-      if (!user && guestInfo) {
-        body.guestName = guestInfo.name;
-        body.guestEmail = guestInfo.email;
-      }
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -230,16 +241,16 @@ export default function ClientChatWidget() {
         body: JSON.stringify(body)
       });
       const data = await res.json();
-      if (data.success) {
-        // Remplacer le message temporaire par le message confirmé de la base de données
+
+      if (data.success && data.data) {
+        // Remplacer l'ID temporaire par le message confirmé de la base de données
         setMessages(prev => prev.map(m => m.id === tempId ? data.data : m));
       } else {
-        alert('Erreur: ' + (data.error || "Impossible d'envoyer le message"));
-        setMessages(prev => prev.filter(m => m.id !== tempId));
+        // En cas d'erreur de réponse serveur
+        console.warn('Chat send response:', data);
       }
     } catch (err: any) {
-      alert('Erreur de connexion: ' + err.message);
-      setMessages(prev => prev.filter(m => m.id !== tempId));
+      console.error('Chat send error:', err);
     } finally {
       setLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -306,9 +317,9 @@ export default function ClientChatWidget() {
             <div className="flex items-center gap-1">
               {guestInfo && !user && (
                 <button
-                  onClick={() => { localStorage.removeItem(GUEST_STORAGE_KEY); setGuestInfo(null); setMessages([]); }}
+                  onClick={() => { localStorage.removeItem(GUEST_STORAGE_KEY); setGuestInfo(null); }}
                   className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-xl transition text-[9px] font-bold"
-                  title="Changer d'utilisateur"
+                  title="Modifier mes informations"
                 >
                   <User className="w-4 h-4" />
                 </button>
@@ -323,17 +334,17 @@ export default function ClientChatWidget() {
             </div>
           </div>
 
-          {/* ── CAS VISITEUR NON IDENTIFIÉ ── */}
+          {/* ── FORMULAIRE INVITÉ OPTIONNEL ── */}
           {showGuestForm && (
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-[#0c101a]/95">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#e8432f]/20 to-orange-500/20 border border-red-500/30 flex items-center justify-center mb-3 shadow-lg">
                 <User className="w-6 h-6 text-[#e8432f]" />
               </div>
               <h3 className="text-white text-sm font-black uppercase tracking-wide mb-1">
-                Identifiez-vous
+                Vos coordonnées
               </h3>
               <p className="text-slate-400 text-[11px] text-center mb-5">
-                Renseignez votre nom et email pour que notre équipe puisse vous répondre et retrouver vos devis.
+                Renseignez votre nom et email pour recevoir notre réponse sur votre messagerie.
               </p>
 
               <form onSubmit={handleGuestSubmit} className="w-full space-y-3">
@@ -363,7 +374,14 @@ export default function ClientChatWidget() {
                   type="submit"
                   className="w-full py-3 bg-gradient-to-r from-[#e8432f] to-[#d6301a] hover:from-[#f04e3b] hover:to-[#e8432f] text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-red-500/20 active:scale-[0.98]"
                 >
-                  Démarrer la discussion
+                  Enregistrer et discuter
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowGuestForm(false)}
+                  className="w-full py-2 text-slate-400 hover:text-white text-xs font-bold transition"
+                >
+                  Continuer en tant qu'invité direct
                 </button>
               </form>
 
@@ -375,45 +393,26 @@ export default function ClientChatWidget() {
             </div>
           )}
 
-          {/* ── CAS ACCUEIL SANS COMPTE ET SANS FORMULAIRE ── */}
-          {!showGuestForm && !user && !guestInfo && (
-            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-[#0c101a]">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-[#e8432f]/20 to-orange-500/10 border border-red-500/25 flex items-center justify-center mb-4 shadow-xl">
-                <MessageCircle className="w-8 h-8 text-[#e8432f]" />
-              </div>
-              <h3 className="text-white text-sm font-black uppercase tracking-wider mb-2">
-                Bienvenue sur le Messenger AutoP
-              </h3>
-              <p className="text-slate-400 text-xs leading-relaxed max-w-[260px] mb-6">
-                Posez une question sur une pièce, demandez un prix en direct ou suivez votre commande.
-              </p>
-              <div className="flex flex-col gap-2.5 w-full max-w-[240px]">
-                <button
-                  onClick={() => setShowGuestForm(true)}
-                  className="w-full py-3 bg-gradient-to-r from-[#e8432f] to-[#d6301a] hover:from-[#f04e3b] hover:to-[#e8432f] text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-red-500/25"
-                >
-                  Écrire un message →
-                </button>
-                <Link
-                  href="/connexion"
-                  className="w-full py-2.5 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-bold text-xs uppercase tracking-wider rounded-xl transition border border-slate-700/60"
-                >
-                  Se connecter à mon compte
-                </Link>
-              </div>
-            </div>
-          )}
-
           {/* ── FLUX DE CONVERSATION MESSENGER ── */}
-          {!showGuestForm && (user || guestInfo) && (
+          {!showGuestForm && (
             <>
               {/* Client Info Bar */}
               <div className="px-4 py-1.5 bg-[#121724] border-b border-slate-800 flex items-center justify-between text-[10px]">
                 <div className="flex items-center gap-1.5 text-slate-400 font-semibold truncate">
                   <User className="w-3 h-3 text-cyan-400 shrink-0" />
-                  <span className="truncate">{clientName} {user?.role === 'PROFESSIONAL' && '• PRO'}</span>
+                  <span className="truncate">{clientName || 'Visiteur'} {user?.role === 'PROFESSIONAL' && '• PRO'}</span>
                 </div>
-                <span className="text-[9px] text-slate-500 font-mono">Historique actif</span>
+                {!user && !guestInfo && (
+                  <button
+                    onClick={() => setShowGuestForm(true)}
+                    className="text-[9px] text-cyan-400 hover:text-cyan-300 font-bold uppercase transition"
+                  >
+                    + Ajouter mon nom
+                  </button>
+                )}
+                {(user || guestInfo) && (
+                  <span className="text-[9px] text-emerald-400 font-mono">Historique synchronisé</span>
+                )}
               </div>
 
               {/* Messages Body */}
@@ -424,10 +423,10 @@ export default function ClientChatWidget() {
                       <Sparkles className="w-6 h-6 text-slate-500" />
                     </div>
                     <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">
-                      Aucun message pour l'instant
+                      Bienvenue sur le Chat AutoP
                     </p>
                     <p className="text-slate-500 text-[10px] mt-1 max-w-[220px]">
-                      Écrivez votre question ou référence de pièce, un conseiller AutoP vous répond immédiatement.
+                      Écrivez votre question ou référence de pièce, un conseiller vous répond immédiatement.
                     </p>
                   </div>
                 ) : (

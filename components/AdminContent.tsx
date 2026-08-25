@@ -6301,8 +6301,13 @@ function SectionChatInterne() {
     fetch(`/api/chat?convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders(), cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
-        if (res.success) {
-          setMessages(res.data || []);
+        if (res.success && Array.isArray(res.data)) {
+          const serverMsgs = res.data;
+          setMessages(prev => {
+            const serverMsgIds = new Set(serverMsgs.map((m: any) => m.id));
+            const pendingOptimistic = prev.filter(m => m.id?.startsWith('temp-admin-') && !serverMsgIds.has(m.id));
+            return [...serverMsgs, ...pendingOptimistic];
+          });
         }
       })
       .catch(err => console.error('Messages fetch error:', err));
