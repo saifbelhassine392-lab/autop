@@ -15,6 +15,7 @@ import {
   RefreshCw, FileSpreadsheet, Database, Sparkles, CheckCircle2, ExternalLink, Layers, Eye
 } from 'lucide-react';
 import { notifyQuotesSync, subscribeQuotesSync } from '@/lib/syncEvents';
+import { notifyChatSync, subscribeToChatSync } from '@/lib/chatSync';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
 const inputCls = "w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-xs px-4 h-10 rounded-xl focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 uppercase placeholder:text-slate-500 transition-colors";
@@ -6314,19 +6315,30 @@ function SectionChatInterne() {
       .catch(err => console.error('Messages fetch error:', err));
   };
 
-  // Polling ultra-rapide (1.5s) de la liste des conversations
+  // Polling automatique régulier (toutes les 2s) de la liste des conversations
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 1500);
+    const interval = setInterval(fetchConversations, 2000);
     return () => clearInterval(interval);
   }, []);
 
-  // Polling des messages de la conversation active
+  // Polling des messages de la conversation active (toutes les 2s)
   useEffect(() => {
     if (!selectedConvKey) return;
     fetchMessages(selectedConvKey);
-    const interval = setInterval(() => fetchMessages(selectedConvKey), 1500);
+    const interval = setInterval(() => fetchMessages(selectedConvKey), 2000);
     return () => clearInterval(interval);
+  }, [selectedConvKey]);
+
+  // Synchronisation instantanée temps réel (BroadcastChannel)
+  useEffect(() => {
+    const unsubscribe = subscribeToChatSync(() => {
+      fetchConversations();
+      if (selectedConvKey) {
+        fetchMessages(selectedConvKey);
+      }
+    });
+    return unsubscribe;
   }, [selectedConvKey]);
 
   useEffect(() => {
@@ -6406,6 +6418,8 @@ function SectionChatInterne() {
       if (data.success) {
         setMessages(prev => prev.map(m => m.id === tempId ? data.data : m));
         fetchConversations();
+        // Diffusion instantanée vers l'écran client (sans F5)
+        notifyChatSync();
       } else {
         alert("Erreur: " + (data.error || "Impossible d'envoyer le message"));
         setMessages(prev => prev.filter(m => m.id !== tempId));

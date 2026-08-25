@@ -7,6 +7,7 @@ import {
   User, CheckCheck, Sparkles, LogIn
 } from 'lucide-react';
 import Link from 'next/link';
+import { notifyChatSync, subscribeToChatSync } from '@/lib/chatSync';
 
 const GUEST_STORAGE_KEY = 'autop_chat_guest';
 const CLIENT_ID_KEY = 'autop_chat_client_id';
@@ -105,11 +106,9 @@ export default function ClientChatWidget() {
           const serverMessages = res.data;
 
           setMessages(prev => {
-            // Si le serveur renvoie une liste vide mais qu'on a des messages locaux, ne pas vider
             if (serverMessages.length === 0 && prev.length > 0) {
               return prev;
             }
-
             const serverMsgIds = new Set(serverMessages.map((m: any) => m.id));
             const pendingOptimistic = prev.filter(m => m.id?.startsWith('temp-') && !serverMsgIds.has(m.id));
             return [...serverMessages, ...pendingOptimistic];
@@ -128,11 +127,19 @@ export default function ClientChatWidget() {
       .catch(err => console.error('Client Chat fetch error:', err));
   }, [getFetchUrl, isOpen]);
 
-  // Polling temps réel (1.5s)
+  // 1. Polling automatique régulier (toutes les 2 secondes)
   useEffect(() => {
     fetchMessages();
-    const interval = setInterval(fetchMessages, 1500);
+    const interval = setInterval(fetchMessages, 2000);
     return () => clearInterval(interval);
+  }, [fetchMessages]);
+
+  // 2. Synchronisation instantanée inter-onglets (BroadcastChannel)
+  useEffect(() => {
+    const unsubscribe = subscribeToChatSync(() => {
+      fetchMessages();
+    });
+    return unsubscribe;
   }, [fetchMessages]);
 
   // Réinitialiser le badge de notification non-lu
@@ -146,7 +153,7 @@ export default function ClientChatWidget() {
     }
   }, [isOpen]);
 
-  // Auto-scroll
+  // Auto-scroll à chaque nouveau message
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -242,6 +249,8 @@ export default function ClientChatWidget() {
 
       if (data.success && data.data) {
         setMessages(prev => prev.map(m => m.id === tempId ? data.data : m));
+        // Déclencher la mise à jour instantanée sur l'écran admin
+        notifyChatSync();
       }
     } catch (err: any) {
       console.error('Chat send error:', err);
@@ -405,7 +414,7 @@ export default function ClientChatWidget() {
                   </button>
                 )}
                 {(user || guestInfo) && (
-                  <span className="text-[9px] text-emerald-400 font-mono">Historique actif</span>
+                  <span className="text-[9px] text-emerald-400 font-mono">En direct</span>
                 )}
               </div>
 
