@@ -11,6 +11,8 @@ import {
   Package, PlusCircle, Edit, BarChart2, TrendingUp,
   LogOut, ChevronRight, Receipt, ShieldCheck
 } from 'lucide-react';
+import { subscribeQuotesSync } from '@/lib/syncEvents';
+import { subscribeToChatSync } from '@/lib/chatSync';
 
 const playNotificationSound = () => {
   try {
@@ -123,7 +125,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
   const [counts, setCounts] = useState({ reception: 0, traitement: 0, devisGen: 0, bons: 0, chat: 0 });
 
   const fetchBadgeCounts = () => {
-    fetch('/api/quotes')
+    fetch('/api/quotes', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => {
         const qList = Array.isArray(d) ? d : d.data || [];
@@ -133,7 +135,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       })
       .catch(() => {});
 
-    fetch('/api/devis')
+    fetch('/api/devis', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => {
         const dList = Array.isArray(d) ? d : d.data || [];
@@ -141,7 +143,7 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       })
       .catch(() => {});
 
-    fetch('/api/orders')
+    fetch('/api/orders', { cache: 'no-store' })
       .then(r => r.json())
       .then(d => {
         const oList = d.data || [];
@@ -149,7 +151,11 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
       })
       .catch(() => {});
 
-    fetch('/api/chat')
+    const adminProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : null;
+    fetch('/api/chat?mode=admin', {
+      headers: adminProfile ? { 'X-Admin-Profile': adminProfile } : {},
+      cache: 'no-store'
+    })
       .then(r => r.json())
       .then(d => {
         if (d && d.success && Array.isArray(d.data)) {
@@ -167,8 +173,14 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
 
   useEffect(() => {
     fetchBadgeCounts();
-    const interval = setInterval(fetchBadgeCounts, 3000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchBadgeCounts, 2000);
+    const unsubQuotes = subscribeQuotesSync(fetchBadgeCounts, 2000);
+    const unsubChat = subscribeToChatSync(fetchBadgeCounts);
+    return () => {
+      clearInterval(interval);
+      unsubQuotes();
+      unsubChat();
+    };
   }, []);
 
   const getBadgeValue = (id: string) => {
