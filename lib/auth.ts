@@ -33,10 +33,12 @@ export const authOptions: NextAuthOptions = {
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
         if (!isPasswordValid) return null;
 
+        const displayName = user.name?.trim() || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+
         return {
           id: user.id,
           email: user.email,
-          name: user.name,
+          name: displayName,
           role: user.role,
           phone: user.phone
         };

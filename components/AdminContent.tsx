@@ -6257,20 +6257,23 @@ function SectionHistoriqueAchats() {
   );
 }
 
-// ─── SECTION: CHAT INTERNE CLIENT-ADMIN ──────────────────────────────────────
+// ─── SECTION: CHAT INTERNE CLIENT-ADMIN (STYLE MESSENGER) ─────────────────────
 function SectionChatInterne() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConvKey, setSelectedConvKey] = useState<string | null>(null); // 'user:ID' ou 'guest:email'
   const [messages, setMessages] = useState<any[]>([]);
   const [reply, setReply] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'pro' | 'guest'>('all');
   const [loadingConv, setLoadingConv] = useState(true);
   const [sending, setSending] = useState(false);
   const [attachment, setAttachment] = useState<{ name: string; data: string; type: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const replyInputRef = useRef<HTMLInputElement>(null);
+  const lastAdminMsgCountRef = useRef<number>(0);
 
-  // Helper: get admin profile header for auth fallback
+  // Helper: en-tête d'authentification admin
   const getAdminHeaders = () => {
     const activeProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : null;
     return {
@@ -6280,38 +6283,43 @@ function SectionChatInterne() {
   };
 
   const fetchConversations = () => {
-    fetch('/api/chat', { headers: getAdminHeaders() })
+    fetch('/api/chat', { headers: getAdminHeaders(), cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
-          setConversations(res.data || []);
+          const convList = res.data || [];
+          setConversations(convList);
+          // Si aucune sélection et liste non vide, sélectionner automatiquement la première
+          setSelectedConvKey(prev => prev || (convList.length > 0 ? convList[0].convKey : null));
         }
       })
-      .catch(err => console.error(err))
+      .catch(err => console.error('Chat Admin error:', err))
       .finally(() => setLoadingConv(false));
   };
 
   const fetchMessages = (convKey: string) => {
-    fetch(`/api/chat?convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders() })
+    fetch(`/api/chat?convKey=${encodeURIComponent(convKey)}`, { headers: getAdminHeaders(), cache: 'no-store' })
       .then(r => r.json())
       .then(res => {
         if (res.success) {
           setMessages(res.data || []);
         }
       })
-      .catch(err => console.error(err));
+      .catch(err => console.error('Messages fetch error:', err));
   };
 
+  // Polling ultra-rapide (1.5s) de la liste des conversations
   useEffect(() => {
     fetchConversations();
-    const interval = setInterval(fetchConversations, 2000);
+    const interval = setInterval(fetchConversations, 1500);
     return () => clearInterval(interval);
   }, []);
 
+  // Polling des messages de la conversation active
   useEffect(() => {
     if (!selectedConvKey) return;
     fetchMessages(selectedConvKey);
-    const interval = setInterval(() => fetchMessages(selectedConvKey), 2000);
+    const interval = setInterval(() => fetchMessages(selectedConvKey), 1500);
     return () => clearInterval(interval);
   }, [selectedConvKey]);
 
@@ -6322,8 +6330,8 @@ function SectionChatInterne() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Le fichier ne doit pas dépasser 2 Mo');
+    if (file.size > 4 * 1024 * 1024) {
+      alert('Le fichier ne doit pas dépasser 4 Mo');
       return;
     }
     const reader = new FileReader();
@@ -6340,23 +6348,40 @@ function SectionChatInterne() {
 
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!reply.trim() && !attachment) || !selectedConvKey) return;
+    if ((!reply.trim() && !attachment) || !selectedConvKey || sending) return;
 
     setSending(true);
+    const textToSend = reply.trim();
+    const currentAttachment = attachment;
+    const activeProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : undefined;
+
+    // Optimistic UI Update
+    const tempId = `temp-admin-${Date.now()}`;
+    const optimisticMsg = {
+      id: tempId,
+      isAdmin: true,
+      senderName: activeProfile || 'Support AutoP',
+      content: currentAttachment ? (textToSend ? `${textToSend}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`) : textToSend,
+      attachmentData: currentAttachment?.data,
+      attachmentName: currentAttachment?.name,
+      attachmentType: currentAttachment?.type,
+      createdAt: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    setReply('');
+    setAttachment(null);
+
     try {
-      const activeProfile = typeof window !== 'undefined' ? localStorage.getItem('activeAdminProfile') : undefined;
-      
-      let messageContent = reply;
-      if (attachment) {
-        messageContent = reply ? `${reply}\n\n📎 ${attachment.name}` : `📎 ${attachment.name}`;
+      let messageContent = textToSend;
+      if (currentAttachment) {
+        messageContent = textToSend ? `${textToSend}\n\n📎 ${currentAttachment.name}` : `📎 ${currentAttachment.name}`;
       }
 
-      // Construire le payload selon le type de conversation
       const isGuestConv = selectedConvKey.startsWith('guest:');
       const payload: any = {
         content: messageContent,
-        senderName: activeProfile || 'Admin',
-        attachment: attachment ? { name: attachment.name, data: attachment.data, type: attachment.type } : undefined
+        senderName: activeProfile || 'Support AutoP',
+        attachment: currentAttachment ? { name: currentAttachment.name, data: currentAttachment.data, type: currentAttachment.type } : undefined
       };
       if (isGuestConv) {
         payload.guestEmail = selectedConvKey.replace('guest:', '');
@@ -6366,79 +6391,204 @@ function SectionChatInterne() {
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(activeProfile ? { 'X-Admin-Profile': activeProfile } : {})
-        },
+        headers: getAdminHeaders(),
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
-        setMessages(prev => [...prev, data.data]);
-        setReply('');
-        setAttachment(null);
+        setMessages(prev => prev.map(m => m.id === tempId ? data.data : m));
         fetchConversations();
       } else {
         alert("Erreur: " + (data.error || "Impossible d'envoyer le message"));
+        setMessages(prev => prev.filter(m => m.id !== tempId));
       }
     } catch (err: any) {
       alert("Erreur de connexion: " + err.message);
-      console.error(err);
+      setMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
+      setTimeout(() => replyInputRef.current?.focus(), 50);
     }
   };
 
   const activeConv = conversations.find(c => c.convKey === selectedConvKey);
 
+  // Filtrage des conversations
+  const filteredConversations = conversations.filter(c => {
+    const name = (c.displayName || c.user?.name || `${c.user?.firstName || ''} ${c.user?.lastName || ''}` || c.guestName || c.guestEmail || '').toLowerCase();
+    const email = (c.user?.email || c.guestEmail || '').toLowerCase();
+    const phone = (c.user?.phone || '').toLowerCase();
+    const lastContent = (c.lastMessage?.content || '').toLowerCase();
+    const query = searchQuery.toLowerCase().trim();
+
+    const matchesSearch = !query || name.includes(query) || email.includes(query) || phone.includes(query) || lastContent.includes(query);
+    if (!matchesSearch) return false;
+
+    if (activeFilter === 'unread') return c.lastMessage && !c.lastMessage.isAdmin;
+    if (activeFilter === 'pro') return c.user?.role === 'PROFESSIONAL';
+    if (activeFilter === 'guest') return c.convKey?.startsWith('guest:');
+    return true;
+  });
+
+  const getClientInitials = (name: string) => {
+    if (!name) return 'CL';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  const sendQuickTemplate = (text: string) => {
+    setReply(text);
+    setTimeout(() => replyInputRef.current?.focus(), 50);
+  };
+
   return (
-    <div className="h-[calc(100vh-120px)] flex bg-white border border-zinc-200 rounded-3xl overflow-hidden shadow-2xl">
-      {/* Sidebar des conversations */}
-      <div className="w-1/3 border-r border-zinc-200/80 bg-white/40 flex flex-col">
-        <div className="p-4 border-b border-zinc-200 bg-white/60">
-          <h3 className="text-zinc-950 text-xs font-black uppercase tracking-widest">CONVERSATIONS</h3>
-          <p className="text-[9px] text-zinc-600 uppercase font-bold mt-1">SÉLECTIONNEZ UN CLIENT POUR LUI RÉPONDRE</p>
-        </div>
+    <div className="h-[calc(100vh-140px)] flex bg-[#14171c] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+      
+      {/* ─── COLONNE GAUCHE : LISTE DES CONVERSATIONS (STYLE MESSENGER) ──── */}
+      <div className="w-[360px] max-w-[38%] border-r border-slate-800 bg-[#0e1117] flex flex-col shrink-0">
         
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/50">
+        {/* Header Messagerie */}
+        <div className="p-4 border-b border-slate-800/80 bg-[#121620]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-red-650 to-orange-500 flex items-center justify-center text-white font-black text-xs shadow-md">
+                <MessageSquare className="w-4 h-4" />
+              </div>
+              <h3 className="text-white text-xs font-black uppercase tracking-wider">MESSAGERIE CLIENTS</h3>
+            </div>
+            <span className="text-[10px] bg-red-650/20 text-red-400 font-bold px-2 py-0.5 rounded-full border border-red-500/30">
+              {conversations.length} conversation{conversations.length > 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {/* Barre de recherche style Messenger */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, email, tél..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-[#181d28] border border-slate-700/70 focus:border-red-500 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs">
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Filtres rapides */}
+          <div className="flex gap-1.5 mt-2.5 overflow-x-auto pb-0.5">
+            {[
+              { id: 'all', label: 'Toutes' },
+              { id: 'unread', label: 'Non lus' },
+              { id: 'pro', label: 'PRO' },
+              { id: 'guest', label: 'Invités' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveFilter(tab.id as any)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition shrink-0 ${
+                  activeFilter === tab.id
+                    ? 'bg-red-650 text-white shadow-sm'
+                    : 'bg-[#181d28] text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Liste des conversations */}
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-800/40">
           {loadingConv ? (
-            <div className="text-center py-10 text-zinc-600 font-bold uppercase tracking-wider text-[10px] animate-pulse">Chargement...</div>
-          ) : conversations.length === 0 ? (
-            <div className="text-center py-10 text-zinc-600 font-bold uppercase tracking-wider text-[10px]">Aucune conversation</div>
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500 gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-red-500" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Chargement des discussions...</span>
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="text-center py-16 px-4">
+              <MessageSquare className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Aucune discussion trouvée</p>
+              <p className="text-slate-600 text-[10px] mt-1">Les messages des clients connectés ou invités apparaîtront ici.</p>
+            </div>
           ) : (
-            conversations.map(c => {
+            filteredConversations.map(c => {
               const isSelected = c.convKey === selectedConvKey;
-              // Nom du client : compte enregistré OU visiteur anonyme
-              const userName = c.user?.name ||
-                `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.trim() ||
-                c.guestName ||
-                c.guestEmail ||
-                'Client';
               const hasUnread = c.lastMessage && !c.lastMessage.isAdmin;
+              const isPro = c.user?.role === 'PROFESSIONAL';
               const isGuest = c.convKey?.startsWith('guest:');
+              const clientFullName = c.displayName || c.user?.name || `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.trim() || c.guestName || 'Client';
+              const initials = getClientInitials(clientFullName);
+
               return (
                 <button
                   key={c.convKey}
                   onClick={() => setSelectedConvKey(c.convKey)}
-                  className={`w-full text-left p-4 transition-colors flex flex-col gap-1.5 ${
-                    isSelected ? 'bg-red-50 border-l-4 border-red-500' : 'hover:bg-zinc-50/20'
+                  className={`w-full text-left p-3.5 transition-all flex items-center gap-3 relative ${
+                    isSelected
+                      ? 'bg-[#1e2433] border-l-4 border-red-500 shadow-inner'
+                      : 'hover:bg-[#141923]'
                   }`}
                 >
-                  <div className="flex justify-between items-start w-full">
-                    <div className="flex items-center gap-2">
-                      {hasUnread && !isSelected && (
-                        <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse flex-shrink-0" />
-                      )}
-                      <span className={`font-black text-xs uppercase truncate max-w-[70%] ${hasUnread && !isSelected ? 'text-cyan-400' : 'text-zinc-950'}`}>{userName}</span>
-                      {isGuest && <span className="text-[7px] bg-amber-100 text-amber-700 font-black uppercase px-1.5 py-0.5 rounded-full">Invité</span>}
+                  {/* Avatar Circle avec Statut En Ligne */}
+                  <div className="relative shrink-0">
+                    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-xs shadow-md border ${
+                      isPro
+                        ? 'bg-gradient-to-tr from-amber-600 to-yellow-500 text-slate-950 border-amber-400/40'
+                        : isGuest
+                        ? 'bg-slate-800 text-cyan-300 border-cyan-500/30'
+                        : 'bg-gradient-to-tr from-[#e8432f] to-[#ff6b4a] text-white border-red-400/30'
+                    }`}>
+                      {initials}
                     </div>
-                    <span className="text-[8px] text-zinc-600 font-mono">
-                      {c.lastMessage ? new Date(c.lastMessage.createdAt).toLocaleDateString('fr-FR') : ''}
-                    </span>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-[#0e1117]" />
                   </div>
-                  <p className={`text-[10px] truncate w-full uppercase ${hasUnread && !isSelected ? 'text-cyan-300 font-bold' : 'text-zinc-500'}`}>
-                    {c.lastMessage?.content || 'Aucun message'}
-                  </p>
+
+                  {/* Infos Contact */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-baseline mb-0.5">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className={`font-black text-xs truncate uppercase ${
+                          hasUnread ? 'text-white font-extrabold' : 'text-slate-200'
+                        }`}>
+                          {clientFullName}
+                        </span>
+                        {isPro && (
+                          <span className="text-[8px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-black px-1.5 py-0.2 rounded shrink-0">
+                            PRO
+                          </span>
+                        )}
+                        {isGuest && (
+                          <span className="text-[8px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-black px-1.5 py-0.2 rounded shrink-0">
+                            INVITÉ
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[9px] text-slate-500 font-mono shrink-0 ml-1">
+                        {c.lastMessage ? new Date(c.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 truncate mb-1">
+                      {c.user?.email || c.guestEmail || (c.user?.phone ? `Tél: ${c.user.phone}` : '')}
+                    </p>
+
+                    <div className="flex items-center justify-between gap-1">
+                      <p className={`text-[11px] truncate ${
+                        hasUnread ? 'text-cyan-300 font-bold' : 'text-slate-400'
+                      }`}>
+                        {c.lastMessage?.isAdmin && <span className="text-red-400 font-bold mr-1">Vous :</span>}
+                        {c.lastMessage?.content || 'Fichier joint'}
+                      </p>
+                      {hasUnread && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shrink-0 ring-2 ring-cyan-400/20 shadow-sm" />
+                      )}
+                    </div>
+                  </div>
                 </button>
               );
             })
@@ -6446,81 +6596,198 @@ function SectionChatInterne() {
         </div>
       </div>
 
-      {/* Fenêtre de chat */}
-      <div className="flex-1 flex flex-col bg-white">
-        {selectedConvKey ? (
+      {/* ─── COLONNE DROITE : FENÊTRE DE DISCUSSION PRINCIPALE (STYLE MESSENGER) ─── */}
+      <div className="flex-1 flex flex-col bg-[#12161f] min-w-0">
+        {selectedConvKey && activeConv ? (
           <>
-            {/* User Header */}
-            <div className="p-4 bg-white/40 border-b border-zinc-200 flex justify-between items-center">
-              <div>
-                <h4 className="text-zinc-950 text-xs font-black uppercase tracking-wider">
-                  {activeConv?.user?.name || `${activeConv?.user?.firstName || ''} ${activeConv?.user?.lastName || ''}`.trim() || activeConv?.guestName || 'Client'}
-                </h4>
-                <p className="text-[9px] text-zinc-600 font-bold mt-0.5">{activeConv?.user?.email || activeConv?.guestEmail}</p>
+            {/* Header actif Messenger */}
+            <div className="px-6 py-3.5 bg-[#171d2b] border-b border-slate-800 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-3.5">
+                <div className="relative">
+                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm text-white shadow-md ${
+                    activeConv.user?.role === 'PROFESSIONAL'
+                      ? 'bg-gradient-to-tr from-amber-600 to-yellow-500 text-slate-950'
+                      : 'bg-gradient-to-tr from-red-650 to-orange-500 text-white'
+                  }`}>
+                    {getClientInitials(activeConv.displayName || activeConv.user?.name || activeConv.guestName || 'CL')}
+                  </div>
+                  <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-[#171d2b]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-white text-sm font-black uppercase tracking-wider">
+                      {activeConv.displayName || activeConv.user?.name || `${activeConv.user?.firstName || ''} ${activeConv.user?.lastName || ''}`.trim() || activeConv.guestName || 'Client'}
+                    </h4>
+                    {activeConv.user?.role === 'PROFESSIONAL' && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-black px-2 py-0.5 rounded-full">
+                        COMPTE PRO B2B
+                      </span>
+                    )}
+                    {activeConv.convKey?.startsWith('guest:') && (
+                      <span className="text-[9px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-black px-2 py-0.5 rounded-full">
+                        VISITEUR INVITÉ
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                    {activeConv.user?.email || activeConv.guestEmail ? (
+                      <span className="flex items-center gap-1 font-mono text-cyan-400">
+                        {activeConv.user?.email || activeConv.guestEmail}
+                      </span>
+                    ) : null}
+                    {activeConv.user?.phone && (
+                      <span>• Tél: {activeConv.user.phone}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions rapides */}
+              <div className="flex items-center gap-2">
+                {activeConv.user?.phone && (
+                  <a
+                    href={`https://wa.me/${activeConv.user.phone.replace(/[^0-9]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 text-xs font-bold rounded-xl transition"
+                    title="Ouvrir WhatsApp direct"
+                  >
+                    <Phone className="w-3.5 h-3.5" /> WhatsApp
+                  </a>
+                )}
+                <button
+                  onClick={() => fetchMessages(selectedConvKey)}
+                  className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+                  title="Actualiser les messages"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Messages Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.map(msg => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${msg.isAdmin ? 'items-end' : 'items-start'}`}
-                >
-                  <div
-                    className={`max-w-[70%] rounded-2xl px-4 py-3 text-xs ${
-                      msg.isAdmin
-                        ? 'bg-red-650 text-zinc-950 rounded-tr-none shadow shadow-red-500/20'
-                        : 'bg-zinc-50 text-zinc-900 rounded-tl-none'
-                    }`}
-                  >
-                    {msg.reference && (
-                      <div className="bg-black/35 rounded-lg px-2.5 py-1 mb-1.5 font-mono text-[9px] text-orange-300 font-black uppercase">
-                        Réf concernée : {msg.reference}
-                      </div>
-                    )}
-                    <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                    {msg.attachmentData && (
-                      <div className="mt-2">
-                        {msg.attachmentType?.startsWith('image/') ? (
-                          <img src={msg.attachmentData} alt={msg.attachmentName || 'Attachment'} className="max-w-[200px] rounded-lg border border-zinc-200/50" />
-                        ) : (
-                          <a href={msg.attachmentData} download={msg.attachmentName || 'download'} className="flex items-center gap-1.5 px-3 py-2 bg-black/20 hover:bg-black/30 rounded-lg transition text-xs font-semibold text-zinc-950">
-                            <Paperclip className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate max-w-[150px]">{msg.attachmentName || 'Pièce jointe'}</span>
-                          </a>
+            {/* Corps des messages avec bulles Messenger */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#0d1017]/80 scroll-smooth">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6">
+                  <div className="w-14 h-14 rounded-3xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-center mb-3">
+                    <MessageSquare className="w-7 h-7 text-slate-500" />
+                  </div>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Début de la conversation</p>
+                  <p className="text-slate-600 text-[11px] mt-1 max-w-[280px]">
+                    Envoyez un message pour renseigner le client sur un prix, un devis ou une référence de pièce.
+                  </p>
+                </div>
+              ) : (
+                messages.map(msg => {
+                  const isAdminMsg = msg.isAdmin;
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${isAdminMsg ? 'items-end' : 'items-start'} animate-[fadeIn_0.15s_ease-out]`}
+                    >
+                      <div className="flex items-end gap-2.5 max-w-[75%]">
+                        {!isAdminMsg && (
+                          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-cyan-600 to-blue-500 text-white flex items-center justify-center font-black text-[10px] shrink-0 mb-1 shadow-sm">
+                            {getClientInitials(msg.senderName || 'CL')}
+                          </div>
+                        )}
+
+                        <div
+                          className={`rounded-2xl px-4 py-3 text-xs shadow-md leading-relaxed ${
+                            isAdminMsg
+                              ? 'bg-gradient-to-r from-red-650 to-orange-600 text-white rounded-br-none shadow-red-500/10'
+                              : 'bg-[#1e2535] text-slate-100 rounded-bl-none border border-slate-700/70'
+                          }`}
+                        >
+                          {/* Référence article liée */}
+                          {msg.reference && (
+                            <div className="bg-black/40 rounded-xl px-3 py-1.5 mb-2 font-mono text-[10px] text-amber-300 font-bold uppercase border border-amber-400/20 flex items-center justify-between gap-2">
+                              <span>🎯 PIÈCE CONCERNÉE : {msg.reference}</span>
+                            </div>
+                          )}
+
+                          <p className="whitespace-pre-wrap select-text font-normal">{msg.content}</p>
+
+                          {/* Pièce jointe */}
+                          {msg.attachmentData && (
+                            <div className="mt-3 pt-2.5 border-t border-white/15">
+                              {msg.attachmentType?.startsWith('image/') ? (
+                                <img
+                                  src={msg.attachmentData}
+                                  alt={msg.attachmentName || 'Photo'}
+                                  className="max-w-[280px] rounded-xl border border-white/20 max-h-[200px] object-cover"
+                                />
+                              ) : (
+                                <a
+                                  href={msg.attachmentData}
+                                  download={msg.attachmentName || 'fichier'}
+                                  className="flex items-center gap-2 px-3 py-2 bg-black/30 hover:bg-black/40 rounded-xl transition text-[11px] font-semibold text-white"
+                                >
+                                  <Paperclip className="w-3.5 h-3.5 shrink-0 text-cyan-300" />
+                                  <span className="truncate max-w-[220px]">{msg.attachmentName || 'Télécharger la pièce jointe'}</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {isAdminMsg && (
+                          <div className="w-7 h-7 rounded-xl bg-red-650 text-white flex items-center justify-center font-black text-[10px] shrink-0 mb-1 shadow-sm">
+                            AP
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                  <span className="text-[8px] text-zinc-600 mt-1 uppercase font-black">
-                    {msg.senderName} · {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              ))}
+
+                      {/* Horodatage */}
+                      <span className={`text-[9px] text-slate-500 mt-1 uppercase font-bold tracking-wide ${isAdminMsg ? 'pr-9' : 'pl-9'}`}>
+                        {msg.senderName} • {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Attachment preview */}
+            {/* Modèles de réponses rapides */}
+            <div className="px-6 py-2 bg-[#141a26] border-t border-slate-800/80 flex items-center gap-2 overflow-x-auto">
+              <span className="text-[9px] text-slate-400 font-bold uppercase shrink-0">Réponses rapides :</span>
+              {[
+                'Bonjour, cette pièce est disponible en stock magasin.',
+                'Pourriez-vous nous communiquer votre numéro de châssis (VIN) ?',
+                'Le devis a bien été préparé et envoyé.',
+                'Livraison possible sous 24h via transporteur.'
+              ].map((template, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => sendQuickTemplate(template)}
+                  className="px-2.5 py-1 bg-slate-800/90 hover:bg-red-650/20 hover:border-red-500/40 border border-slate-700 text-slate-300 hover:text-white rounded-lg text-[10px] font-medium transition shrink-0"
+                >
+                  {template.length > 35 ? template.substring(0, 35) + '...' : template}
+                </button>
+              ))}
+            </div>
+
+            {/* Prévisualisation pièce jointe avant envoi */}
             {attachment && (
-              <div className="px-6 py-2 bg-white/40 border-t border-zinc-200 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-[10px]">
-                  <Paperclip className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="text-slate-300 font-bold uppercase truncate max-w-[300px]">{attachment.name}</span>
+              <div className="px-6 py-2 bg-[#171d2b] border-t border-slate-800 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-cyan-300 font-semibold truncate">
+                  <Paperclip className="w-4 h-4 text-cyan-400" />
+                  <span className="truncate max-w-[400px]">{attachment.name}</span>
                 </div>
                 <button
                   onClick={() => setAttachment(null)}
-                  className="text-red-400 hover:text-red-300 transition"
+                  className="text-red-400 hover:text-red-300 p-1 hover:bg-red-500/10 rounded-md transition"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            {/* Reply Form */}
+            {/* Formulaire de réponse Messenger */}
             <form
               onSubmit={handleSendReply}
-              className="p-4 border-t border-zinc-200/80 bg-white/20 flex gap-3 items-center"
+              className="p-4 border-t border-slate-800 bg-[#121620] flex gap-3 items-center"
             >
               <input
                 ref={fileInputRef}
@@ -6532,33 +6799,38 @@ function SectionChatInterne() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="p-3 text-zinc-600 hover:text-cyan-400 transition rounded-xl hover:bg-zinc-50/50"
-                title="Joindre un fichier"
+                className="p-3 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded-2xl transition border border-slate-700/60"
+                title="Joindre une photo ou document"
               >
                 <Paperclip className="w-5 h-5" />
               </button>
               <input
+                ref={replyInputRef}
                 type="text"
-                placeholder="Saisissez votre réponse..."
+                placeholder="Rédigez votre réponse au client..."
                 value={reply}
                 onChange={e => setReply(e.target.value)}
-                className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-3 text-xs text-zinc-950 placeholder-slate-500 focus:outline-none focus:border-zinc-300 uppercase placeholder:normal-case font-semibold"
+                className="flex-1 bg-[#181e2b] border border-slate-700/80 focus:border-red-500 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none font-medium transition"
                 disabled={sending}
               />
               <button
                 type="submit"
                 disabled={sending || (!reply.trim() && !attachment)}
-                className="px-5 py-3 bg-red-650 hover:bg-red-600 text-zinc-950 font-black text-xs uppercase rounded-xl transition flex items-center gap-1.5 disabled:opacity-40"
+                className="px-6 py-3 bg-gradient-to-r from-red-650 to-orange-600 hover:from-red-600 hover:to-orange-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition flex items-center gap-2 shadow-lg shadow-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shrink-0"
               >
-                <Send className="w-3.5 h-3.5" /> Répondre
+                <Send className="w-4 h-4" /> Répondre
               </button>
             </form>
           </>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center text-center p-6">
-            <MessageSquare className="w-12 h-12 text-slate-700 mb-2" />
-            <p className="text-zinc-600 text-xs font-black uppercase tracking-widest">Aucune conversation sélectionnée</p>
-            <p className="text-slate-650 text-[10px] uppercase font-bold mt-1">Sélectionnez un client dans la liste pour voir les messages et répondre.</p>
+          <div className="h-full flex flex-col items-center justify-center text-center p-8">
+            <div className="w-16 h-16 rounded-3xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-center mb-4 shadow-xl">
+              <MessageSquare className="w-8 h-8 text-slate-500" />
+            </div>
+            <h4 className="text-white text-sm font-black uppercase tracking-widest">Aucune conversation sélectionnée</h4>
+            <p className="text-slate-400 text-xs mt-1 max-w-[320px]">
+              Sélectionnez un client dans la colonne de gauche pour afficher l'historique complet et répondre en direct.
+            </p>
           </div>
         )}
       </div>

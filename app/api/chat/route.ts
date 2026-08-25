@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// IDs réels des admins hardcodés (pour résoudre les IDs fictifs)
+// IDs réels des admins hardcodés (pour résoudre les IDs fictifs de dev)
 const HARDCODED_ADMIN_IDS: Record<string, string> = {
   'admin-id':    'cms5ys5r2000111h9o9zxmrd4',
   'admin-id-fr': 'cms59idvc0000vrogaeuuq3h8',
@@ -17,14 +17,14 @@ function isAdminRole(role: string | undefined): boolean {
   return r === 'ADMIN' || r === 'PROFESSIONAL';
 }
 
-// Récupérer la session admin depuis l'en-tête X-Admin-Profile (fallback localStorage)
+// Récupérer la session admin depuis l'en-tête X-Admin-Profile (fallback localStorage profil local)
 async function getAdminFromHeader(req: NextRequest): Promise<{ id: string; name: string; role: string } | null> {
   const profileName = req.headers.get('X-Admin-Profile');
   if (!profileName) return null;
   try {
     const adminUser = await prisma.user.findFirst({
       where: { role: { in: ['ADMIN', 'PROFESSIONAL'] } },
-      select: { id: true, name: true, role: true }
+      select: { id: true, name: true, firstName: true, lastName: true, role: true }
     });
     if (adminUser) {
       return { id: adminUser.id, name: profileName, role: adminUser.role };
@@ -33,13 +33,12 @@ async function getAdminFromHeader(req: NextRequest): Promise<{ id: string; name:
   return null;
 }
 
-// Résoudre le senderId fictif vers un ID réel
 function resolveSenderId(rawId: string | null | undefined): string | null {
   if (!rawId) return null;
   return HARDCODED_ADMIN_IDS[rawId] || rawId;
 }
 
-// ─── GET ──────────────────────────────────────────────────────────────────────
+// ─── GET /api/chat ────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -49,30 +48,42 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const targetConvKey = searchParams.get('convKey'); // 'user:ID' ou 'guest:email'
-    const targetUserId = searchParams.get('userId');   // backward compat
+    const targetUserId = searchParams.get('userId');   // compatibilité
 
-    // ── ADMIN ──────────────────────────────────────────────────────────────
+    // ── 1. VUE ADMIN ─────────────────────────────────────────────────────────
     if (user && isAdminRole(userRole)) {
       if (targetConvKey || targetUserId) {
-        const key = targetConvKey || targetUserId!;
+        const key = targetConvKey || (targetUserId ? `user:${targetUserId}` : '');
         let messages: any[];
+
         if (key.startsWith('guest:')) {
-          const guestEmail = key.replace('guest:', '');
+          const guestEmail = key.replace('guest:', '').toLowerCase();
           messages = await prisma.chatMessage.findMany({
             where: { guestEmail },
             orderBy: { createdAt: 'asc' }
           });
         } else {
           const uid = key.replace('user:', '');
+          // Récupérer les messages par userId ou si l'utilisateur a un email associé
+          const targetUser = await prisma.user.findUnique({
+            where: { id: uid },
+            select: { id: true, email: true }
+          });
+
           messages = await prisma.chatMessage.findMany({
-            where: { userId: uid },
+            where: {
+              OR: [
+                { userId: uid },
+                ...(targetUser?.email ? [{ guestEmail: targetUser.email.toLowerCase() }] : [])
+              ]
+            },
             orderBy: { createdAt: 'asc' }
           });
         }
         return NextResponse.json({ success: true, data: messages });
       }
 
-      // Liste toutes les conversations uniques (par userId ou guestEmail)
+      // Récupérer toutes les conversations avec les profils utilisateurs complets
       const allMessages = await prisma.chatMessage.findMany({
         where: {
           OR: [
@@ -81,49 +92,78 @@ export async function GET(req: NextRequest) {
           ]
         },
         include: {
-          user: { select: { id: true, name: true, firstName: true, lastName: true, email: true } }
+          user: {
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              phone: true,
+              role: true
+            }
+          }
         },
         orderBy: { createdAt: 'desc' }
       });
 
-      // Dédupliquer par clé de conversation
+      // Dédupliquer et structurer par conversation
       const seen = new Set<string>();
       const conversations: any[] = [];
+
       for (const msg of allMessages) {
-        const key = msg.userId ? `user:${msg.userId}` : `guest:${msg.guestEmail}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          conversations.push({
-            convKey: key,
-            userId: msg.userId,
-            user: msg.user,
-            guestEmail: msg.guestEmail,
-            guestName: msg.guestName,
-            lastMessage: msg
-          });
-        }
+        const key = msg.userId ? `user:${msg.userId}` : `guest:${msg.guestEmail?.toLowerCase()}`;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+
+        // Nom d'affichage propre du client (priorité nom complet du compte)
+        const clientFullName = msg.user?.name?.trim()
+          || `${msg.user?.firstName || ''} ${msg.user?.lastName || ''}`.trim()
+          || msg.guestName?.trim()
+          || msg.user?.email
+          || msg.guestEmail
+          || 'Client';
+
+        conversations.push({
+          convKey: key,
+          userId: msg.userId,
+          user: msg.user ? {
+            ...msg.user,
+            displayName: clientFullName
+          } : null,
+          displayName: clientFullName,
+          guestEmail: msg.guestEmail,
+          guestName: msg.guestName,
+          lastMessage: msg
+        });
       }
 
       return NextResponse.json({ success: true, data: conversations });
     }
 
-    // ── CLIENT CONNECTÉ ────────────────────────────────────────────────────
+    // ── 2. VUE CLIENT CONNECTÉ ───────────────────────────────────────────────
     if (session && session.user) {
       const userId = (session.user as any).id;
-      // Résoudre si ID fictif
       const realUserId = HARDCODED_ADMIN_IDS[userId] || userId;
+      const userEmail = (session.user as any).email?.toLowerCase();
+
       const messages = await prisma.chatMessage.findMany({
-        where: { userId: realUserId },
+        where: {
+          OR: [
+            { userId: realUserId },
+            ...(userEmail ? [{ guestEmail: userEmail }] : [])
+          ]
+        },
         orderBy: { createdAt: 'asc' }
       });
       return NextResponse.json({ success: true, data: messages });
     }
 
-    // ── VISITEUR ANONYME (par guestEmail dans header ou param) ─────────────
+    // ── 3. VUE VISITEUR INVITÉ ───────────────────────────────────────────────
     const guestEmail = searchParams.get('guestEmail');
     if (guestEmail) {
       const messages = await prisma.chatMessage.findMany({
-        where: { guestEmail: guestEmail.toLowerCase() },
+        where: { guestEmail: guestEmail.toLowerCase().trim() },
         orderBy: { createdAt: 'asc' }
       });
       return NextResponse.json({ success: true, data: messages });
@@ -136,7 +176,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST ─────────────────────────────────────────────────────────────────────
+// ─── POST /api/chat ───────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -149,11 +189,11 @@ export async function POST(req: NextRequest) {
       content,
       reference,
       attachment,
-      // Pour envoi client authentifié ou admin
+      // Côté Admin pour cibler un client
       userId: targetUserId,
       guestEmail: targetGuestEmail,
       senderName: providedSenderName,
-      // Pour visiteurs anonymes
+      // Côté Invité
       guestName,
       guestEmail,
     } = body;
@@ -162,11 +202,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Le message est requis' }, { status: 400 });
     }
 
-    // ── CAS 1 : ADMIN répond à un client ──────────────────────────────────
+    // ── CAS 1 : ADMIN RÉPOND À UN CLIENT ─────────────────────────────────────
     if (sessionUser && isAdminRole(userRole)) {
-      const activeProfile = req.headers.get('X-Admin-Profile') || providedSenderName || 'Admin';
-      const rawSenderId = sessionUser.id;
-      const resolvedSenderId = resolveSenderId(rawSenderId);
+      const activeProfile = req.headers.get('X-Admin-Profile') || providedSenderName || 'Support AutoP';
+      const resolvedSenderId = resolveSenderId(sessionUser.id);
 
       let messageData: any = {
         senderId: resolvedSenderId,
@@ -180,13 +219,14 @@ export async function POST(req: NextRequest) {
       };
 
       if (targetUserId && !targetUserId.startsWith('guest:')) {
-        // Répondre à un client authentifié
-        messageData.userId = targetUserId;
+        const cleanUid = targetUserId.replace('user:', '');
+        messageData.userId = cleanUid;
+        // Lier aussi l'email pour synchronisation complète
+        const targetUser = await prisma.user.findUnique({ where: { id: cleanUid }, select: { email: true } });
+        if (targetUser?.email) messageData.guestEmail = targetUser.email.toLowerCase();
       } else if (targetGuestEmail || (targetUserId && targetUserId.startsWith('guest:'))) {
-        // Répondre à un visiteur anonyme
-        const email = targetGuestEmail || targetUserId!.replace('guest:', '');
+        const email = (targetGuestEmail || targetUserId!.replace('guest:', '')).toLowerCase().trim();
         messageData.guestEmail = email;
-        // Récupérer le guestName depuis les messages existants
         const prevMsg = await prisma.chatMessage.findFirst({ where: { guestEmail: email } });
         messageData.guestName = prevMsg?.guestName || null;
       } else {
@@ -197,22 +237,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, data: message });
     }
 
-    // ── CAS 2 : CLIENT CONNECTÉ envoie un message ─────────────────────────
-    if (session && session.user) {
+    // ── CAS 2 : CLIENT CONNECTÉ ENVOIE UN MESSAGE ────────────────────────────
+    if (session && session.user && !isAdminRole(userRole)) {
       const userId = (session.user as any).id;
       const realUserId = HARDCODED_ADMIN_IDS[userId] || userId;
-      const senderName = (session.user as any).name ||
-        `${(session.user as any).firstName || ''} ${(session.user as any).lastName || ''}`.trim() ||
-        (session.user as any).email || 'Client';
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: realUserId },
+        select: { id: true, name: true, firstName: true, lastName: true, email: true }
+      });
+
+      const clientDisplayName = dbUser?.name?.trim()
+        || `${dbUser?.firstName || ''} ${dbUser?.lastName || ''}`.trim()
+        || (session.user as any).name?.trim()
+        || (session.user as any).email
+        || 'Client';
+
+      const clientEmail = dbUser?.email?.toLowerCase() || (session.user as any).email?.toLowerCase() || null;
 
       const message = await prisma.chatMessage.create({
         data: {
           userId: realUserId,
           senderId: realUserId,
-          senderName,
+          senderName: clientDisplayName,
           isAdmin: false,
           content: content || '',
           reference: reference || null,
+          guestEmail: clientEmail,
+          guestName: clientDisplayName,
           attachmentData: attachment?.data || null,
           attachmentName: attachment?.name || null,
           attachmentType: attachment?.type || null,
@@ -221,18 +273,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, data: message });
     }
 
-    // ── CAS 3 : VISITEUR ANONYME (guestName + guestEmail fournis) ─────────
+    // ── CAS 3 : VISITEUR INVITÉ ENVOIE UN MESSAGE ────────────────────────────
     if (guestName && guestEmail) {
       const normalizedEmail = guestEmail.toLowerCase().trim();
       const message = await prisma.chatMessage.create({
         data: {
           userId: null,
           senderId: null,
-          senderName: guestName,
+          senderName: guestName.trim(),
           isAdmin: false,
           content: content || '',
           reference: reference || null,
-          guestName,
+          guestName: guestName.trim(),
           guestEmail: normalizedEmail,
           attachmentData: attachment?.data || null,
           attachmentName: attachment?.name || null,
@@ -244,7 +296,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: false,
-      error: 'Authentification requise ou nom/email invité manquant'
+      error: 'Veuillez vous connecter ou renseigner vos coordonnées pour envoyer un message'
     }, { status: 401 });
 
   } catch (error: any) {
