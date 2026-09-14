@@ -175,7 +175,7 @@ export default function DevisForm() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
-    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525", 55, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: saif.belhssin@gmail.com", 30, 290);
 
     doc.save(`Devis_AUTOP_${ref}.pdf`);
     return ref;
@@ -206,7 +206,7 @@ Photos jointes: ${formData.photos.length} fichier(s)
 
       const subject = encodeURIComponent("Demande de Devis - AUTOP");
       const body = encodeURIComponent(emailBody);
-      window.open(`mailto:saifbelhassine392@gmail.com?subject=${subject}&body=${body}`, "_blank");
+      window.open(`mailto:saif.belhssin@gmail.com?subject=${subject}&body=${body}`, "_blank");
       
       alert("✅ Votre client email s'est ouvert. Veuillez envoyer le message.");
     } catch {

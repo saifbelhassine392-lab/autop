@@ -73,10 +73,10 @@ export default function AccueilPage() {
                   <div>
                     <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">EMAIL</h4>
                     <a 
-                      href="mailto:comptoir.distribution@autop.tn" 
+                      href="mailto:saif.belhssin@gmail.com" 
                       className="text-sm font-semibold mt-1 text-red-400 hover:text-red-300 transition block lowercase"
                     >
-                      comptoir.distribution@autop.tn
+                      saif.belhssin@gmail.com
                     </a>
                   </div>
                 </div>

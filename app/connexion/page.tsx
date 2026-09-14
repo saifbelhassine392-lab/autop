@@ -61,8 +61,10 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo and Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex bg-slate-900/60 backdrop-blur-sm/60 border border-slate-800/80 rounded-3xl p-4 shadow-2xl backdrop-blur-md max-w-xs items-center justify-center mb-4">
-            <img src="/logo.png" alt="AUTOP Logo" className="max-h-16 w-auto object-contain" />
+          <div className="inline-flex items-center justify-center mb-4">
+            <Link href="/" className="text-3xl font-black tracking-widest text-white hover:text-red-500 transition">
+              AUTOP<span className="text-red-600">.TN</span>
+            </Link>
           </div>
           <h2 className="text-3xl font-black tracking-wider text-white">Connexion</h2>
           <p className="mt-2 text-sm text-slate-400 normal-case">

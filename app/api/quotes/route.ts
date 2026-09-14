@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
           <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
             <div style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #ffffff; padding: 20px 24px;">
               <h2 style="margin: 0; font-size: 22px; letter-spacing: 0.5px;">AUTOP TUNISIE</h2>
-              <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Comptoir de Distribution de Pièces de Rechange — Charguia 2</p>
+              <p style="margin: 4px 0 0 0; font-size: 13px; opacity: 0.95;">Vente en ligne de Pièces de Rechange</p>
               <div style="margin-top: 12px; display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 12px;">
                 RÉFÉRENCE : ${refFormatted}
               </div>

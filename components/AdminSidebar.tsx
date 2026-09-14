@@ -206,8 +206,10 @@ export default function AdminSidebar({ isOpen = false, onClose }: { isOpen?: boo
         
         {/* Logo Header */}
         <div className="flex flex-col items-center justify-center pt-5 pb-4 px-4 border-b border-slate-800/80 bg-[#0e1117]">
-          <div className="w-36 h-12 relative mb-2">
-            <Image src="/logo.png" alt="AUTOP Logo" fill style={{ objectFit: 'contain' }} priority />
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl font-black tracking-widest text-white">
+              AUTOP<span className="text-red-600">.TN</span>
+            </span>
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-[10px] font-black text-slate-300 uppercase tracking-widest border border-slate-700/80 shadow-inner">
             <ShieldCheck className="w-3.5 h-3.5 text-red-500" />

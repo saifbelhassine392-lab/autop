@@ -14,7 +14,7 @@ interface EmailOptions {
   }[];
 }
 
-export const ADMIN_NOTIFICATION_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'saifbelhassine392@gmail.com';
+export const ADMIN_NOTIFICATION_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL || 'saif.belhssin@gmail.com';
 
 export async function sendEmail({ to, subject, html, from, attachments }: EmailOptions) {
   // Nettoyage et validation stricte des pièces jointes

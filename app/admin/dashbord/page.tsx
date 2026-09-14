@@ -157,8 +157,10 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="w-24 h-24 relative mx-auto mb-6">
-            <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
+          <div className="mb-6 flex justify-center">
+            <span className="text-3xl font-black tracking-widest text-zinc-950">
+              AUTOP<span className="text-red-600">.TN</span>
+            </span>
           </div>
           <h2 className="text-2xl font-black text-zinc-950 uppercase tracking-widest mb-2">ACCÈS RÉSERVÉ</h2>
           <p className="text-slate-400 uppercase text-sm mb-6">CET ESPACE EST RÉSERVÉ AUX ADMINISTRATEURS AUTOP.</p>
@@ -179,8 +181,10 @@ export default function AdminDashboard() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:20px_20px] pointer-events-none" />
         
         <div className="relative z-10 max-w-md w-full text-center">
-          <div className="w-28 h-14 relative mx-auto mb-6">
-            <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} priority />
+          <div className="mb-6 flex justify-center">
+            <span className="text-3xl font-black tracking-widest text-zinc-950">
+              AUTOP<span className="text-red-600">.TN</span>
+            </span>
           </div>
 
           {authState === 'selection' && (
@@ -324,9 +328,9 @@ export default function AdminDashboard() {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <div className="w-9 h-7 relative hidden md:block">
-              <Image src="/logo.png" alt="AUTOP" fill style={{ objectFit: 'contain' }} />
-            </div>
+            <span className="text-lg font-black tracking-widest text-white hidden md:inline-block">
+              AUTOP<span className="text-red-600">.TN</span>
+            </span>
             <span className="text-white font-black uppercase tracking-widest text-[10px] md:text-sm">CONSOLE ADMIN</span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">

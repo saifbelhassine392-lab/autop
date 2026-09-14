@@ -152,7 +152,7 @@ export default function DevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: saif.belhssin@gmail.com", 30, 290);
 
     const dataUri = doc.output('datauristring');
     return dataUri.split(',')[1];
@@ -250,7 +250,7 @@ export default function DevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: saif.belhssin@gmail.com", 30, 290);
 
     doc.save(`Demande_Devis_AUTOP_${ref}.pdf`);
   };
@@ -527,7 +527,7 @@ ${itemsSummary}
           </div>
           <h2 className="text-2xl font-black text-white mb-2">DEMANDE CONFIRMÉE !</h2>
           <p className="text-xs sm:text-sm text-slate-400 mb-6">
-            Votre demande a été enregistrée et transmise par e-mail en direct à l'administrateur (<strong className="text-white">saifbelhassine392@gmail.com</strong>).
+            Votre demande a été enregistrée et transmise par e-mail en direct à l'administrateur (<strong className="text-white">saif.belhssin@gmail.com</strong>).
           </p>
 
           {/* Récapitulatif Visuel des Pièces Demandées */}
@@ -588,7 +588,7 @@ ${itemsSummary}
             </button>
 
             <a
-              href={`mailto:saifbelhassine392@gmail.com?subject=${encodeURIComponent(`Demande de Devis ${refDisplay} - ${clientName}`)}&body=${encodeURIComponent(
+              href={`mailto:saif.belhssin@gmail.com?subject=${encodeURIComponent(`Demande de Devis ${refDisplay} - ${clientName}`)}&body=${encodeURIComponent(
                 `Bonjour,\n\nVoici le détail de ma demande de devis (${refDisplay}) :\n\nClient: ${clientName} (${clientEmail})\nVéhicule: ${brand} ${model}\nVIN: ${vin || 'N/A'}\n\nPièces demandées :\n${summaryItems.map((it, idx) => `${idx + 1}. ${it.reference || 'N/A'} - ${it.designation} (x${it.quantity})`).join('\n')}\n\nMerci d'avance.`
               )}`}
               className="w-full flex items-center justify-center gap-2.5 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold uppercase tracking-wider rounded-xl text-xs transition-all border border-slate-700"
