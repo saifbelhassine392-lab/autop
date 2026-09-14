@@ -175,7 +175,7 @@ export default function DevisForm() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
-    doc.text("AUTOP - Pieces Auto Charguia 2 - Tunis | Tel: +216 98 774 525", 55, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525", 55, 290);
 
     doc.save(`Devis_AUTOP_${ref}.pdf`);
     return ref;
@@ -222,7 +222,7 @@ Photos jointes: ${formData.photos.length} fichier(s)
       return;
     }
 
-    const phoneNumber = "21698774525";
+    const phoneNumber = "21695576525";
     const message = `
 🚗 *Nouvelle demande de devis AUTOP*
 

@@ -152,7 +152,7 @@ export default function DevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Pieces Auto Charguia 2 - Tunis | Tel: +216 98 774 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
 
     const dataUri = doc.output('datauristring');
     return dataUri.split(',')[1];
@@ -250,7 +250,7 @@ export default function DevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Pieces Auto Charguia 2 - Tunis | Tel: +216 98 774 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
 
     doc.save(`Demande_Devis_AUTOP_${ref}.pdf`);
   };
@@ -580,19 +580,11 @@ ${itemsSummary}
             </button>
 
             <button
-              onClick={() => handleWhatsAppShare('98774525', submittedQuoteId)}
-              className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Transmettre les pièces par WhatsApp (Comptoir 98 774 525)
-            </button>
-
-            <button
               onClick={() => handleWhatsAppShare('95576525', submittedQuoteId)}
               className="w-full flex items-center justify-center gap-2.5 px-6 py-3.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-black uppercase tracking-wider rounded-xl text-xs transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99]"
             >
               <MessageCircle className="w-4 h-4" />
-              Transmettre les pièces par WhatsApp (Comptoir 95 576 525)
+              Transmettre les pièces par WhatsApp (95 576 525)
             </button>
 
             <a

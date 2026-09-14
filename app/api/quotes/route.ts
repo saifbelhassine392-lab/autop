@@ -174,13 +174,13 @@ export async function POST(req: NextRequest) {
 
               <div style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; line-height: 1.6;">
                 Notre équipe commerciale traite votre demande en temps réel.<br/>
-                Pour toute question urgente, contactez notre comptoir :<br/>
-                📞 <strong>+216 98 774 525</strong> / <strong>+216 95 576 525</strong>
+                Pour toute question urgente, contactez notre service client :<br/>
+                📞 <strong>+216 95 576 525</strong>
               </div>
             </div>
 
             <div style="background: #0f172a; color: #94a3b8; padding: 14px; text-align: center; font-size: 11px;">
-              AUTOP Tunisie · Pièces de rechange neuves & certifiées · Charguia 2, Tunis
+              AUTOP Tunisie · Vente en ligne de pièces de rechange neuves & certifiées · Livraison dans toute la Tunisie
             </div>
           </div>
         `,

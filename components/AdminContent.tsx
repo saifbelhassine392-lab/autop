@@ -215,7 +215,7 @@ function SectionReception({ onTreatQuote }: SectionReceptionProps) {
                 </button>
               )}
               <a 
-                href={`https://wa.me/${q.phone || '21698774525'}`}
+                href={`https://wa.me/${q.phone || '21695576525'}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600/15 hover:bg-emerald-600 text-emerald-400 hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all border border-emerald-500/30"

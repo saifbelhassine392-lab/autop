@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Mail, Phone, MapPin, ShieldCheck, Truck, Zap, Award, Settings, CarFront } from 'lucide-react'
+import { Mail, Phone, Globe, ShieldCheck, Truck, Zap, Award, CheckCircle2, Clock } from 'lucide-react'
 import { HomeSlider } from '@/components/HomeSlider'
 
 export default function AccueilPage() {
@@ -15,7 +15,7 @@ export default function AccueilPage() {
           {[
             { icon: ShieldCheck, title: "Qualité OEM", desc: "Pièces neuves d'origine certifiées et de qualité première monte." },
             { icon: Truck, title: "Livraison rapide", desc: "Service de livraison réactif sur toute la Tunisie." },
-            { icon: Zap, title: "Stock immédiat", desc: "Grand inventaire disponible immédiatement dans notre comptoir." },
+            { icon: Zap, title: "Stock immédiat", desc: "Grand inventaire disponible immédiatement pour commande en ligne." },
             { icon: Award, title: "Multimarques", desc: "Pièces pour toutes les marques européennes et asiatiques." }
           ].map((feat, idx) => (
             <div key={idx} className="tilt-card-3d bg-slate-900/30 border border-slate-800/80 rounded-3xl p-6 backdrop-blur-lg hover:bg-slate-900/50 shadow-xl flex flex-col items-start">
@@ -35,33 +35,32 @@ export default function AccueilPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-2xl md:text-3xl font-black mb-4 tracking-wider">NOTRE COMPTOIR DE DISTRIBUTION</h2>
+              <h2 className="text-2xl md:text-3xl font-black mb-4 tracking-wider">VENTE DE PIÈCES AUTO EN LIGNE</h2>
               <p className="text-xs text-slate-500 uppercase tracking-widest font-black mb-8">
-                COMPTOIR DE DISTRIBUTION DE PIÈCES DE RECHANGE — TUNIS
+                COMMANDE EN LIGNE & LIVRAISON PARTOUT EN TUNISIE
               </p>
 
               <div className="space-y-6">
-                {/* Adresse */}
+                {/* Vente en ligne */}
                 <div className="flex gap-4 items-start">
                   <div className="w-10 h-10 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-red-500 shrink-0 shadow-inner">
-                    <MapPin className="w-5 h-5" />
+                    <Globe className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">ADRESSE</h4>
-                    <p className="text-sm font-semibold mt-1 normal-case text-slate-350">19 RUE DE L'USINE, Z.I. ARIANA AÉROPORT, 1080 TUNIS CEDEX, TUNISIE (CHARGUIA 2)</p>
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">VENTE EN LIGNE</h4>
+                    <p className="text-sm font-semibold mt-1 normal-case text-slate-300">Plateforme 100% en ligne — Livraison rapide et sécurisée dans toute la Tunisie</p>
                   </div>
                 </div>
 
-                {/* Téléphones */}
+                {/* Téléphone */}
                 <div className="flex gap-4 items-start">
                   <div className="w-10 h-10 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-red-500 shrink-0 shadow-inner">
                     <Phone className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">TÉLÉPHONES</h4>
+                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">TÉLÉPHONE</h4>
                     <p className="text-sm font-semibold mt-1">
-                      <span className="font-mono text-slate-300">+216 98 774 525</span>{" — "}
-                      <span className="font-mono text-slate-300">+216 98 171 411</span>
+                      <a href="tel:+21695576525" className="font-mono text-slate-300 hover:text-red-400 transition">+216 95 576 525</a>
                     </p>
                   </div>
                 </div>
@@ -81,70 +80,48 @@ export default function AccueilPage() {
                     </a>
                   </div>
                 </div>
-
-                {/* Facebook */}
-                <div className="flex gap-4 items-start">
-                  <div className="w-10 h-10 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-center text-red-500 shrink-0 shadow-inner">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">FACEBOOK</h4>
-                    <a 
-                      href="https://www.facebook.com/autoppieceauto" 
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-semibold mt-1 text-red-400 hover:text-red-300 transition block lowercase"
-                    >
-                      www.facebook.com/autoppieceauto
-                    </a>
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* Social preview mockup */}
-            <div className="border border-slate-800 bg-slate-950/80 rounded-3xl p-6 shadow-2xl relative">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-900 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full border border-slate-800 overflow-hidden bg-slate-900 p-1 flex items-center justify-center">
-                    <img src="/logo.png" alt="AUTOP Logo" className="object-contain w-full h-full" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-black">AUTOP PIECE AUTO</h3>
-                    <p className="text-[9px] text-slate-500 font-mono">2,2 K FOLLOWERS</p>
-                  </div>
+            {/* Online Service Card */}
+            <div className="border border-slate-800 bg-slate-950/80 rounded-3xl p-6 md:p-8 shadow-2xl relative space-y-5">
+              <div className="flex items-center gap-3 border-b border-slate-900 pb-4">
+                <div className="w-10 h-10 rounded-xl border border-slate-800 bg-red-600/10 flex items-center justify-center text-red-500">
+                  <Truck className="w-5 h-5" />
                 </div>
-                <a 
-                  href="https://www.facebook.com/autoppieceauto" 
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-[10px] font-black rounded-lg transition uppercase tracking-wider text-white"
-                >
-                  Visiter la page
-                </a>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider">COMMANDES & EXPÉDITIONS</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">SERVICE CLIENT RÉACTIF 7J/7</p>
+                </div>
               </div>
-              
-              <p className="text-xs text-slate-350 leading-relaxed mb-4 normal-case">
-                Suivez-nous sur notre page Facebook pour découvrir nos nouvelles arrivées, offres promo et actualités du comptoir de pièces de rechange AUTOP !
-              </p>
 
-              <a 
-                href="https://www.facebook.com/autoppieceauto"
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="block rounded-2xl overflow-hidden border border-slate-800/80 group"
-              >
-                <div className="h-40 bg-slate-900 relative flex items-center justify-center">
-                  <div className="absolute inset-0 bg-cover bg-center filter brightness-[0.7] group-hover:scale-105 transition-transform duration-500" style={{ backgroundImage: "url('/logo.png')" }} />
-                  <div className="w-12 h-12 bg-blue-600/90 rounded-full flex items-center justify-center text-white relative z-10 shadow-lg group-hover:scale-110 transition-transform">
-                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-                    </svg>
-                  </div>
+              <div className="space-y-3.5">
+                <div className="flex items-center gap-3 text-xs text-slate-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Livraison express à domicile ou garage sous <strong>24h à 48h</strong>.</span>
                 </div>
-              </a>
+                <div className="flex items-center gap-3 text-xs text-slate-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Paiement à la livraison après vérification de votre colis.</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-300">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>Pièces certifiées d'origine avec garantie fabricant.</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-300">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Traitement immédiat de vos demandes de devis et commandes.</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Link
+                  href="/devis"
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-red-600/20 active:scale-[0.98]"
+                >
+                  Demander un devis en ligne
+                </Link>
+              </div>
             </div>
           </div>
         </div>

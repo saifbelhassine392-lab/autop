@@ -435,7 +435,7 @@ export default function MesDevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Pieces Auto Charguia 2 - Tunis | Tel: +216 98 774 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
 
     if (shouldOpen) {
       const blobUrl = doc.output('bloburl');
@@ -556,7 +556,7 @@ export default function MesDevisPage() {
     doc.rect(0, 280, 210, 17, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
-    doc.text("AUTOP - Pieces Auto Charguia 2 - Tunis | Tel: +216 98 774 525 | Email: comptoir.distribution@autop.tn", 30, 290);
+    doc.text("AUTOP - Vente en ligne Pieces Auto | Tel: +216 95 576 525 | Email: comptoir.distribution@autop.tn", 30, 290);
 
     const blobUrl = doc.output('bloburl');
     window.open(blobUrl, '_blank');
@@ -625,7 +625,7 @@ export default function MesDevisPage() {
 📎 _Le bon de commande au format ${orderFormat.toUpperCase()} a été généré et transmis à notre équipe comptoir._`;
 
       // Ouvrir WhatsApp
-      window.open(`https://wa.me/21698774525?text=${encodeURIComponent(text)}`, "_blank");
+      window.open(`https://wa.me/21695576525?text=${encodeURIComponent(text)}`, "_blank");
 
       // Reset
       setOrderModalDevis(null);
