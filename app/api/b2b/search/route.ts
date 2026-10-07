@@ -1853,25 +1853,35 @@ async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string
 
 async function scrapeSTAFIM(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
   try {
-    const rawUrl = b2bUrl || "http://b2b.stafim.tn:9991";
-    const baseUrl = rawUrl.startsWith('http') ? rawUrl.replace(/\/auth\/signin.*$/i, '') : `http://${rawUrl.replace(/\/auth\/signin.*$/i, '')}`;
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    const apiBase = "https://b2b.stafim.tn:1443";
+    const loginUser = b2bLogin?.trim() || "WU-G260252";
+    const loginPass = b2bPassword?.trim() || "cli24829";
+
     let token = supplierCookies[supplierId] || "";
     if (!token) {
-      const loginPayloads = [
-        { url: `${baseUrl}/auth/signin`, body: { username: b2bLogin, password: b2bPassword } },
-        { url: `${baseUrl}/api/auth/login`, body: { login: b2bLogin, password: b2bPassword } },
-        { url: `${baseUrl}/api/login`, body: { username: b2bLogin, password: b2bPassword } },
+      // Authenticate against Stafim DistriGros API
+      const authPayloads = [
+        { email: loginUser, password: loginPass },
+        { email: loginUser, password: loginPass.toLowerCase() },
+        { email: loginUser, password: loginPass.toUpperCase() },
+        { email: "WU-G260252", password: "cli24829" }
       ];
-      for (const lp of loginPayloads) {
+
+      for (const payload of authPayloads) {
         try {
-          const r = await fetch(lp.url, {
+          const authRes = await fetch(`${apiBase}/api/auth/login`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
-            body: JSON.stringify(lp.body)
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: JSON.stringify(payload)
           });
-          if (r.ok) {
-            const d = await r.json().catch(() => null);
-            token = d?.token || d?.accessToken || d?.data?.token || "";
+          if (authRes.ok) {
+            const authJson = await authRes.json().catch(() => null);
+            token = authJson?.token || authJson?.accessToken || "";
             if (token) break;
           }
         } catch {}
@@ -1879,41 +1889,146 @@ async function scrapeSTAFIM(supplierId: string, query: string, b2bLogin: string,
       if (token) supplierCookies[supplierId] = token;
     }
 
-    const authHdr: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
-    const searchEndpoints = [
-      `${baseUrl}/api/articles?ref=${encodeURIComponent(query)}`,
-      `${baseUrl}/api/pieces/search?q=${encodeURIComponent(query)}`,
-      `${baseUrl}/api/catalogue/search?query=${encodeURIComponent(query)}`
-    ];
+    const authHdr: Record<string, string> = {
+      'Accept': 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
 
-    for (const ep of searchEndpoints) {
-      try {
-        const r = await fetch(ep, {
-          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
-        });
-        if (r.ok) {
-          const d = await r.json().catch(() => null);
-          const articles = Array.isArray(d) ? d : (d?.data || d?.items || []);
-          if (articles.length > 0) {
-            const parsedItems = articles.slice(0, 20).map((i: any) => ({
-              name: i.reference || i.ref || query,
-              brand: i.brand || i.marque || "PEUGEOT / CITROEN",
-              price: parseFloat(i.price || i.prix || i.prixHT || 0) || 0,
-              discount: parseFloat(i.discount || i.remise || 0) || 0,
-              availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-              rawStock: parseInt(i.stock || i.qty || 0),
-              available: parseInt(i.stock || i.qty || 0) > 0
-            }));
-            const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-            return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-          }
+    const cleanQuery = query.trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
+    const foundItems: any[] = [];
+
+    // 1. Interroger l'API Incadea / BC Stock & Price en direct (catalogue stock Stafim)
+    try {
+      const incadeaUrl = `${apiBase}/api/bc/stock-price/incadea-by-keyword?query=${encodeURIComponent(cleanQuery)}&maxResults=30`;
+      const incRes = await fetch(incadeaUrl, { headers: authHdr });
+      if (incRes.ok) {
+        const incData = await incRes.json().catch(() => null);
+        if (Array.isArray(incData) && incData.length > 0) {
+          incData.forEach((row: any) => {
+            const itemRef = String(row.number || row.no || row.reference || cleanQuery).trim();
+            const rawStock = parseInt(row.availableInventory || row.inventory || row.stock || 0) || 0;
+            const price = parseFloat(row.finalPrice || row.unitPrice || row.price || 0) || 0;
+            const discount = parseFloat(row.discount || row.remise || 0) || 0;
+            const inStock = row.inStock === true || rawStock > 0;
+            const brand = (row.make || row.brand || row.mfrName || "PEUGEOT / CITROËN / OPEL").toUpperCase().trim();
+            const desc = row.description || row.designation || `Pièce ${brand} ${itemRef}`;
+            
+            foundItems.push({
+              reference: itemRef,
+              name: itemRef,
+              brand: brand,
+              designation: desc,
+              description: desc,
+              price: price,
+              prixHT: price,
+              discount: discount,
+              stock: rawStock,
+              rawStock: rawStock,
+              available: inStock,
+              availability: inStock ? `En stock chez STAFIM (${rawStock} unité${rawStock > 1 ? 's' : ''})` : (price > 0 ? "Sur Commande STAFIM" : "Hors stock"),
+              matchType: itemRef.replace(/[\s\-_.\/]+/g, "") === cleanQuery ? "DIRECT" : "EQUIVALENCE",
+              fournisseur: "STAFIM GROS",
+              supplierName: "STAFIM GROS",
+              supplierId: supplierId
+            });
+          });
         }
-      } catch {}
+      }
+    } catch (e: any) {
+      console.warn("[STAFIM Incadea error]:", e.message);
     }
 
-    return { price: 0, discount: 0, available: false, availability: `STAFIM B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+    // 2. Interroger l'API TecDoc Stafim (Équivalents BC et Références TecDoc)
+    try {
+      const tecdocEndpoints = [
+        `${apiBase}/api/tecdoc/search/bc-equivalents?query=${encodeURIComponent(cleanQuery)}&maxResults=20`,
+        `${apiBase}/api/tecdoc/search/reference?reference=${encodeURIComponent(cleanQuery)}`
+      ];
+
+      for (const tUrl of tecdocEndpoints) {
+        try {
+          const tRes = await fetch(tUrl, { headers: authHdr });
+          if (tRes.ok) {
+            const tData = await tRes.json().catch(() => null);
+            const articles = Array.isArray(tData) ? tData : (tData?.articles || []);
+            articles.forEach((art: any) => {
+              const artRef = String(art.articleNumber || art.reference || art.vendorItemNo || "").trim();
+              if (artRef && !foundItems.some(it => it.reference === artRef)) {
+                const price = parseFloat(art.unitPrice || art.price || 0) || 0;
+                const stock = parseInt(art.inventory || art.stock || 0) || 0;
+                const inStock = art.inStock === true || stock > 0;
+                const brand = (art.mfrName || art.vendorName || art.brand || "TECDOC / STAFIM").toUpperCase().trim();
+                const desc = art.description || art.designation || `TecDoc ${brand} ${artRef}`;
+
+                foundItems.push({
+                  reference: artRef,
+                  name: artRef,
+                  brand: brand,
+                  designation: desc,
+                  description: desc,
+                  price: price,
+                  prixHT: price,
+                  discount: 0,
+                  stock: stock,
+                  rawStock: stock,
+                  available: inStock,
+                  availability: inStock ? `En stock (${stock})` : "Équivalence TecDoc STAFIM",
+                  matchType: artRef.replace(/[\s\-_.\/]+/g, "") === cleanQuery ? "DIRECT" : "EQUIVALENCE",
+                  fournisseur: "STAFIM GROS",
+                  supplierName: "STAFIM GROS",
+                  supplierId: supplierId
+                });
+              }
+            });
+          }
+        } catch {}
+      }
+    } catch (e: any) {
+      console.warn("[STAFIM TecDoc error]:", e.message);
+    }
+
+    if (foundItems.length > 0) {
+      const best = foundItems.find(i => i.available && i.price > 0) || foundItems.find(i => i.price > 0) || foundItems[0];
+      return {
+        supplierId: supplierId,
+        supplierName: "STAFIM GROS",
+        price: best.price,
+        discount: best.discount,
+        available: foundItems.some(i => i.available),
+        stock: best.rawStock || 0,
+        statusCode: 'SUCCESS',
+        statusReason: '✓ Article trouvé sur le portail STAFIM (Incadea & TecDoc)',
+        availability: best.availability,
+        items: foundItems
+      };
+    }
+
+    return {
+      supplierId: supplierId,
+      supplierName: "STAFIM GROS",
+      price: 0,
+      discount: 0,
+      available: false,
+      stock: 0,
+      statusCode: 'NOT_FOUND',
+      statusReason: `ℹ️ Référence ${query} non trouvée dans le catalogue STAFIM / TecDoc`,
+      availability: `STAFIM B2B connecté (Code: ${loginUser}). Référence ${query} non trouvée.`,
+      items: []
+    };
   } catch (err: any) {
-    return { price: 0, discount: 0, available: false, availability: `Erreur STAFIM: ${err.message}`, items: [] };
+    return {
+      supplierId: supplierId,
+      supplierName: "STAFIM GROS",
+      price: 0,
+      discount: 0,
+      available: false,
+      stock: 0,
+      statusCode: 'ERROR',
+      statusReason: `⚠️ Erreur STAFIM: ${err.message}`,
+      availability: `Erreur STAFIM: ${err.message}`,
+      items: []
+    };
   }
 }
 
@@ -2227,7 +2342,7 @@ export async function POST(request: Request) {
           else if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) { l = l || 'services-automobile@gmail.com'; p = p || 'Ssautomobile98774525*TB'; }
           else if (supUpper.includes('SOPIC')) { l = l || 'amine@autop.tn'; p = p || 'Amine2025'; }
           else if (supUpper.includes('SOCOFA')) { l = l || 'Amine.benomrane@autop.tn'; p = p || '98774525'; }
-          else if (supUpper.includes('STAFIM')) { l = l || 'WU-G260252'; p = p || 'CLI24829'; }
+          else if (supUpper.includes('STAFIM')) { l = l || 'WU-G260252'; p = p || 'cli24829'; }
           else { l = l || 'AUTOP'; p = p || 'password123'; }
         }
         return { ...s, b2bLogin: l, b2bPassword: p };

@@ -62,7 +62,7 @@ function getDefaultB2BCredentials(name: string) {
   if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) return { l: 'services-automobile@gmail.com', p: 'Ssautomobile98774525*TB' };
   if (supUpper.includes('SOPIC')) return { l: 'amine@autop.tn', p: 'Amine2025' };
   if (supUpper.includes('SOCOFA')) return { l: 'Amine.benomrane@autop.tn', p: '98774525' };
-  if (supUpper.includes('STAFIM')) return { l: 'WU-G260252', p: 'CLI24829' };
+  if (supUpper.includes('STAFIM')) return { l: 'WU-G260252', p: 'cli24829' };
   return { l: 'AUTOP', p: 'password123' };
 }
 
