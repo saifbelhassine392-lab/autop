@@ -78,7 +78,15 @@ export async function GET(req: NextRequest) {
       return { ...s, b2bLogin, b2bPassword };
     });
 
-    return NextResponse.json({ success: true, data: enriched });
+    return NextResponse.json(
+      { success: true, count: enriched.length, data: enriched },
+      { 
+        headers: {
+          'Cache-Control': 'no-store, no-cache, max-age=0, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      }
+    );
   } catch (err) {
     console.error('Suppliers GET error:', err);
     return NextResponse.json({ success: false, error: 'Erreur récupération fournisseurs' }, { status: 500 });

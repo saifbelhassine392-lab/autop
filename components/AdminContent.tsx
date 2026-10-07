@@ -1465,10 +1465,23 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 
 // ─── SECTION: AJOUTER FOURNISSEUR ────────────────────────────────────────────
 function SectionAjouterFournisseur() {
+  const { setAdminSection } = useApp();
   const [form, setForm] = useState({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
   const [error, setError] = useState('');
+  const [recentSuppliers, setRecentSuppliers] = useState<any[]>([]);
+
+  const loadRecent = () => {
+    fetch('/api/suppliers', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setRecentSuppliers(d.data || []))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadRecent();
+  }, []);
 
   const handleSubmit = async () => {
     if (!form.name || !form.name.trim()) { setError('LE NOM DU FOURNISSEUR EST REQUIS'); return; }
@@ -1483,10 +1496,11 @@ function SectionAjouterFournisseur() {
       if (res.ok && (d.success || d.data)) {
         setSavedMessage(d.message || 'FOURNISSEUR ET ACCÈS B2B ENREGISTRÉS AVEC SUCCÈS !');
         setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
+        loadRecent();
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
         }
-        setTimeout(() => setSavedMessage(''), 4000);
+        setTimeout(() => setSavedMessage(''), 5000);
       } else {
         setError(d.error || 'ERREUR LORS DE LA CRÉATION');
       }
@@ -1496,11 +1510,21 @@ function SectionAjouterFournisseur() {
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-        <UserPlus className="w-5 h-5 text-green-400" /> AJOUTER / CONFIGURER FOURNISSEUR
-      </h2>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">ENREGISTREZ UN NOUVEAU FOURNISSEUR OU METTEZ À JOUR SES ACCÈS B2B</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 mb-1 flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-red-500" /> AJOUTER / CONFIGURER FOURNISSEUR
+          </h2>
+          <p className="text-slate-400 text-xs uppercase tracking-wider">ENREGISTREZ UN NOUVEAU FOURNISSEUR OU METTEZ À JOUR SES ACCÈS B2B</p>
+        </div>
+        <button
+          onClick={() => setAdminSection('liste-fournisseurs')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition"
+        >
+          <List className="w-4 h-4 text-slate-400" /> VOIR TOUS LES FOURNISSEURS ({recentSuppliers.length})
+        </button>
+      </div>
 
       <div className={cardCls}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1517,17 +1541,19 @@ function SectionAjouterFournisseur() {
               <input type={f.type} placeholder={f.placeholder}
                 value={(form as any)[f.key]}
                 onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                className={f.key === 'email' ? "w-full bg-white text-zinc-900 font-semibold border border-zinc-200 text-sm px-3 h-10 rounded-lg border border-zinc-200 focus:outline-none focus:border-green-500" : inputCls.replace('focus:border-zinc-300', 'focus:border-green-500')} />
+                className={inputCls} />
             </div>
           ))}
         </div>
 
-        <div className="mt-6 border-t border-zinc-200 pt-6">
-          <h3 className="text-sm font-black text-cyan-400 uppercase tracking-widest mb-4">ACCÈS B2B (MÉMO ET ROBOT)</h3>
+        <div className="mt-6 border-t border-slate-800 pt-6">
+          <h3 className="text-xs font-black text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span>🌐 ACCÈS B2B (MÉMO ET ROBOT MULTI-FOURNISSEURS)</span>
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
               { label: 'LIEN DU SITE B2B', key: 'b2bUrl', type: 'text', placeholder: 'https://...' },
-              { label: 'LOGIN / UTILISATEUR', key: 'b2bLogin', type: 'text', placeholder: 'Identifiant B2B' },
+              { label: 'LOGIN / IDENTIFIANT B2B', key: 'b2bLogin', type: 'text', placeholder: 'Identifiant B2B' },
               { label: 'MOT DE PASSE B2B', key: 'b2bPassword', type: 'text', placeholder: 'Mot de passe B2B' },
             ].map(f => (
               <div key={f.key}>
@@ -1535,31 +1561,45 @@ function SectionAjouterFournisseur() {
                 <input type={f.type} placeholder={f.placeholder}
                   value={(form as any)[f.key]}
                   onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className="w-full bg-white text-zinc-950 font-semibold text-sm px-3 h-10 rounded-lg border border-zinc-200 focus:outline-none focus:border-cyan-500 placeholder:text-zinc-600" />
+                  className={inputCls} />
               </div>
             ))}
           </div>
         </div>
 
         {error && (
-          <div className="mt-4 flex items-center gap-2 text-red-400 text-xs font-black uppercase">
-            <AlertTriangle className="w-4 h-4" /> {error}
+          <div className="mt-4 flex items-center gap-2 text-red-400 text-xs font-black uppercase bg-red-950/40 border border-red-800/60 p-3 rounded-xl">
+            <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
           </div>
         )}
         {savedMessage && (
-          <div className="mt-4 flex items-center gap-2 text-green-400 text-xs font-black uppercase">
-            <CheckCircle className="w-4 h-4" /> {savedMessage}
+          <div className="mt-4 flex items-center justify-between gap-2 text-emerald-400 text-xs font-black uppercase bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-xl">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 shrink-0" /> {savedMessage}
+            </div>
+            <button
+              onClick={() => setAdminSection('liste-fournisseurs')}
+              className="underline hover:text-emerald-300 font-bold ml-2 lowercase first-letter:uppercase"
+            >
+              Afficher dans la liste &rarr;
+            </button>
           </div>
         )}
 
-        <div className="mt-5 flex gap-2">
+        <div className="mt-6 flex flex-wrap gap-2">
           <button onClick={() => { setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' }); setError(''); setSavedMessage(''); }}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-zinc-50 hover:bg-slate-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase border border-zinc-200 transition">
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase border border-slate-700 transition">
             <X className="w-3.5 h-3.5" /> RÉINITIALISER
           </button>
           <button onClick={handleSubmit} disabled={saving}
-            className="flex items-center gap-1.5 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[11px] font-black uppercase transition disabled:opacity-50">
+            className="flex items-center gap-1.5 px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase transition disabled:opacity-50 shadow-lg shadow-red-600/30">
             <Save className="w-3.5 h-3.5" /> {saving ? 'ENREGISTREMENT...' : 'ENREGISTRER FOURNISSEUR'}
+          </button>
+          <button
+            onClick={() => setAdminSection('liste-fournisseurs')}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-black uppercase transition ml-auto"
+          >
+            <List className="w-3.5 h-3.5" /> LISTE COMPLÈTE ({recentSuppliers.length})
           </button>
         </div>
       </div>
@@ -1569,16 +1609,25 @@ function SectionAjouterFournisseur() {
 
 // ─── SECTION: LISTE FOURNISSEURS ─────────────────────────────────────────────
 function SectionListeFournisseurs() {
+  const { setAdminSection } = useApp();
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  const fetchSuppliers = () => {
-    fetch('/api/suppliers').then(r => r.json()).then(d => {
-      setSuppliers(d.data || []);
-    }).finally(() => setLoading(false));
+  const fetchSuppliers = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/suppliers?t=${Date.now()}`, { cache: 'no-store' });
+      const d = await res.json();
+      const list = Array.isArray(d) ? d : (d.data || []);
+      setSuppliers(list);
+    } catch (e) {
+      console.error("Error fetching suppliers:", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -1588,10 +1637,19 @@ function SectionListeFournisseurs() {
     return () => window.removeEventListener('autop_suppliers_updated', handleSuppliersUpdated);
   }, []);
 
-  const filtered = suppliers.filter(s =>
-    s.name?.toLowerCase().includes(search.toLowerCase()) ||
-    s.city?.toLowerCase().includes(search.toLowerCase())
-  );
+  const q = search.toLowerCase().trim();
+  const filtered = suppliers.filter(s => {
+    if (!q) return true;
+    return (
+      (s.name && s.name.toLowerCase().includes(q)) ||
+      (s.city && s.city.toLowerCase().includes(q)) ||
+      (s.contactName && s.contactName.toLowerCase().includes(q)) ||
+      (s.phone && s.phone.toLowerCase().includes(q)) ||
+      (s.email && s.email.toLowerCase().includes(q)) ||
+      (s.b2bLogin && s.b2bLogin.toLowerCase().includes(q)) ||
+      (s.b2bUrl && s.b2bUrl.toLowerCase().includes(q))
+    );
+  });
 
   const handleDelete = async (id: string) => {
     if (!confirm('SUPPRIMER CE FOURNISSEUR ?')) return;
@@ -1603,52 +1661,140 @@ function SectionListeFournisseurs() {
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-        <List className="w-5 h-5 text-green-400" /> LISTE FOURNISSEURS
-      </h2>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">GÉREZ ET MODIFIEZ VOS FOURNISSEURS ENREGISTRÉS</p>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 mb-1 flex items-center gap-2">
+            <List className="w-5 h-5 text-red-500" /> LISTE FOURNISSEURS & ACCÈS B2B
+          </h2>
+          <p className="text-slate-400 text-xs uppercase tracking-wider">
+            {suppliers.length} FOURNISSEURS ENREGISTRÉS DANS LA BASE AUTOP
+          </p>
+        </div>
 
-      <div className="flex gap-2 mb-5">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchSuppliers}
+            disabled={loading}
+            title="Recharger la liste"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-red-400' : 'text-slate-400'}`} />
+            <span>ACTUALISER</span>
+          </button>
+          <button
+            onClick={() => setAdminSection('ajouter-fournisseur')}
+            className="flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition shadow-lg shadow-red-600/30"
+          >
+            <Plus className="w-4 h-4" /> AJOUTER FOURNISSEUR
+          </button>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-          <input type="text" placeholder="RECHERCHER UN FOURNISSEUR..."
-            value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="text"
+            placeholder="RECHERCHER PAR NOM, VILLE, CONTACT, LOGIN B2B..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 pl-10 pr-4 h-11 rounded-xl text-xs font-semibold text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition uppercase"
+          />
         </div>
       </div>
 
       {loading ? (
-        <div className="text-center py-10 text-zinc-600">CHARGEMENT...</div>
+        <div className="text-center py-16 text-slate-500 text-xs font-black uppercase tracking-widest flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+          CHARGEMENT DES FOURNISSEURS...
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-10 text-zinc-600">
-          <Building2 className="w-12 h-12 mx-auto mb-3 opacity-20" />
-          <p className="uppercase font-bold text-sm">AUCUN FOURNISSEUR ENREGISTRÉ</p>
-          <p className="text-xs text-zinc-600 mt-1 uppercase">UTILISEZ "AJOUTER FOURNISSEUR" DANS LE MENU GAUCHE</p>
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl text-center py-12 p-6">
+          <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-600" />
+          <p className="uppercase font-black text-sm text-slate-200">AUCUN FOURNISSEUR CORRESPONDANT</p>
+          <p className="text-xs text-slate-500 mt-1 uppercase">Vérifiez les termes de recherche ou ajoutez un nouveau fournisseur</p>
+          <button
+            onClick={() => setAdminSection('ajouter-fournisseur')}
+            className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider"
+          >
+            + AJOUTER UN FOURNISSEUR MAINTENANT
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map(s => (
-            <div key={s.id} className="bg-white border border-zinc-200 rounded-xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-600 to-emerald-500 flex items-center justify-center text-zinc-950 font-black text-sm">
-                  {s.name?.charAt(0).toUpperCase()}
+            <div key={s.id} className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition shadow-xl">
+              <div>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-red-600/30">
+                      {s.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-black text-slate-100 uppercase text-sm tracking-wide">{s.name}</h3>
+                      <p className="text-[11px] text-slate-400 font-semibold">{s.city || 'Tunisie'} {s.address && `· ${s.address}`}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${s.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
+                    {s.isActive ? 'ACTIF' : 'INACTIF'}
+                  </span>
                 </div>
-                <div>
-                  <p className="font-black text-zinc-950 uppercase text-sm">{s.name}</p>
-                  <p className="text-[10px] text-slate-405 uppercase">{s.contactName && `CONTACT: ${s.contactName} · `}{s.phone && `TÉL: ${s.phone}`}</p>
-                  <p className="text-[10px] text-zinc-600 uppercase">{s.city}</p>
+
+                {/* Contact details */}
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 mb-3">
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-500 block">RESPONSABLE</span>
+                    <span className="font-semibold">{s.contactName || 'Non spécifié'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black uppercase text-slate-500 block">TÉLÉPHONE</span>
+                    <span className="font-semibold text-slate-200">{s.phone || 'Non spécifié'}</span>
+                  </div>
+                  {s.email && (
+                    <div className="col-span-2 pt-1 border-t border-slate-800/50">
+                      <span className="text-[9px] font-black uppercase text-slate-500 block">EMAIL</span>
+                      <span className="font-semibold text-slate-300 lowercase">{s.email}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* B2B credentials memo & link */}
+                <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-[11px]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span className="text-slate-400 font-bold uppercase text-[10px]">B2B LOGIN:</span>
+                    <span className="font-mono font-bold text-slate-200">{s.b2bLogin || 'Auto / Default'}</span>
+                  </div>
+                  {s.b2bUrl && (
+                    <a
+                      href={s.b2bUrl.startsWith('http') ? s.b2bUrl : `https://${s.b2bUrl}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-red-400 hover:text-red-300 flex items-center gap-1 text-[10px] font-black uppercase transition"
+                    >
+                      <span>PORTAIL</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${s.isActive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-                  {s.isActive ? 'ACTIF' : 'INACTIF'}
-                </span>
-                <button onClick={() => setEditingSupplier(s)} className="text-zinc-500 hover:text-green-400 transition p-1.5" title="Modifier">
-                  <Edit3 className="w-3.5 h-3.5" />
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-800">
+                <button
+                  onClick={() => setEditingSupplier(s)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-black uppercase transition"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-slate-400" />
+                  <span>MODIFIER</span>
                 </button>
-                <button onClick={() => handleDelete(s.id)} className="text-zinc-600 hover:text-red-400 transition p-1.5" title="Supprimer">
+                <button
+                  onClick={() => handleDelete(s.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-800/50 rounded-lg text-xs font-black uppercase transition"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
+                  <span>SUPPRIMER</span>
                 </button>
               </div>
             </div>
@@ -1656,84 +1802,105 @@ function SectionListeFournisseurs() {
         </div>
       )}
 
+      {/* MODAL MODIFICATION FOURNISSEUR */}
       {editingSupplier && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-zinc-200 rounded-3xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-black text-zinc-950 uppercase mb-4">MODIFIER LE FOURNISSEUR</h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-black text-slate-100 uppercase flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-red-500" /> MODIFIER LE FOURNISSEUR
+              </h3>
+              <button onClick={() => setEditingSupplier(null)} className="text-slate-500 hover:text-slate-300">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
             <div className="space-y-3 text-xs">
               <div>
                 <label className={labelCls}>NOM FOURNISSEUR *</label>
                 <input type="text" value={editingSupplier.name} onChange={e => setEditingSupplier({ ...editingSupplier, name: e.target.value })} className={inputCls} />
               </div>
-              <div>
-                <label className={labelCls}>CONTACT / RESPONSABLE</label>
-                <input type="text" value={editingSupplier.contactName || ''} onChange={e => setEditingSupplier({ ...editingSupplier, contactName: e.target.value })} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>TÉLÉPHONE</label>
-                <input type="text" value={editingSupplier.phone || ''} onChange={e => setEditingSupplier({ ...editingSupplier, phone: e.target.value })} className={inputCls} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>CONTACT / RESPONSABLE</label>
+                  <input type="text" value={editingSupplier.contactName || ''} onChange={e => setEditingSupplier({ ...editingSupplier, contactName: e.target.value })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>TÉLÉPHONE</label>
+                  <input type="text" value={editingSupplier.phone || ''} onChange={e => setEditingSupplier({ ...editingSupplier, phone: e.target.value })} className={inputCls} />
+                </div>
               </div>
               <div>
                 <label className={labelCls}>EMAIL</label>
-                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className="w-full bg-white text-zinc-950 font-semibold border border-zinc-200 pl-10 pr-4 h-10 rounded-xl text-sm focus:outline-none focus:border-zinc-300 uppercase transition-colors placeholder:text-zinc-500 placeholder:normal-case placeholder:font-normal" />
+                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className={inputCls} />
               </div>
-              <div>
-                <label className={labelCls}>ADRESSE</label>
-                <input type="text" value={editingSupplier.address || ''} onChange={e => setEditingSupplier({ ...editingSupplier, address: e.target.value })} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>VILLE</label>
-                <input type="text" value={editingSupplier.city || ''} onChange={e => setEditingSupplier({ ...editingSupplier, city: e.target.value })} className={inputCls} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>ADRESSE</label>
+                  <input type="text" value={editingSupplier.address || ''} onChange={e => setEditingSupplier({ ...editingSupplier, address: e.target.value })} className={inputCls} />
+                </div>
+                <div>
+                  <label className={labelCls}>VILLE</label>
+                  <input type="text" value={editingSupplier.city || ''} onChange={e => setEditingSupplier({ ...editingSupplier, city: e.target.value })} className={inputCls} />
+                </div>
               </div>
 
-              <div className="pt-4 mt-2 border-t border-zinc-200">
-                <h4 className="text-[10px] font-black text-cyan-500 uppercase tracking-widest mb-3">ACCÈS B2B (MÉMO ET ROBOT)</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="pt-4 mt-2 border-t border-slate-800">
+                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-3">ACCÈS B2B (MÉMO ET ROBOT)</h4>
+                <div className="space-y-3">
                   <div>
                     <label className={labelCls}>LIEN DU SITE B2B</label>
                     <input type="url" placeholder="https://" value={editingSupplier.b2bUrl || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bUrl: e.target.value })} className={inputCls} />
                   </div>
-                  <div>
-                    <label className={labelCls}>LOGIN / UTILISATEUR</label>
-                    <input type="text" value={editingSupplier.b2bLogin || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bLogin: e.target.value })} className={inputCls} />
-                  </div>
-                  <div>
-                    <label className={labelCls}>MOT DE PASSE B2B</label>
-                    <input type="text" value={editingSupplier.b2bPassword || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bPassword: e.target.value })} className={inputCls} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>LOGIN / UTILISATEUR</label>
+                      <input type="text" value={editingSupplier.b2bLogin || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bLogin: e.target.value })} className={inputCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>MOT DE PASSE B2B</label>
+                      <input type="text" value={editingSupplier.b2bPassword || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bPassword: e.target.value })} className={inputCls} />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-200">
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-800">
                 <input type="checkbox" checked={editingSupplier.isActive} onChange={e => setEditingSupplier({ ...editingSupplier, isActive: e.target.checked })} id="edit-supplier-active" className="rounded" />
-                <label htmlFor="edit-supplier-active" className="font-bold text-zinc-950 uppercase select-none">FOURNISSEUR ACTIF</label>
+                <label htmlFor="edit-supplier-active" className="font-bold text-slate-200 uppercase select-none text-xs">FOURNISSEUR ACTIF</label>
               </div>
             </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={() => setEditingSupplier(null)} className="flex-1 py-2.5 bg-zinc-50 text-zinc-950 rounded-xl text-xs font-black uppercase tracking-wider">ANNULER</button>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditingSupplier(null)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-black uppercase tracking-wider transition">ANNULER</button>
               <button 
                 onClick={async () => {
                   setUpdating(true);
-                  const res = await fetch('/api/suppliers', {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(editingSupplier)
-                  });
-                  if (res.ok) {
-                    setSuppliers(prev => prev.map(s => s.id === editingSupplier.id ? editingSupplier : s));
-                    setEditingSupplier(null);
-                    if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
+                  try {
+                    const res = await fetch('/api/suppliers', {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(editingSupplier)
+                    });
+                    if (res.ok) {
+                      setSuppliers(prev => prev.map(s => s.id === editingSupplier.id ? editingSupplier : s));
+                      setEditingSupplier(null);
+                      if (typeof window !== 'undefined') {
+                        window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
+                      }
+                    } else {
+                      alert('Erreur lors de la mise à jour');
                     }
-                  } else {
-                    alert('Erreur lors de la mise à jour');
+                  } catch (e: any) {
+                    alert(`Erreur: ${e.message}`);
+                  } finally {
+                    setUpdating(false);
                   }
-                  setUpdating(false);
                 }}
                 disabled={updating}
-                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-black uppercase tracking-wider disabled:opacity-50"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition disabled:opacity-50 shadow-lg shadow-red-600/30"
               >
-                ENREGISTRER
+                {updating ? 'ENREGISTREMENT...' : 'ENREGISTRER'}
               </button>
             </div>
           </div>
