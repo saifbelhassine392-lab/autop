@@ -167,6 +167,12 @@ export default function B2BComparator() {
     const q = (queryText || singleQuery).trim();
     if (!q) return;
 
+    // Reset sub-filters so new search displays all matching results immediately
+    setSingleFilter('ALL');
+    setSelectedBrand('ALL');
+    setSelectedSupplierFilter('ALL');
+    setItemSearchText('');
+
     setSingleLoading(true);
     setSingleResult(null);
 
