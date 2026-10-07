@@ -1467,37 +1467,40 @@ function SectionCreerDevis({ quoteToLoad, onClearQuote }: SectionCreerDevisProps
 function SectionAjouterFournisseur() {
   const [form, setForm] = useState({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!form.name) { setError('LE NOM DU FOURNISSEUR EST REQUIS'); return; }
-    setSaving(true); setError('');
+    if (!form.name || !form.name.trim()) { setError('LE NOM DU FOURNISSEUR EST REQUIS'); return; }
+    setSaving(true); setError(''); setSavedMessage('');
     try {
       const res = await fetch('/api/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
-      if (res.ok) {
-        setSaved(true);
+      const d = await res.json();
+      if (res.ok && (d.success || d.data)) {
+        setSavedMessage(d.message || 'FOURNISSEUR ET ACCÈS B2B ENREGISTRÉS AVEC SUCCÈS !');
         setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
-        setTimeout(() => setSaved(false), 3000);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
+        }
+        setTimeout(() => setSavedMessage(''), 4000);
       } else {
-        const d = await res.json();
         setError(d.error || 'ERREUR LORS DE LA CRÉATION');
       }
-    } catch (e) {
-      setError('ERREUR RÉSEAU');
+    } catch (e: any) {
+      setError(`ERREUR RÉSEAU: ${e.message}`);
     } finally { setSaving(false); }
   };
 
   return (
     <div>
       <h2 className="text-xl font-black uppercase tracking-widest text-zinc-950 mb-1 flex items-center gap-2">
-        <UserPlus className="w-5 h-5 text-green-400" /> AJOUTER FOURNISSEUR
+        <UserPlus className="w-5 h-5 text-green-400" /> AJOUTER / CONFIGURER FOURNISSEUR
       </h2>
-      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">ENREGISTREZ UN NOUVEAU FOURNISSEUR DANS LA BASE</p>
+      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-5">ENREGISTREZ UN NOUVEAU FOURNISSEUR OU METTEZ À JOUR SES ACCÈS B2B</p>
 
       <div className={cardCls}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1543,14 +1546,14 @@ function SectionAjouterFournisseur() {
             <AlertTriangle className="w-4 h-4" /> {error}
           </div>
         )}
-        {saved && (
+        {savedMessage && (
           <div className="mt-4 flex items-center gap-2 text-green-400 text-xs font-black uppercase">
-            <CheckCircle className="w-4 h-4" /> FOURNISSEUR ENREGISTRÉ AVEC SUCCÈS !
+            <CheckCircle className="w-4 h-4" /> {savedMessage}
           </div>
         )}
 
         <div className="mt-5 flex gap-2">
-          <button onClick={() => setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' })}
+          <button onClick={() => { setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' }); setError(''); setSavedMessage(''); }}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-zinc-50 hover:bg-slate-700 text-zinc-950 rounded-xl text-[11px] font-black uppercase border border-zinc-200 transition">
             <X className="w-3.5 h-3.5" /> RÉINITIALISER
           </button>
@@ -1572,10 +1575,17 @@ function SectionListeFournisseurs() {
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
+  const fetchSuppliers = () => {
     fetch('/api/suppliers').then(r => r.json()).then(d => {
       setSuppliers(d.data || []);
     }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchSuppliers();
+    const handleSuppliersUpdated = () => fetchSuppliers();
+    window.addEventListener('autop_suppliers_updated', handleSuppliersUpdated);
+    return () => window.removeEventListener('autop_suppliers_updated', handleSuppliersUpdated);
   }, []);
 
   const filtered = suppliers.filter(s =>
@@ -1587,6 +1597,9 @@ function SectionListeFournisseurs() {
     if (!confirm('SUPPRIMER CE FOURNISSEUR ?')) return;
     await fetch(`/api/suppliers?id=${id}`, { method: 'DELETE' });
     setSuppliers(p => p.filter(s => s.id !== id));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
+    }
   };
 
   return (
@@ -1709,6 +1722,9 @@ function SectionListeFournisseurs() {
                   if (res.ok) {
                     setSuppliers(prev => prev.map(s => s.id === editingSupplier.id ? editingSupplier : s));
                     setEditingSupplier(null);
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
+                    }
                   } else {
                     alert('Erreur lors de la mise à jour');
                   }
@@ -1726,6 +1742,8 @@ function SectionListeFournisseurs() {
     </div>
   );
 }
+
+
 
 // ─── SECTION: CONSULTATION FOURNISSEUR + BON DE COMMANDE ─────────────────────
 function SectionConsultationFournisseur() {

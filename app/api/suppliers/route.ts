@@ -91,23 +91,56 @@ export async function POST(req: NextRequest) {
     const user = session?.user as any;
     const userRole = user?.role ? String(user.role).toUpperCase() : null;
 
-    // Si authentifié par session, vérifier le rôle. Sinon, autoriser la création administrative
-    if (user && userRole !== 'ADMIN' && userRole !== 'PROFESSIONAL') {
+    // Si authentifié par session standard avec un rôle non-admin, refuser. Sinon autoriser la gestion administrative
+    if (user && userRole === 'CLIENT') {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 });
     }
 
     const body = await req.json();
-    const { name, contactName, phone, email, address, city, b2bUrl, b2bLogin, b2bPassword } = body;
+    const { name, contactName, phone, email, address, city, b2bUrl, b2bLogin, b2bPassword, isActive = true } = body;
 
-    if (!name || !name.trim()) return NextResponse.json({ error: 'Le nom du fournisseur est requis' }, { status: 400 });
-
-    const trimmedName = name.trim().toUpperCase();
-    const existing = await prisma.supplier.findFirst({ where: { name: trimmedName } });
-    if (existing) {
-      return NextResponse.json({ error: `Le fournisseur "${trimmedName}" existe déjà !`, data: existing }, { status: 400 });
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Le nom du fournisseur est requis' }, { status: 400 });
     }
 
-    const supplier = await prisma.supplier.create({
+    const trimmedName = name.trim().toUpperCase();
+    const existing = await prisma.supplier.findFirst({
+      where: {
+        name: {
+          equals: trimmedName
+        }
+      }
+    });
+
+    let supplier;
+    if (existing) {
+      // Fournisseur déjà existant -> Mise à jour intelligente (Upsert)
+      supplier = await prisma.supplier.update({
+        where: { id: existing.id },
+        data: {
+          name: trimmedName,
+          ...(contactName !== undefined ? { contactName: contactName?.trim() || null } : {}),
+          ...(phone !== undefined ? { phone: phone?.trim() || null } : {}),
+          ...(email !== undefined ? { email: email?.trim() || null } : {}),
+          ...(address !== undefined ? { address: address?.trim() || null } : {}),
+          ...(city !== undefined ? { city: city?.trim() || null } : {}),
+          ...(b2bUrl !== undefined ? { b2bUrl: b2bUrl?.trim() || null } : {}),
+          ...(b2bLogin !== undefined ? { b2bLogin: b2bLogin?.trim() || null } : {}),
+          ...(b2bPassword !== undefined ? { b2bPassword: b2bPassword?.trim() || null } : {}),
+          isActive: isActive !== undefined ? !!isActive : true
+        }
+      });
+
+      return NextResponse.json({
+        success: true,
+        updated: true,
+        data: supplier,
+        message: `Fournisseur "${trimmedName}" et accès B2B mis à jour avec succès`
+      }, { status: 200 });
+    }
+
+    // Nouveau fournisseur -> Création
+    supplier = await prisma.supplier.create({
       data: {
         name: trimmedName,
         contactName: contactName?.trim() || null,
@@ -118,14 +151,19 @@ export async function POST(req: NextRequest) {
         b2bUrl: b2bUrl?.trim() || null,
         b2bLogin: b2bLogin?.trim() || null,
         b2bPassword: b2bPassword?.trim() || null,
-        isActive: true
+        isActive: !!isActive
       }
     });
 
-    return NextResponse.json({ success: true, data: supplier }, { status: 201 });
+    return NextResponse.json({
+      success: true,
+      created: true,
+      data: supplier,
+      message: `Fournisseur "${trimmedName}" enregistré avec succès`
+    }, { status: 201 });
   } catch (err: any) {
     console.error('Supplier POST error:', err);
-    return NextResponse.json({ error: `Erreur création fournisseur: ${err.message || String(err)}` }, { status: 500 });
+    return NextResponse.json({ error: `Erreur création / mise à jour fournisseur: ${err.message || String(err)}` }, { status: 500 });
   }
 }
 
@@ -136,7 +174,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'ID manquant' }, { status: 400 });
 
     await prisma.supplier.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: 'Fournisseur supprimé avec succès' });
   } catch (err: any) {
     console.error('Supplier DELETE error:', err);
     return NextResponse.json({ error: 'Erreur suppression fournisseur' }, { status: 500 });
@@ -147,27 +185,37 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
     const { id, name, contactName, phone, email, address, city, isActive, b2bUrl, b2bLogin, b2bPassword } = body;
-    if (!id) return NextResponse.json({ error: 'ID requis' }, { status: 400 });
+    
+    if (!id && !name) return NextResponse.json({ error: 'ID ou Nom de fournisseur requis' }, { status: 400 });
+
+    const targetSupplier = id 
+      ? await prisma.supplier.findUnique({ where: { id } })
+      : await prisma.supplier.findFirst({ where: { name: name.trim().toUpperCase() } });
+
+    if (!targetSupplier) {
+      return NextResponse.json({ error: 'Fournisseur introuvable' }, { status: 404 });
+    }
 
     const updated = await prisma.supplier.update({
-      where: { id },
+      where: { id: targetSupplier.id },
       data: {
         ...(name ? { name: name.trim().toUpperCase() } : {}),
-        ...(contactName !== undefined ? { contactName } : {}),
-        ...(phone !== undefined ? { phone } : {}),
-        ...(email !== undefined ? { email } : {}),
-        ...(address !== undefined ? { address } : {}),
-        ...(city !== undefined ? { city } : {}),
+        ...(contactName !== undefined ? { contactName: contactName ? String(contactName).trim() : null } : {}),
+        ...(phone !== undefined ? { phone: phone ? String(phone).trim() : null } : {}),
+        ...(email !== undefined ? { email: email ? String(email).trim() : null } : {}),
+        ...(address !== undefined ? { address: address ? String(address).trim() : null } : {}),
+        ...(city !== undefined ? { city: city ? String(city).trim() : null } : {}),
         ...(isActive !== undefined ? { isActive: !!isActive } : {}),
-        ...(b2bUrl !== undefined ? { b2bUrl } : {}),
-        ...(b2bLogin !== undefined ? { b2bLogin } : {}),
-        ...(b2bPassword !== undefined ? { b2bPassword } : {})
+        ...(b2bUrl !== undefined ? { b2bUrl: b2bUrl ? String(b2bUrl).trim() : null } : {}),
+        ...(b2bLogin !== undefined ? { b2bLogin: b2bLogin ? String(b2bLogin).trim() : null } : {}),
+        ...(b2bPassword !== undefined ? { b2bPassword: b2bPassword ? String(b2bPassword).trim() : null } : {})
       }
     });
-    return NextResponse.json({ success: true, data: updated });
+    return NextResponse.json({ success: true, data: updated, message: 'Fournisseur mis à jour' });
   } catch (err: any) {
     console.error('Supplier PATCH error:', err);
     return NextResponse.json({ error: 'Erreur lors de la mise à jour du fournisseur' }, { status: 500 });
   }
 }
+
 

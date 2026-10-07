@@ -84,17 +84,37 @@ export default function B2BComparator() {
 
   // ─── Supplier Statuses ───────────────────────────────────────────────────
   const [supplierStatuses, setSupplierStatuses] = useState<Record<string, 'idle' | 'loading' | 'found' | 'info' | 'error'>>({});
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
   // ─── Load Suppliers & Pending Ref on Mount ──────────────────────────────
+  const loadSuppliers = async (silent = false) => {
+    if (!silent) setLoadingSuppliers(true);
+    try {
+      const res = await fetch('/api/suppliers');
+      const d = await res.json();
+      const sups = d.data || [];
+      setSuppliers(sups);
+      setSelectedSupplierIds(prev => {
+        // Keep existing selections or select all if first load
+        if (prev.length === 0) return sups.map((s: any) => s.id);
+        const validIds = sups.map((s: any) => s.id);
+        return prev.filter(id => validIds.includes(id));
+      });
+    } catch (err) {
+      console.error("Error loading suppliers:", err);
+    } finally {
+      if (!silent) setLoadingSuppliers(false);
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/suppliers')
-      .then(r => r.json())
-      .then(d => {
-        const sups = d.data || [];
-        setSuppliers(sups);
-        setSelectedSupplierIds(sups.map((s: any) => s.id));
-      })
-      .catch(err => console.error("Error loading suppliers:", err));
+    loadSuppliers();
+
+    // Listen for cross-component supplier updates
+    const handleSuppliersUpdated = () => {
+      loadSuppliers(true);
+    };
+    window.addEventListener('autop_suppliers_updated', handleSuppliersUpdated);
 
     // Handle incoming pending search ref from Parts Catalogue or other sections
     const pending = localStorage.getItem('robotB2B_pendingRef');
@@ -115,7 +135,10 @@ export default function B2BComparator() {
       }
     };
     window.addEventListener('robotB2B_searchRef' as any, handleRefEvent);
-    return () => window.removeEventListener('robotB2B_searchRef' as any, handleRefEvent);
+    return () => {
+      window.removeEventListener('robotB2B_searchRef' as any, handleRefEvent);
+      window.removeEventListener('autop_suppliers_updated', handleSuppliersUpdated);
+    };
   }, []);
 
   // ─── Helper: Toggle Suppliers ───────────────────────────────────────────
@@ -473,17 +496,26 @@ export default function B2BComparator() {
                 ROBOT B2B MULTI-FOURNISSEURS
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600/20 text-red-400 border border-red-500/30">
-                11 FOURNISSEURS CONNECTÉS
+                {suppliers.length} FOURNISSEURS CONNECTÉS
               </span>
             </div>
             <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider mt-0.5">
-              Comparateur en temps réel : FADPRO, STEQ, ROUTE X, MOSAIQUE, SAGAP, CDG, GPG, ITALCAR, PROPARTS, SOCOFA, AAP
+              Comparateur en temps réel : FADPRO, STEQ, ROUTE X, MOSAIQUE, SAGAP, CDG, GPG, ITALCAR, PROPARTS, SOCOFA, AAP, etc.
             </p>
           </div>
         </div>
 
-        {/* Action Toggle All Suppliers */}
+        {/* Action Toggle All Suppliers & Refresh */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => loadSuppliers(false)}
+            disabled={loadingSuppliers}
+            title="Rafraîchir les fournisseurs et accès B2B"
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingSuppliers ? 'animate-spin text-red-400' : 'text-slate-400'}`} />
+            <span>{loadingSuppliers ? 'CHARGEMENT...' : 'ACTUALISER'}</span>
+          </button>
           <button
             onClick={toggleSelectAllSuppliers}
             className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold uppercase tracking-wider transition-all"
