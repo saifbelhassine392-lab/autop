@@ -1892,6 +1892,13 @@ async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string
 
     let token = supplierCookies[supplierId] || "";
 
+    // Si un token JWT actif est fourni (commençant par "eyJ")
+    if (b2bPassword && b2bPassword.startsWith("eyJ")) {
+      token = b2bPassword;
+    } else if (b2bLogin && b2bLogin.startsWith("eyJ")) {
+      token = b2bLogin;
+    }
+
     if (!token) {
       const authVariants = [
         { userNameOrEmailAddress: loginUser, password: loginPass, rememberClient: true },
