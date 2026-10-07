@@ -222,6 +222,32 @@ export default function B2BComparator() {
     triggerSingleSearch();
   };
 
+  // ─── Helper function for accurate stock detection ──────────────────────────
+  const isItemInStock = (item: B2BItem): boolean => {
+    if (typeof item.rawStock === 'number' && item.rawStock > 0) return true;
+    if (item.available === false || item.rawStock === 0) return false;
+    
+    const avail = (item.availability || '').toLowerCase().trim();
+    if (
+      avail.includes('hors stock') ||
+      avail.includes('non disponible') ||
+      avail.includes('sur commande') ||
+      avail.includes('rupture') ||
+      avail.includes('épuisé') ||
+      avail.includes('epuise') ||
+      avail.includes('non trouvé') ||
+      avail.includes('non trouve')
+    ) {
+      return false;
+    }
+    
+    if (avail.includes('en stock') || (avail.includes('disponible') && !avail.includes('non disponible'))) {
+      return true;
+    }
+    
+    return Boolean(item.available);
+  };
+
   // ─── Stats & Filter Options Extraction ────────────────────────────────────
   const rawItems: B2BItem[] = useMemo(() => {
     return singleResult?.items || [];
@@ -231,8 +257,7 @@ export default function B2BComparator() {
     let inStock = 0;
     let onOrder = 0;
     rawItems.forEach(it => {
-      const isDispo = it.available || it.rawStock > 0 || (it.availability || '').toLowerCase().includes('stock') || (it.availability || '').toLowerCase().includes('disponible');
-      if (isDispo) inStock++;
+      if (isItemInStock(it)) inStock++;
       else onOrder++;
     });
     return { total: rawItems.length, inStock, onOrder };
@@ -263,8 +288,7 @@ export default function B2BComparator() {
   // Filter and sort items for Mode 1
   const processedSingleItems = useMemo(() => {
     let list = rawItems.filter(item => {
-      const avail = (item.availability || '').toLowerCase();
-      const isDispo = item.available || item.rawStock > 0 || avail.includes('stock') || avail.includes('disponible');
+      const isDispo = isItemInStock(item);
       
       // 1. Filtre Disponibilité
       if (singleFilter === 'DISPO' && !isDispo) return false;
@@ -1051,7 +1075,7 @@ export default function B2BComparator() {
               {viewMode === 'GRID' && processedSingleItems.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {processedSingleItems.map((item, idx) => {
-                    const isAvailable = item.available || item.rawStock > 0;
+                    const isAvailable = isItemInStock(item);
                     const itemKey = `${item.name || item.reference}-${item.supplierName}-${idx}`;
                     const isCopied = copiedItemKey === itemKey;
                     const priceVal = item.price || item.prixHT || 0;
@@ -1199,7 +1223,7 @@ export default function B2BComparator() {
                       </thead>
                       <tbody className="divide-y divide-slate-800/60 text-xs font-bold">
                         {processedSingleItems.map((item, idx) => {
-                          const isAvailable = item.available || item.rawStock > 0;
+                          const isAvailable = isItemInStock(item);
                           const itemKey = `table-${item.name || item.reference}-${item.supplierName}-${idx}`;
                           const isCopied = copiedItemKey === itemKey;
                           const priceVal = item.price || item.prixHT || 0;
