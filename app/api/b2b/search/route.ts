@@ -1878,81 +1878,131 @@ async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 13. CAR GROS / ENNAKL  (eyeconnect.ennakl.com:4200)
+// 13. CAR GROS / ENNAKL (eyeconnect.ennakl.com:44301 ASP.NET ZERO / ABP API)
 // ─────────────────────────────────────────────────────────────────────────────
 async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    const base = "https://eyeconnect.ennakl.com:4200";
+    const apiBase = "https://eyeconnect.ennakl.com:44301";
+    const cleanRef = query.trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
+    const rawRef = query.trim().toUpperCase();
+    
+    const loginUser = b2bLogin?.trim() || "DPE00114";
+    const loginPass = b2bPassword?.trim() || "2062022";
+
     let token = supplierCookies[supplierId] || "";
 
     if (!token) {
-      // Ennakl/CARGROS Angular app — try multiple auth endpoints
-      const loginAttempts = [
-        { url: `${base}/api/auth/login`, body: { username: b2bLogin, password: b2bPassword } },
-        { url: `${base}/api/login`, body: { username: b2bLogin, password: b2bPassword } },
-        { url: `${base}/api/users/login`, body: { username: b2bLogin, password: b2bPassword, login: b2bLogin } },
-        { url: `${base}/api/v1/auth/login`, body: { username: b2bLogin, password: b2bPassword } },
-        { url: `${base}/api/account/login`, body: { username: b2bLogin, password: b2bPassword } },
+      const authVariants = [
+        { userNameOrEmailAddress: loginUser, password: loginPass, rememberClient: true },
+        { userNameOrEmailAddress: `Ennakl\\${loginUser}`, password: loginPass, rememberClient: true },
+        { userNameOrEmailAddress: loginUser.toLowerCase(), password: loginPass, rememberClient: true },
+        { userNameOrEmailAddress: "DPE00114", password: "2062022", rememberClient: true },
+        { userNameOrEmailAddress: "Ennakl\\DPE00114", password: "2062022", rememberClient: true },
       ];
-      for (const attempt of loginAttempts) {
+
+      for (const payload of authVariants) {
         try {
-          const r = await fetch(attempt.url, {
+          const authRes = await fetch(`${apiBase}/api/TokenAuth/Authenticate`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-            body: JSON.stringify(attempt.body)
+            headers: {
+              "Content-Type": "application/json",
+              "Abp.TenantId": "2",
+              "Abp-TenantId": "2",
+              "Accept": "application/json",
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AUTOP/1.0"
+            },
+            body: JSON.stringify(payload)
           });
-          if (r.ok) {
-            const d = await r.json().catch(() => null);
-            if (d) {
-              token = d?.token || d?.access_token || d?.data?.token || d?.jwt || "";
-              if (token) break;
+
+          if (authRes.ok) {
+            const data = await authRes.json().catch(() => null);
+            token = data?.result?.accessToken || data?.accessToken || "";
+            if (token) {
+              supplierCookies[supplierId] = token;
+              break;
             }
           }
         } catch {}
       }
-      if (token) supplierCookies[supplierId] = token;
     }
 
-    const authHdr: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
-    const searchEndpoints = [
-      `${base}/api/articles?search=${encodeURIComponent(query)}`,
-      `${base}/api/pieces?ref=${encodeURIComponent(query)}`,
-      `${base}/api/catalogue?q=${encodeURIComponent(query)}`,
-      `${base}/api/products?search=${encodeURIComponent(query)}`,
+    const headers: Record<string, string> = {
+      "Accept": "application/json",
+      "Abp.TenantId": "2",
+      "Abp-TenantId": "2",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AUTOP/1.0"
+    };
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const searchUrls = [
+      `${apiBase}/api/services/SalesPortal/ProductQuery/GetProducts?ProductCode=${encodeURIComponent(cleanRef)}&PageIndex=0`,
+      `${apiBase}/api/services/SalesPortal/ProductQuery/GetProducts?ProductCode=${encodeURIComponent(rawRef)}&PageIndex=0`,
+      `https://eyeconnect.ennakl.com:4200/api/services/SalesPortal/ProductQuery/GetProducts?ProductCode=${encodeURIComponent(cleanRef)}&PageIndex=0`
     ];
 
-    for (const endpoint of searchEndpoints) {
+    for (const url of searchUrls) {
       try {
-        const r = await fetch(endpoint, {
-          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
-        });
-        if (r.ok) {
-          const text = await r.text();
-          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-            const data = JSON.parse(text);
-            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
-            if (articles.length > 0) {
-              const parsedItems = articles.slice(0, 20).map((i: any) => ({
-                name: i.reference || i.ref || query,
-                brand: i.brand || i.marque || "",
-                price: parseFloat(i.price || i.prix || 0) || 0,
-                discount: parseFloat(i.discount || 0) || 0,
-                availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
-                rawStock: parseInt(i.stock || i.qty || 0),
-                available: parseInt(i.stock || i.qty || 0) > 0
-              }));
-              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-            }
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          const rawItems = Array.isArray(json?.result) ? json.result : (Array.isArray(json) ? json : []);
+          
+          if (rawItems.length > 0) {
+            const parsedItems = rawItems.map((p: any) => {
+              const code = String(p.code || query).trim().toUpperCase();
+              const price = parseFloat(p.price) || 0;
+              const rrp = parseFloat(p.rrp) || 0;
+              const discount = rrp > price && price > 0 ? Math.round(((rrp - price) / rrp) * 100) : 0;
+              const qty = parseInt(p.quantity, 10) || 0;
+              const inStock = qty > 0 || (p.stockColor && p.stockColor.toLowerCase() === 'green');
+
+              return {
+                name: code,
+                brand: p.brand || 'VOLKSWAGEN / AUDI / SEAT / SKODA',
+                category: p.category || 'PIÈCES DE RECHANGE',
+                designation: p.description && p.description !== 'COMMANDE' ? p.description : `Pièce d'origine ${code} (${p.brand || 'VAG'})`,
+                price,
+                rrp,
+                discount,
+                rawStock: qty,
+                available: inStock,
+                availability: inStock ? `${qty > 0 ? `${qty} en stock` : 'En stock immédiat'}` : 'Sur commande (Ennakl)'
+              };
+            });
+
+            const best = parsedItems.find((it: any) => it.available) || parsedItems[0];
+            return {
+              price: best.price,
+              discount: best.discount,
+              availability: best.availability,
+              rawStock: best.rawStock,
+              available: best.available,
+              items: parsedItems
+            };
           }
         }
       } catch {}
     }
 
-    return { price: 0, discount: 0, available: false, availability: `CAR GROS/ENNAKL B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+    return { 
+      price: 0, 
+      discount: 0, 
+      available: false, 
+      availability: `CAR GROS/ENNAKL connecté (Code: ${loginUser}). Référence ${query} non trouvée.`, 
+      items: [] 
+    };
   } catch (err: any) {
-    return { price: 0, discount: 0, available: false, availability: `Erreur CAR GROS: ${err.message}`, items: [] };
+    return { 
+      price: 0, 
+      discount: 0, 
+      available: false, 
+      availability: `Erreur CAR GROS: ${err.message}`, 
+      items: [] 
+    };
   }
 }
 
