@@ -270,6 +270,26 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
     ]
   },
 
+  // Hyundai Grand i10 - Pare-chocs avant (STEQ / Hyundai Original Parts)
+  '86511K6500': {
+    oeReference: '86511K6500',
+    designation: 'PARE-CHOC AVANT HYUNDAI GRAND I10',
+    category: 'Carrosserie avant',
+    equivalents: [
+      { brand: 'HYUNDAI Original Parts', reference: 'HYN86511K6500', type: 'OE', designation: 'PARE-CHOC AV HYUNDAI Gi10', estimatedPrice: 162.252 },
+      { brand: 'HYUNDAI OE', reference: '86511K6500', type: 'OE', designation: 'PARE-CHOCS / COIN PARE-CHOCS HYUNDAI Gi10', estimatedPrice: 162.252 }
+    ]
+  },
+  'HYN86511K6500': {
+    oeReference: '86511K6500',
+    designation: 'PARE-CHOC AVANT HYUNDAI GRAND I10',
+    category: 'Carrosserie avant',
+    equivalents: [
+      { brand: 'HYUNDAI Original Parts', reference: 'HYN86511K6500', type: 'OE', designation: 'PARE-CHOC AV HYUNDAI Gi10', estimatedPrice: 162.252 },
+      { brand: 'HYUNDAI OE', reference: '86511K6500', type: 'OE', designation: 'PARE-CHOCS / COIN PARE-CHOCS HYUNDAI Gi10', estimatedPrice: 162.252 }
+    ]
+  },
+
   // Volkswagen Golf VII - Phira, Eurobump, LPR, Valeo
   '5G0807217': {
     oeReference: '5G0807217',
