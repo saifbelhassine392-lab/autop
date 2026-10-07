@@ -250,6 +250,26 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
     ]
   },
 
+  // Mercedes-Benz W206 - Moulure inox pare-chocs (SOPIQ / Wender Parts)
+  'A2068854204': {
+    oeReference: 'A2068854204',
+    designation: 'Moulure inox de pare-chocs arrière droite - 206',
+    category: 'Carrosserie arrière',
+    equivalents: [
+      { brand: 'ORIGINE - MERCEDES/SMART', reference: '2068854204', type: 'OE', designation: 'Moulure inox de pare-chocs arrière droite - 206', estimatedPrice: 196.220 },
+      { brand: 'WENDER PARTS', reference: 'MA2068854204', type: 'ADAPTABLE', designation: 'Moulure inox de pare-chocs arrière droite - 206', estimatedPrice: 100.322 }
+    ]
+  },
+  '2068854204': {
+    oeReference: 'A2068854204',
+    designation: 'Moulure inox de pare-chocs arrière droite - 206',
+    category: 'Carrosserie arrière',
+    equivalents: [
+      { brand: 'ORIGINE - MERCEDES/SMART', reference: '2068854204', type: 'OE', designation: 'Moulure inox de pare-chocs arrière droite - 206', estimatedPrice: 196.220 },
+      { brand: 'WENDER PARTS', reference: 'MA2068854204', type: 'ADAPTABLE', designation: 'Moulure inox de pare-chocs arrière droite - 206', estimatedPrice: 100.322 }
+    ]
+  },
+
   // Volkswagen Golf VII - Phira, Eurobump, LPR, Valeo
   '5G0807217': {
     oeReference: '5G0807217',

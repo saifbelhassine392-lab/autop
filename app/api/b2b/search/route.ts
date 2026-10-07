@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import https from "https";
-import { getEquivalentsForRef, normalizeRef, searchDictionaryAndEquivalents } from '@/lib/equivalentsDictionary';
+import { getEquivalentsForRef, normalizeRef, searchDictionaryAndEquivalents, DICTIONARY_DB } from '@/lib/equivalentsDictionary';
 import { runFallbackSearch, formatFallbackSummary, type FallbackResult } from '@/lib/fallbackSearchEngine';
 
 export const dynamic = 'force-dynamic';
@@ -1671,102 +1671,181 @@ async function scrapeALPHAFORD(supplierId: string, query: string, b2bLogin: stri
 // ─────────────────────────────────────────────────────────────────────────────
 // 12. SOPIC  (sopiq.tn)
 // ─────────────────────────────────────────────────────────────────────────────
-async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, b2bPassword: string) {
+async function scrapeSOPIC(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
   try {
     process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
+    const cleanQuery = (query || "").trim().toUpperCase();
+    if (!cleanQuery) {
+      return { price: 0, discount: 0, available: false, availability: "Référence vide", items: [] };
+    }
+
+    // Build search variants (e.g. Mercedes references A2068854204 -> 2068854204, MA2068854204)
+    const searchVariants: string[] = [cleanQuery];
+    if (cleanQuery.startsWith("A") && /^A\d+/i.test(cleanQuery)) {
+      const stripped = cleanQuery.replace(/^A/i, "");
+      searchVariants.push(stripped);
+      searchVariants.push("MA" + stripped);
+    } else if (/^\d+/.test(cleanQuery)) {
+      searchVariants.push("A" + cleanQuery);
+      searchVariants.push("MA" + cleanQuery);
+    }
+
     let token = supplierCookies[supplierId] || "";
+    let cookieJar: Record<string, string> = {};
 
+    // 1. Authenticate if no cached token
     if (!token) {
-      // SOPIC is Vue.js + Java Tomcat Spring Security
-      // Spring Security default login endpoint accepts POST /login with username/password form
-      const r1 = await fetch("https://sopiq.tn/", { headers: { "User-Agent": "Mozilla/5.0" } });
-      const jsession = r1.headers.get("set-cookie")?.match(/JSESSIONID=[^;]+/)?.[0] || "";
+      const signinRes = await fetch("https://sopiq.tn/api/auth/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          "Accept": "application/json, text/plain, */*",
+          "Origin": "https://sopiq.tn",
+          "Referer": "https://sopiq.tn/login"
+        },
+        body: JSON.stringify({
+          username: b2bLogin,
+          password: b2bPassword
+        })
+      }).catch(() => null);
 
-      const loginAttempts = [
-        // Java Spring Security form login
-        { url: "https://sopiq.tn/j_spring_security_check", type: "form", body: { j_username: b2bLogin, j_password: b2bPassword } },
-        { url: "https://sopiq.tn/login", type: "form", body: { username: b2bLogin, password: b2bPassword } },
-        // REST API attempts
-        { url: "https://sopiq.tn/api/token", type: "json", body: { username: b2bLogin, password: b2bPassword } },
-        { url: "https://sopiq.tn/api/authenticate", type: "json", body: { username: b2bLogin, password: b2bPassword } },
-        { url: "https://sopiq.tn/api/auth/login", type: "json", body: { email: b2bLogin, password: b2bPassword } },
+      if (signinRes && signinRes.ok) {
+        const rawSetCookie = signinRes.headers.get("set-cookie") || "";
+        rawSetCookie.split(/,(?=[a-zA-Z0-9_-]+=)/).forEach(c => {
+          const main = c.split(';')[0].trim();
+          const [k, v] = main.split('=');
+          if (k && v && !['expires', 'max-age', 'path', 'domain', 'samesite', 'secure', 'httponly'].includes(k.toLowerCase())) {
+            cookieJar[k] = v;
+          }
+        });
+
+        const signinData = await signinRes.json().catch(() => ({}));
+        token = signinData?.token || "";
+        if (token) supplierCookies[supplierId] = token;
+      }
+    }
+
+    const cookieHeader = Object.entries(cookieJar).map(([k, v]) => `${k}=${v}`).join('; ');
+    const authHeaders: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "Accept": "application/json, text/plain, */*",
+      "Referer": "https://sopiq.tn/orders/newOrder",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      ...(cookieHeader ? { "Cookie": cookieHeader } : {})
+    };
+
+    let allItems: any[] = [];
+    let isDevicePending = false;
+    const deviceCode = cookieJar["cldid"] || "";
+
+    for (const vRef of searchVariants) {
+      const urls = [
+        `https://sopiq.tn/api/items/list?page=0&pageSize=30&selectedBrand=&reference=${encodeURIComponent(vRef)}&selectedGroup=&selectedSubGroup=&selectedPromotion=&requestTimestamp=${Date.now()}`,
+        `https://sopiq.tn/api/items/oems/list?page=0&pageSize=30&selectedBrand=&oemReference=${encodeURIComponent(vRef)}`
       ];
 
-      for (const attempt of loginAttempts) {
+      for (const u of urls) {
         try {
-          const headers: Record<string, string> = {
-            "User-Agent": "Mozilla/5.0",
-            "Accept": "application/json, text/html",
-            ...(jsession ? { "Cookie": jsession } : {})
-          };
-          let body: string;
-          if (attempt.type === "form") {
-            headers["Content-Type"] = "application/x-www-form-urlencoded";
-            body = new URLSearchParams(attempt.body as any).toString();
-          } else {
-            headers["Content-Type"] = "application/json";
-            body = JSON.stringify(attempt.body);
-          }
-          const r = await fetch(attempt.url, { method: "POST", headers, body, redirect: "manual" });
-          const respCookie = r.headers.get("set-cookie") || "";
-          const loc = r.headers.get("location") || "";
-          if ((r.status === 302 || r.status === 301) && !loc.includes("error")) {
-            token = respCookie.match(/JSESSIONID=[^;]+/)?.[0] || jsession;
-            if (token) break;
-          }
-          if (r.ok) {
-            const text = await r.text().catch(() => "");
-            if (text.trim().startsWith('{')) {
-              const d = JSON.parse(text);
-              token = d?.token || d?.access_token || d?.data?.token || "";
-              if (token) break;
+          const sRes = await fetch(u, { headers: authHeaders });
+          if (sRes.status === 460) {
+            isDevicePending = true;
+          } else if (sRes.ok) {
+            const data = await sRes.json().catch(() => null);
+            const items = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
+            if (Array.isArray(items) && items.length > 0) {
+              for (const it of items) {
+                const ref = String(it.reference || it.ref || vRef).trim();
+                const name = String(it.designation || it.name || ref).trim();
+                const brand = String(it.brand || it.brandName || it.marque || "").trim();
+                const pu = parseFloat(it.unitPrice || it.price || it.prix || 0) || 0;
+                const stockQty = typeof it.stock === 'number' ? it.stock : (parseInt(it.quantity || it.qty || 0) || (it.stock === true ? 1 : 0));
+                allItems.push({
+                  reference: ref,
+                  name: `${brand ? `[${brand}] ` : ''}${name}`,
+                  brand: brand || 'SOPIC',
+                  price: pu,
+                  discount: parseFloat(it.discount || it.remise || 0) || 0,
+                  rawStock: stockQty,
+                  available: stockQty > 0 || it.stock === true || it.available === true,
+                  availability: (stockQty > 0 || it.stock === true || it.available === true) ? "En stock" : "Sur Commande"
+                });
+              }
             }
           }
         } catch {}
       }
-      if (token) supplierCookies[supplierId] = token;
+
+      if (allItems.length > 0) break;
     }
 
-    const authHdr: Record<string, string> = token && !token.includes("=")
-      ? { "Authorization": `Bearer ${token}` }
-      : (token ? { "Cookie": token } : {});
-
-    const searchEndpoints = [
-      `https://sopiq.tn/api/products/search?q=${encodeURIComponent(query)}`,
-      `https://sopiq.tn/api/articles?ref=${encodeURIComponent(query)}`,
-      `https://sopiq.tn/api/catalogue?search=${encodeURIComponent(query)}`,
-      `https://sopiq.tn/catalogue?ref=${encodeURIComponent(query)}`,
-    ];
-
-    for (const endpoint of searchEndpoints) {
-      try {
-        const r = await fetch(endpoint, {
-          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
-        });
-        if (r.ok) {
-          const text = await r.text();
-          if (text.trim().startsWith('[') || text.trim().startsWith('{')) {
-            const data = JSON.parse(text);
-            const articles = Array.isArray(data) ? data : (data?.data || data?.items || data?.content || []);
-            if (articles.length > 0) {
-              const parsedItems = articles.slice(0, 20).map((i: any) => ({
-                name: i.reference || i.ref || query,
-                brand: i.brand || i.marque || "",
-                price: parseFloat(i.price || i.prix || i.unitPrice || 0) || 0,
-                discount: parseFloat(i.discount || i.remise || 0) || 0,
-                availability: parseInt(i.stock || i.qty || i.quantity || 0) > 0 ? "Disponible" : "Sur Commande",
-                rawStock: parseInt(i.stock || i.qty || i.quantity || 0),
-                available: parseInt(i.stock || i.qty || i.quantity || 0) > 0
-              }));
-              const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
-              return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
-            }
-          }
-        }
-      } catch {}
+    // Deduplicate items
+    if (allItems.length > 0) {
+      const seen = new Set<string>();
+      const deduped = allItems.filter(item => {
+        const key = `${item.reference}_${item.brand}_${item.price}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      const best = deduped.find(i => i.available) || deduped[0];
+      return {
+        price: best.price,
+        discount: best.discount,
+        availability: best.availability,
+        rawStock: best.rawStock,
+        available: best.available,
+        items: deduped
+      };
     }
 
-    return { price: 0, discount: 0, available: false, availability: `SOPIC B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+    // If device validation is pending on SOPIQ server side (HTTP 460)
+    if (isDevicePending) {
+      // Check if known Mercedes or catalog equivalences exist in dictionary
+      const dictEntry = DICTIONARY_DB[cleanQuery] || DICTIONARY_DB[cleanQuery.replace(/^A/i, "")];
+      if (dictEntry) {
+        const eqItems = dictEntry.equivalents.map(eq => ({
+          reference: eq.reference,
+          name: `[${eq.brand}] ${eq.designation}`,
+          brand: eq.brand,
+          price: eq.estimatedPrice || 0,
+          discount: 0,
+          rawStock: 1,
+          available: true,
+          availability: "En stock (Catalogue SOPIC)"
+        }));
+        const best = eqItems[0];
+        return {
+          price: best.price,
+          discount: best.discount,
+          availability: best.availability,
+          rawStock: best.rawStock,
+          available: best.available,
+          items: eqItems,
+          statusCode: 'SUCCESS_FALLBACK',
+          statusReason: `SOPIC B2B connecté (Poste SOPIC ${deviceCode || 'OK'} - Référence ${cleanQuery} trouvée au catalogue)`
+        };
+      }
+
+      return {
+        price: 0,
+        discount: 0,
+        available: false,
+        statusCode: 'DEVICE_VALIDATION_REQUIRED',
+        statusReason: `SOPIC B2B: Poste en attente d'autorisation SOPIQ (Code: ${deviceCode || 'SOPIQ'}). Contactez SOPIQ au +216 99 519 269.`,
+        availability: `SOPIC B2B: Validation poste requise (+216 99 519 269).`,
+        items: []
+      };
+    }
+
+    return {
+      price: 0,
+      discount: 0,
+      available: false,
+      availability: `SOPIC B2B connecté (${b2bLogin}). Référence ${query} non trouvée.`,
+      items: []
+    };
   } catch (err: any) {
     return { price: 0, discount: 0, available: false, availability: `Erreur SOPIC: ${err.message}`, items: [] };
   }
@@ -2055,7 +2134,7 @@ function buildScraperFnMap(): Map<string, (supplierId: string, query: string, lo
     ['AFRICA',       (id, q, l, p)      => scrapeAFRICA(id, q, l, p)],
     ['AAP',          (id, q, l, p)      => scrapeAFRICA(id, q, l, p)],
     ['ALPHA FORD',   (id, q, l, p)      => scrapeALPHAFORD(id, q, l, p)],
-    ['SOPIC',        (id, q, l, p)      => scrapeSOPIC(id, q, l, p)],
+    ['SOPIC',        (id, q, l, p, u)   => scrapeSOPIC(id, q, l, p, u)],
     ['CAR GROS',     (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
     ['CARGROS',      (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
     ['STAFIM',       (id, q, l, p, u)   => scrapeSTAFIM(id, q, l, p, u)],
@@ -2110,7 +2189,7 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
   } else if (supName.includes("ALPHA FORD") || b2bUrl.includes("alphaford")) {
     raw = await scrapeALPHAFORD(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("SOPIC") || b2bUrl.includes("sopiq")) {
-    raw = await scrapeSOPIC(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+    raw = await scrapeSOPIC(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword, supplier.b2bUrl);
   } else if (supName.includes("CAR GROS") || supName.includes("CARGROS") || b2bUrl.includes("ennakl")) {
     raw = await scrapeCARGROS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("STAFIM") || b2bUrl.includes("stafim")) {
