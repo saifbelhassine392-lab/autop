@@ -2214,25 +2214,21 @@ export async function POST(request: Request) {
         let l = s.b2bLogin?.trim();
         let p = s.b2bPassword?.trim();
         const supUpper = (s.name || '').toUpperCase();
-        if (!l) {
-          if (supUpper.includes('FAD')) l = '3905';
-          else if (supUpper.includes('STEQ')) l = 'CL0016035';
-          else if (supUpper.includes('CDG')) l = '4112329';
-          else if (supUpper.includes('SAGAP')) l = 'ibrahim.ayadi@autop.tn';
-          else if (supUpper.includes('AAP')) l = '410138';
-          else if (supUpper.includes('PROPARTS')) l = 'C0667';
-          else if (supUpper.includes('ITALCAR')) l = 'SSE01';
-          else if (supUpper.includes('CARGROS')) l = 'DPE00114';
-          else if (supUpper.includes('ALPHA FORD')) l = 'AUTOP/STE DE SERVICE AUTOMOBILE';
-          else if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) l = 'services-automobile@gmail.com';
-          else if (supUpper.includes('SOPIC')) l = 'amine@autop.tn';
-          else if (supUpper.includes('SOCOFA')) l = 'Amine.benomrane@autop.tn';
-          else l = 'AUTOP';
-        }
-        if (!p) {
-          if (l === '3905') p = '7S@5512g';
-          else if (supUpper.includes('SOCOFA')) p = '98774525';
-          else p = 'password123';
+        if (!l || !p) {
+          if (supUpper.includes('FAD')) { l = l || '3905'; p = p || '7S@5512g'; }
+          else if (supUpper.includes('STEQ')) { l = l || 'CL0016035'; p = p || 'STEQ484630925'; }
+          else if (supUpper.includes('CDG')) { l = l || '4112329'; p = p || '98774525'; }
+          else if (supUpper.includes('SAGAP')) { l = l || 'ibrahim.ayadi@autop.tn'; p = p || 'SAGAPb2b123.a'; }
+          else if (supUpper.includes('AAP')) { l = l || '410138'; p = p || 'AUTOP2026'; }
+          else if (supUpper.includes('PROPARTS')) { l = l || 'C0667'; p = p || 'OTO*122'; }
+          else if (supUpper.includes('ITALCAR')) { l = l || 'SSE01'; p = p || '123456'; }
+          else if (supUpper.includes('CARGROS') || supUpper.includes('CAR GROS')) { l = l || 'DPE00114'; p = p || '2062022'; }
+          else if (supUpper.includes('ALPHA FORD')) { l = l || 'AUTOP/STE DE SERVICE AUTOMOBILE'; p = p || '1234'; }
+          else if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) { l = l || 'services-automobile@gmail.com'; p = p || 'Ssautomobile98774525*TB'; }
+          else if (supUpper.includes('SOPIC')) { l = l || 'amine@autop.tn'; p = p || 'Amine2025'; }
+          else if (supUpper.includes('SOCOFA')) { l = l || 'Amine.benomrane@autop.tn'; p = p || '98774525'; }
+          else if (supUpper.includes('STAFIM')) { l = l || 'WU-G260252'; p = p || 'CLI24829'; }
+          else { l = l || 'AUTOP'; p = p || 'password123'; }
         }
         return { ...s, b2bLogin: l, b2bPassword: p };
       });

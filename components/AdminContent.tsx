@@ -5708,7 +5708,7 @@ export default function AdminContent() {
     'ajouter-fournisseur': <SectionAjouterFournisseur />,
     'liste-fournisseurs': <SectionListeFournisseurs />,
     'consultation-fournisseur': <SectionConsultationFournisseur />,
-    'robot-b2b': <SectionRobotB2B />,
+    'robot-b2b': <B2BComparator />,
     'parts-catalogue': (
       <SectionPartsCatalogue
         onTransferToRobot={(ref) => {
