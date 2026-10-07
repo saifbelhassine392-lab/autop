@@ -6,7 +6,8 @@ import {
   Search, Package, Upload, Download, FileSpreadsheet, RefreshCw,
   CheckCircle2, AlertTriangle, Clock, Layers, ArrowRight, ExternalLink,
   Car, Shield, Sparkles, Filter, Copy, Check, Plus, Trash2,
-  ChevronDown, ChevronRight, HelpCircle, FileText, ArrowUpDown
+  ChevronDown, ChevronRight, HelpCircle, FileText, ArrowUpDown,
+  LayoutGrid, List, Tag, Building2, SlidersHorizontal, CheckCircle, CheckSquare
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -59,9 +60,14 @@ export default function B2BComparator() {
   const [singleQuery, setSingleQuery] = useState('');
   const [singleLoading, setSingleLoading] = useState(false);
   const [singleResult, setSingleResult] = useState<any>(null);
-  const [singleFilter, setSingleFilter] = useState<'ALL' | 'DISPO' | 'ARRIVAGE' | 'COMMANDE'>('ALL');
-  const [sortBy, setSortBy] = useState<'price_asc' | 'price_desc' | 'stock_desc'>('price_asc');
+  const [singleFilter, setSingleFilter] = useState<'ALL' | 'DISPO' | 'COMMANDE'>('ALL');
+  const [selectedBrand, setSelectedBrand] = useState<string>('ALL');
+  const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string>('ALL');
+  const [itemSearchText, setItemSearchText] = useState<string>('');
+  const [sortBy, setSortBy] = useState<'price_asc' | 'price_desc' | 'stock_desc' | 'brand_asc' | 'supplier_asc'>('price_asc');
+  const [viewMode, setViewMode] = useState<'GRID' | 'TABLE'>('GRID');
   const [copiedItemKey, setCopiedItemKey] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // ─── Mode 2: Multi-Refs / Import ─────────────────────────────────────────
   const [multiInputText, setMultiInputText] = useState('');
@@ -216,31 +222,130 @@ export default function B2BComparator() {
     triggerSingleSearch();
   };
 
+  // ─── Stats & Filter Options Extraction ────────────────────────────────────
+  const rawItems: B2BItem[] = useMemo(() => {
+    return singleResult?.items || [];
+  }, [singleResult]);
+
+  const stockStats = useMemo(() => {
+    let inStock = 0;
+    let onOrder = 0;
+    rawItems.forEach(it => {
+      const isDispo = it.available || it.rawStock > 0 || (it.availability || '').toLowerCase().includes('stock') || (it.availability || '').toLowerCase().includes('disponible');
+      if (isDispo) inStock++;
+      else onOrder++;
+    });
+    return { total: rawItems.length, inStock, onOrder };
+  }, [rawItems]);
+
+  const availableBrands = useMemo(() => {
+    const counts: Record<string, number> = {};
+    rawItems.forEach(it => {
+      const b = (it.brand || 'ADAPTABLE').trim().toUpperCase();
+      counts[b] = (counts[b] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [rawItems]);
+
+  const availableSuppliersList = useMemo(() => {
+    const counts: Record<string, number> = {};
+    rawItems.forEach(it => {
+      const s = (it.supplierName || it.fournisseur || 'FOURNISSEUR').trim();
+      counts[s] = (counts[s] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [rawItems]);
+
   // Filter and sort items for Mode 1
   const processedSingleItems = useMemo(() => {
-    const raw: B2BItem[] = singleResult?.items || [];
-    let list = raw.filter(item => {
+    let list = rawItems.filter(item => {
       const avail = (item.availability || '').toLowerCase();
       const isDispo = item.available || item.rawStock > 0 || avail.includes('stock') || avail.includes('disponible');
-      const isArrivage = avail.includes('arrivage');
       
-      if (singleFilter === 'DISPO') return isDispo;
-      if (singleFilter === 'ARRIVAGE') return isArrivage;
-      if (singleFilter === 'COMMANDE') return !isDispo && !isArrivage;
+      // 1. Filtre Disponibilité
+      if (singleFilter === 'DISPO' && !isDispo) return false;
+      if (singleFilter === 'COMMANDE' && isDispo) return false;
+
+      // 2. Filtre Marque
+      if (selectedBrand !== 'ALL') {
+        const itemBrand = (item.brand || 'ADAPTABLE').trim().toUpperCase();
+        if (itemBrand !== selectedBrand.toUpperCase()) return false;
+      }
+
+      // 3. Filtre Fournisseur
+      if (selectedSupplierFilter !== 'ALL') {
+        const itemSup = (item.supplierName || item.fournisseur || '').trim().toUpperCase();
+        if (itemSup !== selectedSupplierFilter.toUpperCase()) return false;
+      }
+
+      // 4. Recherche textuelle dans les résultats
+      if (itemSearchText.trim()) {
+        const q = itemSearchText.trim().toUpperCase();
+        const refMatch = (item.name || item.reference || '').toUpperCase().includes(q);
+        const brandMatch = (item.brand || '').toUpperCase().includes(q);
+        const descMatch = (item.designation || item.description || '').toUpperCase().includes(q);
+        const supMatch = (item.supplierName || item.fournisseur || '').toUpperCase().includes(q);
+        if (!refMatch && !brandMatch && !descMatch && !supMatch) return false;
+      }
+
       return true;
     });
 
     list.sort((a, b) => {
       const priceA = a.price || a.prixHT || 0;
       const priceB = b.price || b.prixHT || 0;
-      if (sortBy === 'price_asc') return priceA - priceB;
+      if (sortBy === 'price_asc') {
+        if (priceA === 0) return 1;
+        if (priceB === 0) return -1;
+        return priceA - priceB;
+      }
       if (sortBy === 'price_desc') return priceB - priceA;
       if (sortBy === 'stock_desc') return (b.rawStock || 0) - (a.rawStock || 0);
+      if (sortBy === 'brand_asc') return (a.brand || '').localeCompare(b.brand || '');
+      if (sortBy === 'supplier_asc') return (a.supplierName || '').localeCompare(b.supplierName || '');
       return 0;
     });
 
     return list;
-  }, [singleResult, singleFilter, sortBy]);
+  }, [rawItems, singleFilter, selectedBrand, selectedSupplierFilter, itemSearchText, sortBy]);
+
+  const copyItemInfo = (item: B2BItem, key: string) => {
+    const text = `Réf: ${item.name || item.reference} | Marque: ${item.brand || 'N/A'} | Désignation: ${item.designation || item.description || 'Pièce'} | Fournisseur: ${item.supplierName || 'Fournisseur'} | Prix: ${(item.price || item.prixHT || 0).toFixed(3)} TND HT | Stock: ${item.rawStock > 0 ? item.rawStock : 'Sur commande'}`;
+    navigator.clipboard.writeText(text);
+    setCopiedItemKey(key);
+    setToastMessage(`Offre ${item.name || item.reference} copiée dans le presse-papier !`);
+    setTimeout(() => setCopiedItemKey(null), 2500);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleAddToQuote = (item: B2BItem) => {
+    const singleQuoteItem = {
+      reference: item.name || item.reference,
+      designation: item.designation || item.description || `Article ${item.name}`,
+      qty: 1,
+      puHT: item.price || item.prixHT || 0,
+      price: item.price || item.prixHT || 0,
+      discount: item.discount || 0,
+      supplierName: item.supplierName || 'Fournisseur B2B',
+      partType: item.brand?.toUpperCase().includes('PEUGEOT') || item.brand?.toUpperCase().includes('CITROEN') || item.brand?.toUpperCase().includes('ORIGINE') ? 'ORIGINE' : 'ADAPTABLE',
+      offres: [{
+        type: item.brand?.toUpperCase().includes('PEUGEOT') || item.brand?.toUpperCase().includes('CITROEN') || item.brand?.toUpperCase().includes('ORIGINE') ? 'ORIGINE' : 'ADAPTABLE',
+        supplierName: item.supplierName || 'Fournisseur B2B',
+        purchasePrice: item.price || item.prixHT || 0,
+        sellingPrice: parseFloat(((item.price || item.prixHT || 0) * 1.30).toFixed(3))
+      }]
+    };
+    localStorage.setItem('quote_prefill_items', JSON.stringify([singleQuoteItem]));
+    setToastMessage(`✓ Article ${item.name || item.reference} ajouté au devis !`);
+    setTimeout(() => {
+      setToastMessage(null);
+      setAdminSection('creer-devis');
+    }, 400);
+  };
 
   // ─── MODE 2: Multi-References & Batch Execution ───────────────────────────
   const handleParseMultiInput = () => {
@@ -473,13 +578,7 @@ export default function B2BComparator() {
     triggerSingleSearch(refOrKeyword);
   };
 
-  // ─── Helper: Copy to Clipboard ───────────────────────────────────────────
-  const copyItemInfo = (item: B2BItem, key: string) => {
-    const text = `Réf: ${item.name} | Marque: ${item.brand} | Prix: ${(item.price || item.prixHT || 0).toFixed(3)} TND HT | Fournisseur: ${item.supplierName} | Dispo: ${item.availability}`;
-    navigator.clipboard.writeText(text);
-    setCopiedItemKey(key);
-    setTimeout(() => setCopiedItemKey(null), 2000);
-  };
+
 
   return (
     <div className="max-w-7xl mx-auto pb-12 space-y-6">
@@ -663,103 +762,272 @@ export default function B2BComparator() {
             </div>
           </div>
 
+          {/* Toast Notification */}
+          {toastMessage && (
+            <div className="fixed bottom-6 right-6 z-50 bg-slate-900 border border-emerald-500/60 shadow-2xl shadow-emerald-500/20 text-slate-100 px-5 py-3 rounded-2xl flex items-center gap-3 text-xs font-bold animate-in fade-in slide-in-from-bottom-4">
+              <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span>{toastMessage}</span>
+            </div>
+          )}
+
           {/* KPI Summary Cards */}
-          {singleResult && singleResult.items && singleResult.items.length > 0 && (
+          {singleResult && rawItems.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
                   MEILLEUR PRIX ACHAT HT
                 </span>
-                <span className="text-2xl font-black font-mono text-emerald-400">
-                  {singleResult.price ? `${Number(singleResult.price).toFixed(3)} TND` : '—'}
-                </span>
-                <span className="text-[10px] text-slate-500 font-bold block mt-1">
-                  Prix le plus bas constaté
-                </span>
-              </div>
-
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                  DISPONIBILITÉ GLOBALE
-                </span>
-                <span className={`text-base font-black uppercase ${
-                  singleResult.available ? 'text-emerald-400' : 'text-amber-400'
-                }`}>
-                  {singleResult.available ? '🟢 EN STOCK' : '🟡 SUR COMMANDE'}
-                </span>
-                <span className="text-[10px] text-slate-500 font-bold block mt-1">
-                  {singleResult.stock ? `${singleResult.stock} unité(s) en stock` : 'Disponibilité fournisseurs'}
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black font-mono text-emerald-400">
+                    {singleResult.price ? `${Number(singleResult.price).toFixed(3)}` : '—'}
+                  </span>
+                  <span className="text-xs font-bold text-emerald-500">TND HT</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold block mt-1">
+                  Prix le plus avantageux identifié
                 </span>
               </div>
 
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/10 rounded-full blur-2xl pointer-events-none" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                  OFFRES MULTI-FOURNISSEURS
+                  DISPONIBILITÉ RÉELLE
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xl font-black uppercase ${
+                    stockStats.inStock > 0 ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    {stockStats.inStock > 0 ? `🟢 ${stockStats.inStock} EN STOCK` : '🟡 SUR COMMANDE'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold block mt-1">
+                  {stockStats.inStock} disponible(s) • {stockStats.onOrder} sur commande
+                </span>
+              </div>
+
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl pointer-events-none" />
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
+                  TOTAL ARTICLES TROUVÉS
                 </span>
                 <span className="text-2xl font-black font-mono text-cyan-400">
-                  {singleResult.items.length}
+                  {rawItems.length}
                 </span>
-                <span className="text-[10px] text-slate-500 font-bold block mt-1">
-                  Articles et équivalences trouvés
+                <span className="text-[10px] text-slate-400 font-bold block mt-1">
+                  {availableBrands.length} marque(s) • {availableSuppliersList.length} fournisseur(s)
                 </span>
               </div>
 
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+              <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/10 rounded-full blur-2xl pointer-events-none" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
                   REMISE MAX CONSTATÉE
                 </span>
                 <span className="text-2xl font-black font-mono text-rose-400">
                   {singleResult.discount ? `${singleResult.discount}%` : '0%'}
                 </span>
-                <span className="text-[10px] text-slate-500 font-bold block mt-1">
-                  Remise tarifaire fournisseur
+                <span className="text-[10px] text-slate-400 font-bold block mt-1">
+                  Remise tarifaire distributeur
                 </span>
               </div>
             </div>
           )}
 
-          {/* Filter Bar */}
-          {singleResult && singleResult.items && singleResult.items.length > 0 && (
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
-              {/* Filter Tabs */}
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  { id: 'ALL', label: `TOUT (${singleResult.items.length})` },
-                  { id: 'DISPO', label: '🟢 EN STOCK' },
-                  { id: 'ARRIVAGE', label: '🔵 ARRIVAGE' },
-                  { id: 'COMMANDE', label: '🟡 SUR COMMANDE' },
-                ].map(tab => (
+          {/* Filter Bar & Controls */}
+          {singleResult && rawItems.length > 0 && (
+            <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+              {/* Row 1: Search in Results + Availability Tabs + View Mode */}
+              <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
+                {/* Search input inside results */}
+                <div className="relative flex-1 min-w-[240px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="text"
+                    value={itemSearchText}
+                    onChange={e => setItemSearchText(e.target.value)}
+                    placeholder="Filtrer résultats (réf, désignation, marque...)"
+                    className="w-full bg-slate-950 text-slate-200 text-xs font-semibold border border-slate-800 pl-9 pr-3 h-10 rounded-xl focus:outline-none focus:border-red-500 placeholder:text-slate-500"
+                  />
+                  {itemSearchText && (
+                    <button
+                      onClick={() => setItemSearchText('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Availability Tabs */}
+                <div className="flex flex-wrap gap-1.5">
                   <button
-                    key={tab.id}
-                    onClick={() => setSingleFilter(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-black uppercase transition-all ${
-                      singleFilter === tab.id
-                        ? 'bg-red-600 text-white shadow-md'
+                    onClick={() => setSingleFilter('ALL')}
+                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                      singleFilter === 'ALL'
+                        ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
                         : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
                     }`}
                   >
-                    {tab.label}
+                    TOUT ({stockStats.total})
                   </button>
-                ))}
+                  <button
+                    onClick={() => setSingleFilter('DISPO')}
+                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-1.5 ${
+                      singleFilter === 'DISPO'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <span>🟢 EN STOCK</span>
+                    <span className="bg-slate-900/60 px-1.5 py-0.5 rounded text-[10px]">{stockStats.inStock}</span>
+                  </button>
+                  <button
+                    onClick={() => setSingleFilter('COMMANDE')}
+                    className={`px-3 py-2 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-1.5 ${
+                      singleFilter === 'COMMANDE'
+                        ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30'
+                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <span>🟡 SUR COMMANDE</span>
+                    <span className="bg-slate-900/60 px-1.5 py-0.5 rounded text-[10px]">{stockStats.onOrder}</span>
+                  </button>
+                </div>
+
+                {/* View Switch */}
+                <div className="flex items-center gap-1 bg-slate-950 border border-slate-800 p-1 rounded-xl shrink-0">
+                  <button
+                    onClick={() => setViewMode('GRID')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase flex items-center gap-1.5 transition-all ${
+                      viewMode === 'GRID'
+                        ? 'bg-red-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Vue Grille de Cartes"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>GRILLE</span>
+                  </button>
+                  <button
+                    onClick={() => setViewMode('TABLE')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase flex items-center gap-1.5 transition-all ${
+                      viewMode === 'TABLE'
+                        ? 'bg-red-600 text-white shadow'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    title="Vue Tableau Comparateur"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>TABLEAU</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Sort Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase text-slate-400">TRIER :</span>
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value as any)}
-                  className="bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl px-3 py-1.5 outline-none"
-                >
-                  <option value="price_asc">PRIX CROISSANT</option>
-                  <option value="price_desc">PRIX DÉCROISSANT</option>
-                  <option value="stock_desc">STOCK DISPONIBLE</option>
-                </select>
+              {/* Row 2: Dropdown Filters (Marque, Fournisseur, Tri) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-800/80">
+                {/* Brand Filter */}
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-purple-400 shrink-0" />
+                  <div className="flex-1">
+                    <select
+                      value={selectedBrand}
+                      onChange={e => setSelectedBrand(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl px-3 h-10 outline-none focus:border-purple-500 cursor-pointer"
+                    >
+                      <option value="ALL">TOUTES LES MARQUES ({rawItems.length})</option>
+                      {availableBrands.map(b => (
+                        <option key={b.name} value={b.name}>
+                          {b.name} ({b.count} article{b.count > 1 ? 's' : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Supplier Filter */}
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <div className="flex-1">
+                    <select
+                      value={selectedSupplierFilter}
+                      onChange={e => setSelectedSupplierFilter(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl px-3 h-10 outline-none focus:border-cyan-500 cursor-pointer"
+                    >
+                      <option value="ALL">TOUS LES FOURNISSEURS ({availableSuppliersList.length})</option>
+                      {availableSuppliersList.map(s => (
+                        <option key={s.name} value={s.name}>
+                          {s.name} ({s.count} article{s.count > 1 ? 's' : ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Sort Selector */}
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div className="flex-1">
+                    <select
+                      value={sortBy}
+                      onChange={e => setSortBy(e.target.value as any)}
+                      className="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs font-bold rounded-xl px-3 h-10 outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      <option value="price_asc">PRIX CROISSANT (MOINS CHER)</option>
+                      <option value="price_desc">PRIX DÉCROISSANT</option>
+                      <option value="stock_desc">STOCK DISPONIBLE</option>
+                      <option value="brand_asc">PAR MARQUE (A-Z)</option>
+                      <option value="supplier_asc">PAR FOURNISSEUR (A-Z)</option>
+                    </select>
+                  </div>
+                </div>
               </div>
+
+              {/* Active Filter Chips Reset */}
+              {(selectedBrand !== 'ALL' || selectedSupplierFilter !== 'ALL' || singleFilter !== 'ALL' || itemSearchText.trim()) && (
+                <div className="flex flex-wrap items-center gap-2 pt-2 text-xs">
+                  <span className="text-[10px] font-black uppercase text-slate-400">Filtres actifs :</span>
+                  {selectedBrand !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-500/40 text-purple-300 font-bold text-[11px]">
+                      Marque: {selectedBrand}
+                      <button onClick={() => setSelectedBrand('ALL')} className="hover:text-white">✕</button>
+                    </span>
+                  )}
+                  {selectedSupplierFilter !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 font-bold text-[11px]">
+                      Fournisseur: {selectedSupplierFilter}
+                      <button onClick={() => setSelectedSupplierFilter('ALL')} className="hover:text-white">✕</button>
+                    </span>
+                  )}
+                  {singleFilter !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold text-[11px]">
+                      {singleFilter === 'DISPO' ? 'En Stock' : 'Sur Commande'}
+                      <button onClick={() => setSingleFilter('ALL')} className="hover:text-white">✕</button>
+                    </span>
+                  )}
+                  {itemSearchText.trim() && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-bold text-[11px]">
+                      Texte: "{itemSearchText}"
+                      <button onClick={() => setItemSearchText('')} className="hover:text-white">✕</button>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedBrand('ALL');
+                      setSelectedSupplierFilter('ALL');
+                      setSingleFilter('ALL');
+                      setItemSearchText('');
+                    }}
+                    className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase underline ml-1"
+                  >
+                    Réinitialiser tout
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Tableau / Grille des Offres Fournisseurs */}
+          {/* Results Container */}
           {singleResult && (
             <div className="space-y-4">
               {singleResult.error && (
@@ -769,133 +1037,246 @@ export default function B2BComparator() {
               )}
 
               {processedSingleItems.length === 0 && !singleResult.error && (
-                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center text-slate-400 font-bold uppercase text-xs">
-                  Aucun article ne correspond au filtre sélectionné.
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-10 text-center space-y-2">
+                  <p className="text-slate-300 font-bold text-sm uppercase">
+                    Aucun article ne correspond aux filtres sélectionnés.
+                  </p>
+                  <p className="text-slate-500 text-xs font-semibold">
+                    Essayez d'élargir la marque, le statut de stock ou le fournisseur.
+                  </p>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {processedSingleItems.map((item, idx) => {
-                  const isAvailable = item.available || item.rawStock > 0;
-                  const itemKey = `${item.name}-${item.supplierName}-${idx}`;
-                  const isCopied = copiedItemKey === itemKey;
+              {/* ─── VUE 1 : GRILLE DE CARTES PREMIUM ────────────────────────────── */}
+              {viewMode === 'GRID' && processedSingleItems.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {processedSingleItems.map((item, idx) => {
+                    const isAvailable = item.available || item.rawStock > 0;
+                    const itemKey = `${item.name || item.reference}-${item.supplierName}-${idx}`;
+                    const isCopied = copiedItemKey === itemKey;
+                    const priceVal = item.price || item.prixHT || 0;
+                    const isDirect = item.matchType === 'DIRECT';
 
-                  return (
-                    <div
-                      key={itemKey}
-                      className={`bg-slate-900/90 border rounded-2xl p-5 flex flex-col justify-between shadow-xl transition-all hover:scale-[1.01] ${
-                        isAvailable
-                          ? 'border-emerald-500/40 shadow-emerald-500/5'
-                          : 'border-slate-800'
-                      }`}
-                    >
-                      <div>
-                        {/* Supplier and Match Badge */}
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="px-2.5 py-1 rounded-lg text-xs font-black uppercase bg-slate-950 text-slate-200 border border-slate-800">
-                            🏢 {item.supplierName || item.fournisseur || 'FOURNISSEUR'}
-                          </span>
+                    return (
+                      <div
+                        key={itemKey}
+                        className={`bg-slate-900/95 border rounded-2xl p-5 flex flex-col justify-between shadow-xl transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl relative overflow-hidden ${
+                          isAvailable
+                            ? 'border-emerald-500/40 shadow-emerald-500/5 hover:border-emerald-400/60'
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        {/* Glow accent */}
+                        <div className={`absolute -right-10 -top-10 w-28 h-28 rounded-full blur-2xl pointer-events-none ${
+                          isAvailable ? 'bg-emerald-500/10' : 'bg-amber-500/5'
+                        }`} />
 
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${
-                            item.matchType === 'EQUIVALENCE'
-                              ? 'bg-purple-950/40 text-purple-300 border-purple-500/30'
-                              : 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
-                          }`}>
-                            {item.matchType === 'EQUIVALENCE' ? '🔄 ÉQUIVALENT' : '🎯 DIRECT'}
-                          </span>
-                        </div>
+                        <div>
+                          {/* Supplier & Match Badge */}
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 text-slate-200 border border-slate-800 text-xs font-black uppercase">
+                              <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>{item.supplierName || item.fournisseur || 'FOURNISSEUR'}</span>
+                            </div>
 
-                        {/* Part Reference & Brand */}
-                        <div className="mb-2">
-                          <span className="text-[10px] text-slate-500 font-bold uppercase block">RÉFÉRENCE</span>
-                          <span className="text-base font-black font-mono text-red-400 uppercase tracking-wider">
-                            {item.name || item.reference}
-                          </span>
-                        </div>
-
-                        <div className="mb-3">
-                          <span className="text-[10px] text-slate-500 font-bold uppercase block">MARQUE / DÉSIGNATION</span>
-                          <p className="text-xs font-black text-slate-100 uppercase tracking-wide truncate">
-                            {item.brand || 'ADAPTABLE'}
-                          </p>
-                          <p className="text-xs text-slate-300 font-medium line-clamp-2 mt-0.5">
-                            {item.designation || item.description || `Article ${item.name}`}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Pricing & Stock Footer */}
-                      <div className="pt-4 border-t border-slate-800/80 mt-2 space-y-3">
-                        <div className="flex justify-between items-end">
-                          <div>
-                            <span className="text-[9px] text-slate-400 uppercase font-black block">DISPONIBILITÉ</span>
-                            <span className={`text-xs font-black uppercase ${
-                              isAvailable ? 'text-emerald-400' : 'text-amber-400'
+                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${
+                              isDirect
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                : 'bg-purple-950/60 text-purple-300 border-purple-500/40'
                             }`}>
-                              {item.rawStock > 0 ? `🟢 En stock (${item.rawStock})` : item.availability || 'Sur commande'}
+                              {isDirect ? '🎯 DIRECT' : '🔄 TECDOC / ÉQUIV'}
                             </span>
                           </div>
 
-                          <div className="text-right">
-                            <span className="text-[9px] text-slate-400 uppercase font-black block">PRIX ACHAT HT</span>
-                            <span className="text-lg font-black font-mono text-emerald-400">
-                              {(item.price || item.prixHT || 0) > 0 ? `${(item.price || item.prixHT || 0).toFixed(3)} TND` : 'SUR DEMANDE'}
+                          {/* Reference & Brand Header */}
+                          <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                            <div>
+                              <span className="text-[9px] text-slate-500 font-bold uppercase block tracking-wider">
+                                RÉFÉRENCE
+                              </span>
+                              <span className="text-lg font-black font-mono text-red-400 uppercase tracking-wide">
+                                {item.name || item.reference}
+                              </span>
+                            </div>
+
+                            <span className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-200 text-xs font-black uppercase tracking-wider">
+                              {item.brand || 'ADAPTABLE'}
                             </span>
+                          </div>
+
+                          {/* Detailed Real Designation */}
+                          <div className="mb-3">
+                            <span className="text-[9px] text-slate-500 font-bold uppercase block tracking-wider">
+                              DÉSIGNATION ARTICLE
+                            </span>
+                            <p className="text-xs text-slate-100 font-bold leading-relaxed line-clamp-2 mt-0.5">
+                              {item.designation || item.description || `Article ${item.name || item.reference}`}
+                            </p>
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => copyItemInfo(item, itemKey)}
-                            className="flex-1 py-2 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5"
-                          >
-                            {isCopied ? (
-                              <>
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                <span>COPIÉ !</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>COPIER OFFRE</span>
-                              </>
-                            )}
-                          </button>
+                        {/* Pricing, Stock & Actions Footer */}
+                        <div className="pt-3 border-t border-slate-800/80 mt-2 space-y-3">
+                          <div className="flex justify-between items-end">
+                            <div>
+                              <span className="text-[9px] text-slate-400 uppercase font-black block mb-0.5">
+                                DISPONIBILITÉ
+                              </span>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-black uppercase ${
+                                isAvailable
+                                  ? 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/40'
+                                  : 'bg-amber-950/40 text-amber-300 border border-amber-500/30'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                                {item.rawStock > 0 ? `En stock (${item.rawStock})` : item.availability || 'Sur commande'}
+                              </span>
+                            </div>
 
-                          <button
-                            onClick={() => {
-                              const singleQuoteItem = {
-                                reference: item.name || item.reference,
-                                designation: item.designation || item.description || `Article ${item.name}`,
-                                qty: 1,
-                                puHT: item.price || item.prixHT || 0,
-                                price: item.price || item.prixHT || 0,
-                                discount: item.discount || 0,
-                                supplierName: item.supplierName || 'Fournisseur B2B',
-                                partType: item.brand?.toUpperCase().includes('ORIGINE') ? 'ORIGINE' : 'ADAPTABLE',
-                                offres: [{
-                                  type: item.brand?.toUpperCase().includes('ORIGINE') ? 'ORIGINE' : 'ADAPTABLE',
-                                  supplierName: item.supplierName || 'Fournisseur B2B',
-                                  purchasePrice: item.price || item.prixHT || 0,
-                                  sellingPrice: parseFloat(((item.price || item.prixHT || 0) * 1.30).toFixed(3))
-                                }]
-                              };
-                              localStorage.setItem('quote_prefill_items', JSON.stringify([singleQuoteItem]));
-                              setAdminSection('creer-devis');
-                            }}
-                            className="py-2 px-3 bg-red-600 hover:bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/30 flex items-center justify-center gap-1"
-                            title="Ajouter au devis"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>DEVIS</span>
-                          </button>
+                            <div className="text-right">
+                              <span className="text-[9px] text-slate-400 uppercase font-black block">
+                                PRIX ACHAT HT
+                              </span>
+                              <div className="flex items-baseline justify-end gap-1">
+                                <span className="text-xl font-black font-mono text-emerald-400">
+                                  {priceVal > 0 ? priceVal.toFixed(3) : '—'}
+                                </span>
+                                {priceVal > 0 && <span className="text-[10px] font-bold text-emerald-500">TND</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => copyItemInfo(item, itemKey)}
+                              className="flex-1 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              {isCopied ? (
+                                <>
+                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>COPIÉ !</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3.5 h-3.5" />
+                                  <span>COPIER OFFRE</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              onClick={() => handleAddToQuote(item)}
+                              className="py-2.5 px-4 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-md shadow-red-600/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                              title="Ajouter au devis"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ DEVIS</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ─── VUE 2 : TABLEAU COMPARATEUR DÉTAILLÉ ───────────────────────── */}
+              {viewMode === 'TABLE' && processedSingleItems.length > 0 && (
+                <div className="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-950/80 border-b border-slate-800 text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                          <th className="py-3.5 px-4">Fournisseur</th>
+                          <th className="py-3.5 px-4">Type</th>
+                          <th className="py-3.5 px-4">Référence</th>
+                          <th className="py-3.5 px-4">Marque</th>
+                          <th className="py-3.5 px-4">Désignation</th>
+                          <th className="py-3.5 px-4">Disponibilité</th>
+                          <th className="py-3.5 px-4 text-right">Prix Achat HT</th>
+                          <th className="py-3.5 px-4 text-center">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 text-xs font-bold">
+                        {processedSingleItems.map((item, idx) => {
+                          const isAvailable = item.available || item.rawStock > 0;
+                          const itemKey = `table-${item.name || item.reference}-${item.supplierName}-${idx}`;
+                          const isCopied = copiedItemKey === itemKey;
+                          const priceVal = item.price || item.prixHT || 0;
+                          const isDirect = item.matchType === 'DIRECT';
+
+                          return (
+                            <tr
+                              key={itemKey}
+                              className={`hover:bg-slate-800/40 transition-colors ${
+                                isAvailable ? 'bg-emerald-950/10' : ''
+                              }`}
+                            >
+                              <td className="py-3 px-4 text-slate-200 uppercase whitespace-nowrap">
+                                <span className="px-2 py-1 rounded-md bg-slate-950 border border-slate-800 text-[11px] font-black">
+                                  {item.supplierName || item.fournisseur || 'FOURNISSEUR'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                                  isDirect
+                                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                                    : 'bg-purple-950/60 text-purple-300 border-purple-500/40'
+                                }`}>
+                                  {isDirect ? 'DIRECT' : 'TECDOC'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono font-black text-red-400 whitespace-nowrap">
+                                {item.name || item.reference}
+                              </td>
+                              <td className="py-3 px-4 text-slate-200 uppercase whitespace-nowrap">
+                                <span className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[10px]">
+                                  {item.brand || 'ADAPTABLE'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-300 max-w-xs truncate font-medium">
+                                {item.designation || item.description || `Article ${item.name || item.reference}`}
+                              </td>
+                              <td className="py-3 px-4 whitespace-nowrap">
+                                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-black uppercase ${
+                                  isAvailable
+                                    ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-amber-950/40 text-amber-300 border border-amber-500/30'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                  {item.rawStock > 0 ? `Stock (${item.rawStock})` : item.availability || 'Sur commande'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-black text-emerald-400 whitespace-nowrap text-sm">
+                                {priceVal > 0 ? `${priceVal.toFixed(3)} TND` : 'SUR DEMANDE'}
+                              </td>
+                              <td className="py-3 px-4 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => copyItemInfo(item, itemKey)}
+                                    className="p-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-lg text-xs transition-all"
+                                    title="Copier les détails"
+                                  >
+                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleAddToQuote(item)}
+                                    className="px-2.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-[10px] font-black uppercase transition-all shadow-md shadow-red-600/30 flex items-center gap-1"
+                                    title="Ajouter au devis"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>DEVIS</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

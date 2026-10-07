@@ -2415,90 +2415,126 @@ export async function POST(request: Request) {
         }
       }
 
-      const combinedItems: any[] = [...liveSupplierItems];
+      // Filtrer et dédupliquer les articles réels issus des fournisseurs B2B en direct
+      const cleanLiveItems: any[] = [];
+      const seenKey = new Set<string>();
 
-      // 1. Croiser avec la base de données interne Product et PartPriceHistory
-      try {
-        const qUpper = searchQuery.toUpperCase();
-        
-        // Recherche multi-critères en DB
-        const dbProducts = await prisma.product.findMany({
-          where: {
-            OR: [
-              { reference: { contains: qUpper } },
-              { sku: { contains: qUpper } },
-              { name: { contains: qUpper } },
-              { brand: { contains: searchBrand?.toUpperCase() || qUpper } },
-              { vehicleCompat: { contains: model?.toUpperCase() || make?.toUpperCase() || qUpper } }
-            ],
-            status: 'ACTIVE'
-          },
-          take: 20
-        });
-
-        dbProducts.forEach(p => {
-          combinedItems.push({
-            name: p.reference || p.sku,
-            brand: p.brand || 'CATALOGUE AUTOP',
-            price: p.price || 0,
-            discount: 0,
-            availability: (p.stock || 0) > 0 ? `Disponible (Stock: ${p.stock})` : 'Sur Commande',
-            rawStock: p.stock || 0,
-            available: (p.stock || 0) > 0,
-            isFallback: true,
-            supplierName: 'CATALOGUE GÉNÉRAL AUTOP'
-          });
-        });
-
-        const histories = await prisma.partPriceHistory.findMany({
-          where: {
-            OR: [
-              { reference: { contains: qUpper } },
-              { supplierName: { contains: qUpper } }
-            ]
-          },
-          take: 15
-        });
-
-        histories.forEach(h => {
-          combinedItems.push({
-            name: h.reference,
-            brand: h.type === 'ORIGINE' || h.isConcessionnaire ? 'ORIGINE CONCESSIONNAIRE' : 'ADAPTABLE',
-            price: h.sellingPrice || h.purchasePrice || 0,
-            discount: 0,
-            availability: 'Offre Historique Enregistrée',
-            rawStock: 1,
-            available: true,
-            isFallback: true,
-            supplierName: h.supplierName || 'Fournisseur'
-          });
-        });
-      } catch (errDb) {
-        console.warn("[B2B Search] Local DB Search fallback error:", errDb);
+      for (const it of liveSupplierItems) {
+        const normRef = (it.reference || it.name || '').trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
+        const supKey = `${it.supplierName || it.fournisseur || ''}_${normRef}_${(it.brand || '').toUpperCase()}`;
+        if (!seenKey.has(supKey)) {
+          seenKey.add(supKey);
+          cleanLiveItems.push(it);
+        }
       }
 
-      // 2. Croiser avec le dictionnaire d'équivalence centralisé (en secours)
+      let combinedItems: any[] = [...cleanLiveItems];
+
+      // Si aucun fournisseur B2B en direct n'a retourné d'articles, chercher en DB locale
+      if (cleanLiveItems.length === 0) {
+        try {
+          const qUpper = searchQuery.toUpperCase();
+          
+          const dbProducts = await prisma.product.findMany({
+            where: {
+              OR: [
+                { reference: { contains: qUpper } },
+                { sku: { contains: qUpper } },
+                { name: { contains: qUpper } },
+                { brand: { contains: searchBrand?.toUpperCase() || qUpper } },
+                { vehicleCompat: { contains: model?.toUpperCase() || make?.toUpperCase() || qUpper } }
+              ],
+              status: 'ACTIVE'
+            },
+            take: 20
+          });
+
+          dbProducts.forEach(p => {
+            const normRef = (p.reference || p.sku || '').trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
+            const key = `CATALOGUE_${normRef}_${(p.brand || '').toUpperCase()}`;
+            if (!seenKey.has(key)) {
+              seenKey.add(key);
+              combinedItems.push({
+                name: p.reference || p.sku,
+                reference: p.reference || p.sku,
+                brand: p.brand || 'CATALOGUE AUTOP',
+                designation: p.name || `Article ${p.reference || p.sku}`,
+                description: p.description || p.name || '',
+                price: p.price || 0,
+                prixHT: p.price || 0,
+                discount: 0,
+                availability: (p.stock || 0) > 0 ? `Disponible (Stock: ${p.stock})` : 'Sur Commande',
+                rawStock: p.stock || 0,
+                stock: p.stock || 0,
+                available: (p.stock || 0) > 0,
+                isFallback: true,
+                matchType: 'DIRECT',
+                supplierName: 'CATALOGUE AUTOP',
+                fournisseur: 'CATALOGUE AUTOP'
+              });
+            }
+          });
+
+          const histories = await prisma.partPriceHistory.findMany({
+            where: {
+              OR: [
+                { reference: { contains: qUpper } },
+                { supplierName: { contains: qUpper } }
+              ]
+            },
+            take: 15
+          });
+
+          histories.forEach(h => {
+            const normRef = (h.reference || '').trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
+            const key = `HISTORIQUE_${normRef}_${(h.supplierName || '').toUpperCase()}`;
+            if (!seenKey.has(key)) {
+              seenKey.add(key);
+              combinedItems.push({
+                name: h.reference,
+                reference: h.reference,
+                brand: h.type === 'ORIGINE' || h.isConcessionnaire ? 'ORIGINE CONCESSIONNAIRE' : 'ADAPTABLE',
+                designation: `Pièce ${h.reference}`,
+                description: `Enregistrement historique ${h.supplierName || 'Fournisseur'}`,
+                price: h.sellingPrice || h.purchasePrice || 0,
+                prixHT: h.sellingPrice || h.purchasePrice || 0,
+                discount: 0,
+                availability: 'Offre Historique Enregistrée',
+                rawStock: 1,
+                stock: 1,
+                available: true,
+                isFallback: true,
+                matchType: 'DIRECT',
+                supplierName: h.supplierName || 'Fournisseur',
+                fournisseur: h.supplierName || 'Fournisseur'
+              });
+            }
+          });
+        } catch (errDb) {
+          console.warn("[B2B Search] Local DB Search fallback error:", errDb);
+        }
+      }
+
+      // Extraction des équivalences du dictionnaire (sans polluer la liste des articles réels)
       const dictEntries = searchDictionaryAndEquivalents(searchQuery);
+      const dictionaryEquivalents: any[] = [];
       dictEntries.forEach(entry => {
         entry.equivalents.forEach(eq => {
-          combinedItems.push({
-            name: eq.reference,
+          dictionaryEquivalents.push({
+            reference: eq.reference,
             brand: eq.brand,
-            price: eq.estimatedPrice || 0,
-            discount: 0,
-            availability: 'Dictionnaire d\'Équivalents',
-            rawStock: 1,
-            available: false,
-            isFallback: true,
-            supplierName: `DICTIONNAIRE (${entry.category})`
+            category: entry.category,
+            indicativePrice: eq.estimatedPrice || 0
           });
         });
       });
 
-      // Sélection prioritaire du meilleur prix fournisseur réel en stock ou en arrivage
-      const realLiveItems = combinedItems.filter(i => !i.isFallback && (i.price > 0 || i.prixHT > 0));
-      const availableLiveItem = realLiveItems.find(i => i.available || i.rawStock > 0 || i.availability?.includes('Stock') || i.availability?.includes('Arrivage'));
-      const bestItem = availableLiveItem || realLiveItems.sort((a, b) => ((a.price || a.prixHT || 0) - (b.price || b.prixHT || 0)))[0] || combinedItems.find(i => (i.price || 0) > 0) || combinedItems[0];
+      // Sélection prioritaire du meilleur prix fournisseur réel en stock
+      const inStockLiveItems = combinedItems.filter(i => (i.available || i.rawStock > 0) && (i.price > 0 || i.prixHT > 0));
+      const anyPricedLiveItems = combinedItems.filter(i => (i.price > 0 || i.prixHT > 0));
+      const bestItem = inStockLiveItems.sort((a, b) => ((a.price || a.prixHT || 0) - (b.price || b.prixHT || 0)))[0]
+        || anyPricedLiveItems.sort((a, b) => ((a.price || a.prixHT || 0) - (b.price || b.prixHT || 0)))[0]
+        || combinedItems[0];
 
       searchResult = {
         isMultiSupplier: true,
@@ -2508,6 +2544,7 @@ export async function POST(request: Request) {
         stock: bestItem ? (bestItem.rawStock || bestItem.stock || 0) : 0,
         availability: bestItem ? (bestItem.availability || (bestItem.available ? 'Disponible' : 'Sur Commande')) : 'Résultats extraits des fournisseurs',
         items: combinedItems,
+        dictionaryEquivalents: dictionaryEquivalents,
         suppliersBreakdown: allResults,
         // Journal de repli structuré (null si non déclenché)
         fallbackLogs: fallbackResult?.logs || null,
