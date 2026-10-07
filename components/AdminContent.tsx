@@ -1469,6 +1469,7 @@ function SectionAjouterFournisseur() {
   const [form, setForm] = useState({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState('');
+  const [lastSavedName, setLastSavedName] = useState('');
   const [error, setError] = useState('');
   const [recentSuppliers, setRecentSuppliers] = useState<any[]>([]);
 
@@ -1486,6 +1487,7 @@ function SectionAjouterFournisseur() {
   const handleSubmit = async () => {
     if (!form.name || !form.name.trim()) { setError('LE NOM DU FOURNISSEUR EST REQUIS'); return; }
     setSaving(true); setError(''); setSavedMessage('');
+    const submittedName = form.name.trim().toUpperCase();
     try {
       const res = await fetch('/api/suppliers', {
         method: 'POST',
@@ -1494,19 +1496,26 @@ function SectionAjouterFournisseur() {
       });
       const d = await res.json();
       if (res.ok && (d.success || d.data)) {
-        setSavedMessage(d.message || 'FOURNISSEUR ET ACCÈS B2B ENREGISTRÉS AVEC SUCCÈS !');
+        setSavedMessage(d.message || `FOURNISSEUR "${submittedName}" ENREGISTRÉ AVEC SUCCÈS !`);
+        setLastSavedName(submittedName);
         setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', b2bUrl: '', b2bLogin: '', b2bPassword: '' });
         loadRecent();
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
         }
-        setTimeout(() => setSavedMessage(''), 5000);
       } else {
         setError(d.error || 'ERREUR LORS DE LA CRÉATION');
       }
     } catch (e: any) {
       setError(`ERREUR RÉSEAU: ${e.message}`);
     } finally { setSaving(false); }
+  };
+
+  const handleGoToList = (filterName?: string) => {
+    if (filterName && typeof window !== 'undefined') {
+      localStorage.setItem('autop_supplier_filter', filterName);
+    }
+    setAdminSection('liste-fournisseurs');
   };
 
   return (
@@ -1519,7 +1528,7 @@ function SectionAjouterFournisseur() {
           <p className="text-slate-400 text-xs uppercase tracking-wider">ENREGISTREZ UN NOUVEAU FOURNISSEUR OU METTEZ À JOUR SES ACCÈS B2B</p>
         </div>
         <button
-          onClick={() => setAdminSection('liste-fournisseurs')}
+          onClick={() => handleGoToList()}
           className="flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition"
         >
           <List className="w-4 h-4 text-slate-400" /> VOIR TOUS LES FOURNISSEURS ({recentSuppliers.length})
@@ -1529,7 +1538,7 @@ function SectionAjouterFournisseur() {
       <div className={cardCls}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'NOM FOURNISSEUR *', key: 'name', type: 'text', placeholder: 'EX: EUROPIECES TUNISIE' },
+            { label: 'NOM FOURNISSEUR *', key: 'name', type: 'text', placeholder: 'EX: STAFIM GROS' },
             { label: 'CONTACT / RESPONSABLE', key: 'contactName', type: 'text', placeholder: 'NOM DU CONTACT' },
             { label: 'TÉLÉPHONE', key: 'phone', type: 'tel', placeholder: 'EX: 98 XXX XXX' },
             { label: 'EMAIL', key: 'email', type: 'email', placeholder: 'contact@fournisseur.tn' },
@@ -1573,15 +1582,16 @@ function SectionAjouterFournisseur() {
           </div>
         )}
         {savedMessage && (
-          <div className="mt-4 flex items-center justify-between gap-2 text-emerald-400 text-xs font-black uppercase bg-emerald-950/40 border border-emerald-800/60 p-3 rounded-xl">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 shrink-0" /> {savedMessage}
+          <div className="mt-4 flex items-center justify-between gap-3 text-emerald-400 text-xs font-black uppercase bg-emerald-950/50 border border-emerald-500/50 p-4 rounded-xl shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle className="w-5 h-5 shrink-0 text-emerald-400" />
+              <span>{savedMessage}</span>
             </div>
             <button
-              onClick={() => setAdminSection('liste-fournisseurs')}
-              className="underline hover:text-emerald-300 font-bold ml-2 lowercase first-letter:uppercase"
+              onClick={() => handleGoToList(lastSavedName)}
+              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black tracking-wider transition shadow-md whitespace-nowrap"
             >
-              Afficher dans la liste &rarr;
+              VOIR DANS LA LISTE &rarr;
             </button>
           </div>
         )}
@@ -1596,7 +1606,7 @@ function SectionAjouterFournisseur() {
             <Save className="w-3.5 h-3.5" /> {saving ? 'ENREGISTREMENT...' : 'ENREGISTRER FOURNISSEUR'}
           </button>
           <button
-            onClick={() => setAdminSection('liste-fournisseurs')}
+            onClick={() => handleGoToList()}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-black uppercase transition ml-auto"
           >
             <List className="w-3.5 h-3.5" /> LISTE COMPLÈTE ({recentSuppliers.length})
@@ -1613,6 +1623,8 @@ function SectionListeFournisseurs() {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedLetter, setSelectedLetter] = useState<string>('ALL');
+  const [sortOrder, setSortOrder] = useState<'ALPHA' | 'RECENT'>('RECENT');
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
   const [updating, setUpdating] = useState(false);
 
@@ -1631,6 +1643,13 @@ function SectionListeFournisseurs() {
   };
 
   useEffect(() => {
+    // Check if coming from adding a supplier with a pre-set filter
+    const preFilter = localStorage.getItem('autop_supplier_filter');
+    if (preFilter) {
+      setSearch(preFilter);
+      localStorage.removeItem('autop_supplier_filter');
+    }
+
     fetchSuppliers();
     const handleSuppliersUpdated = () => fetchSuppliers();
     window.addEventListener('autop_suppliers_updated', handleSuppliersUpdated);
@@ -1638,18 +1657,52 @@ function SectionListeFournisseurs() {
   }, []);
 
   const q = search.toLowerCase().trim();
-  const filtered = suppliers.filter(s => {
-    if (!q) return true;
-    return (
-      (s.name && s.name.toLowerCase().includes(q)) ||
-      (s.city && s.city.toLowerCase().includes(q)) ||
-      (s.contactName && s.contactName.toLowerCase().includes(q)) ||
-      (s.phone && s.phone.toLowerCase().includes(q)) ||
-      (s.email && s.email.toLowerCase().includes(q)) ||
-      (s.b2bLogin && s.b2bLogin.toLowerCase().includes(q)) ||
-      (s.b2bUrl && s.b2bUrl.toLowerCase().includes(q))
-    );
-  });
+  
+  // Available first letters for quick navigation
+  const availableLetters = useMemo(() => {
+    const letters = new Set<string>();
+    suppliers.forEach(s => {
+      const first = (s.name || '').charAt(0).toUpperCase();
+      if (first) letters.add(first);
+    });
+    return Array.from(letters).sort();
+  }, [suppliers]);
+
+  const filtered = useMemo(() => {
+    let list = suppliers.filter(s => {
+      // Letter filter
+      if (selectedLetter !== 'ALL') {
+        const first = (s.name || '').charAt(0).toUpperCase();
+        if (first !== selectedLetter) return false;
+      }
+
+      // Search query filter
+      if (!q) return true;
+      return (
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.city && s.city.toLowerCase().includes(q)) ||
+        (s.contactName && s.contactName.toLowerCase().includes(q)) ||
+        (s.phone && s.phone.toLowerCase().includes(q)) ||
+        (s.email && s.email.toLowerCase().includes(q)) ||
+        (s.b2bLogin && s.b2bLogin.toLowerCase().includes(q)) ||
+        (s.b2bUrl && s.b2bUrl.toLowerCase().includes(q))
+      );
+    });
+
+    if (sortOrder === 'ALPHA') {
+      list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } else {
+      // Default: Sort by custom/recent first (STAFIM, new additions first, then alphabetically)
+      list.sort((a, b) => {
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        if (timeA !== timeB) return timeB - timeA;
+        return (a.name || '').localeCompare(b.name || '');
+      });
+    }
+
+    return list;
+  }, [suppliers, q, selectedLetter, sortOrder]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('SUPPRIMER CE FOURNISSEUR ?')) return;
@@ -1662,13 +1715,19 @@ function SectionListeFournisseurs() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl backdrop-blur-md">
         <div>
-          <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 mb-1 flex items-center gap-2">
-            <List className="w-5 h-5 text-red-500" /> LISTE FOURNISSEURS & ACCÈS B2B
-          </h2>
-          <p className="text-slate-400 text-xs uppercase tracking-wider">
-            {suppliers.length} FOURNISSEURS ENREGISTRÉS DANS LA BASE AUTOP
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl font-black uppercase tracking-widest text-slate-100 flex items-center gap-2">
+              <List className="w-5 h-5 text-red-500" /> LISTE FOURNISSEURS & ACCÈS B2B
+            </h2>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-red-600/20 text-red-400 border border-red-500/30">
+              {suppliers.length} TOTAL
+            </span>
+          </div>
+          <p className="text-slate-400 text-xs uppercase tracking-wider mt-0.5">
+            Gérez, recherchez et configurez tous vos fournisseurs et portails B2B connectés
           </p>
         </div>
 
@@ -1691,19 +1750,89 @@ function SectionListeFournisseurs() {
         </div>
       </div>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-          <input
-            type="text"
-            placeholder="RECHERCHER PAR NOM, VILLE, CONTACT, LOGIN B2B..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800 pl-10 pr-4 h-11 rounded-xl text-xs font-semibold text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition uppercase"
-          />
+      {/* SEARCH AND FILTERS TOOLBAR */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-md space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+            <input
+              type="text"
+              placeholder="RECHERCHER UN FOURNISSEUR (EX: STAFIM GROS, STEQ, FAD, TUNIS...)"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setSelectedLetter('ALL'); }}
+              className="w-full bg-slate-950 border border-slate-800 pl-10 pr-10 h-11 rounded-xl text-xs font-semibold text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 transition uppercase"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                title="Effacer la recherche"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort Switcher */}
+          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0">
+            <button
+              onClick={() => setSortOrder('RECENT')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition ${
+                sortOrder === 'RECENT'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🆕 Récents / Nouveaux
+            </button>
+            <button
+              onClick={() => setSortOrder('ALPHA')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase transition ${
+                sortOrder === 'ALPHA'
+                  ? 'bg-red-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              🔤 Alphabétique (A-Z)
+            </button>
+          </div>
+        </div>
+
+        {/* Alphabet quick jump pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 scrollbar-thin">
+          <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider mr-1 shrink-0">
+            FILTRE LETTRE :
+          </span>
+          <button
+            onClick={() => setSelectedLetter('ALL')}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition shrink-0 ${
+              selectedLetter === 'ALL'
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+            }`}
+          >
+            TOUS ({suppliers.length})
+          </button>
+          {availableLetters.map(letter => {
+            const count = suppliers.filter(s => (s.name || '').charAt(0).toUpperCase() === letter).length;
+            return (
+              <button
+                key={letter}
+                onClick={() => { setSelectedLetter(letter); setSearch(''); }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-black uppercase transition shrink-0 ${
+                  selectedLetter === letter
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                {letter} ({count})
+              </button>
+            );
+          })}
         </div>
       </div>
 
+      {/* RESULTS LIST */}
       {loading ? (
         <div className="text-center py-16 text-slate-500 text-xs font-black uppercase tracking-widest flex flex-col items-center gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-red-500" />
@@ -1713,94 +1842,125 @@ function SectionListeFournisseurs() {
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl text-center py-12 p-6">
           <Building2 className="w-12 h-12 mx-auto mb-3 text-slate-600" />
           <p className="uppercase font-black text-sm text-slate-200">AUCUN FOURNISSEUR CORRESPONDANT</p>
-          <p className="text-xs text-slate-500 mt-1 uppercase">Vérifiez les termes de recherche ou ajoutez un nouveau fournisseur</p>
-          <button
-            onClick={() => setAdminSection('ajouter-fournisseur')}
-            className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider"
-          >
-            + AJOUTER UN FOURNISSEUR MAINTENANT
-          </button>
+          <p className="text-xs text-slate-500 mt-1 uppercase">
+            {search ? `Aucun résultat pour "${search}"` : 'Aucun fournisseur enregistré'}
+          </p>
+          <div className="flex justify-center gap-2 mt-4">
+            {search && (
+              <button
+                onClick={() => { setSearch(''); setSelectedLetter('ALL'); }}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider"
+              >
+                EFFACER LES FILTRES
+              </button>
+            )}
+            <button
+              onClick={() => setAdminSection('ajouter-fournisseur')}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/30"
+            >
+              + AJOUTER UN FOURNISSEUR
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filtered.map(s => (
-            <div key={s.id} className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 flex flex-col justify-between transition shadow-xl">
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-red-600/30">
-                      {s.name?.charAt(0).toUpperCase()}
+          {filtered.map(s => {
+            const isMatchSearch = q && (s.name || '').toLowerCase().includes(q);
+            return (
+              <div
+                key={s.id}
+                className={`bg-slate-900/90 border rounded-2xl p-5 flex flex-col justify-between transition shadow-xl ${
+                  isMatchSearch
+                    ? 'border-emerald-500/80 ring-2 ring-emerald-500/20 bg-slate-900'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-red-600/30">
+                        {s.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-black text-slate-100 uppercase text-sm tracking-wide">{s.name}</h3>
+                          {isMatchSearch && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              TROUVÉ
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-semibold">{s.city || 'Tunisie'} {s.address && `· ${s.address}`}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${s.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
+                      {s.isActive ? 'ACTIF' : 'INACTIF'}
+                    </span>
+                  </div>
+
+                  {/* Contact details */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 mb-3">
+                    <div>
+                      <span className="text-[9px] font-black uppercase text-slate-500 block">RESPONSABLE</span>
+                      <span className="font-semibold">{s.contactName || 'Non spécifié'}</span>
                     </div>
                     <div>
-                      <h3 className="font-black text-slate-100 uppercase text-sm tracking-wide">{s.name}</h3>
-                      <p className="text-[11px] text-slate-400 font-semibold">{s.city || 'Tunisie'} {s.address && `· ${s.address}`}</p>
+                      <span className="text-[9px] font-black uppercase text-slate-500 block">TÉLÉPHONE</span>
+                      <span className="font-semibold text-slate-200">{s.phone || 'Non spécifié'}</span>
                     </div>
+                    {s.email && (
+                      <div className="col-span-2 pt-1 border-t border-slate-800/50">
+                        <span className="text-[9px] font-black uppercase text-slate-500 block">EMAIL</span>
+                        <span className="font-semibold text-slate-300 lowercase">{s.email}</span>
+                      </div>
+                    )}
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border ${s.isActive ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
-                    {s.isActive ? 'ACTIF' : 'INACTIF'}
-                  </span>
+
+                  {/* B2B credentials memo & link */}
+                  <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">B2B LOGIN:</span>
+                      <span className="font-mono font-bold text-slate-200">{s.b2bLogin || 'Auto / Default'}</span>
+                    </div>
+                    {s.b2bUrl && (
+                      <a
+                        href={s.b2bUrl.startsWith('http') ? s.b2bUrl : `https://${s.b2bUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-400 hover:text-red-300 flex items-center gap-1 text-[10px] font-black uppercase transition"
+                      >
+                        <span>PORTAIL</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
                 </div>
 
-                {/* Contact details */}
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 mb-3">
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-500 block">RESPONSABLE</span>
-                    <span className="font-semibold">{s.contactName || 'Non spécifié'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[9px] font-black uppercase text-slate-500 block">TÉLÉPHONE</span>
-                    <span className="font-semibold text-slate-200">{s.phone || 'Non spécifié'}</span>
-                  </div>
-                  {s.email && (
-                    <div className="col-span-2 pt-1 border-t border-slate-800/50">
-                      <span className="text-[9px] font-black uppercase text-slate-500 block">EMAIL</span>
-                      <span className="font-semibold text-slate-300 lowercase">{s.email}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* B2B credentials memo & link */}
-                <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-[11px]">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span className="text-slate-400 font-bold uppercase text-[10px]">B2B LOGIN:</span>
-                    <span className="font-mono font-bold text-slate-200">{s.b2bLogin || 'Auto / Default'}</span>
-                  </div>
-                  {s.b2bUrl && (
-                    <a
-                      href={s.b2bUrl.startsWith('http') ? s.b2bUrl : `https://${s.b2bUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-red-400 hover:text-red-300 flex items-center gap-1 text-[10px] font-black uppercase transition"
-                    >
-                      <span>PORTAIL</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-800">
+                  <button
+                    onClick={() => setEditingSupplier(s)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-black uppercase transition"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>MODIFIER</span>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(s.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-800/50 rounded-lg text-xs font-black uppercase transition"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>SUPPRIMER</span>
+                  </button>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-800">
-                <button
-                  onClick={() => setEditingSupplier(s)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-black uppercase transition"
-                >
-                  <Edit3 className="w-3.5 h-3.5 text-slate-400" />
-                  <span>MODIFIER</span>
-                </button>
-                <button
-                  onClick={() => handleDelete(s.id)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-800/50 rounded-lg text-xs font-black uppercase transition"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>SUPPRIMER</span>
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+
 
       {/* MODAL MODIFICATION FOURNISSEUR */}
       {editingSupplier && (
