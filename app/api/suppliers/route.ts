@@ -18,21 +18,27 @@ const DEFAULT_SUPPLIER_NAMES = [
   { name: 'UNIVERS AUTO', contactName: 'Univers Auto', phone: '+216 71 000 011', city: 'Tunis' },
   { name: 'STE ROUTE X', contactName: 'Route X Auto', phone: '+216 71 000 012', city: 'Tunis' },
   { name: 'SOPIC', contactName: 'Sopic Auto', phone: '+216 71 000 013', city: 'Tunis' },
-  { name: 'SOCOFA GROS', contactName: 'Socofa Gros', phone: '+216 71 000 014', city: 'Tunis' }
+  { name: 'SOCOFA GROS', contactName: 'Socofa Gros', phone: '+216 71 000 014', city: 'Tunis' },
+  { name: 'STAFIM GROS', contactName: 'Service Pièces Peugeot / Citroën / Opel', phone: '+216 71 000 015', city: 'Tunis' }
 ];
 
 async function ensureDefaultSuppliersSeeded() {
   try {
-    const count = await prisma.supplier.count();
-    if (count === 0) {
-      for (const s of DEFAULT_SUPPLIER_NAMES) {
+    for (const s of DEFAULT_SUPPLIER_NAMES) {
+      const existing = await prisma.supplier.findFirst({
+        where: { name: { equals: s.name } }
+      });
+      if (!existing) {
+        const creds = getDefaultB2BCredentials(s.name);
         await prisma.supplier.create({
           data: {
             name: s.name,
             contactName: s.contactName,
             phone: s.phone,
             city: s.city,
-            isActive: true
+            isActive: true,
+            b2bLogin: creds.l !== 'AUTOP' ? creds.l : null,
+            b2bPassword: creds.p !== 'password123' ? creds.p : null,
           }
         }).catch(() => {});
       }
@@ -56,6 +62,7 @@ function getDefaultB2BCredentials(name: string) {
   if (supUpper.includes('GPG') || supUpper.includes('UNIVERS') || supUpper.includes('ROUTE X')) return { l: 'services-automobile@gmail.com', p: 'Ssautomobile98774525*TB' };
   if (supUpper.includes('SOPIC')) return { l: 'amine@autop.tn', p: 'Amine2025' };
   if (supUpper.includes('SOCOFA')) return { l: 'Amine.benomrane@autop.tn', p: '98774525' };
+  if (supUpper.includes('STAFIM')) return { l: 'WU-G260252', p: 'CLI24829' };
   return { l: 'AUTOP', p: 'password123' };
 }
 
@@ -196,12 +203,33 @@ export async function PATCH(req: NextRequest) {
     
     if (!id && !name) return NextResponse.json({ error: 'ID ou Nom de fournisseur requis' }, { status: 400 });
 
-    const targetSupplier = id 
-      ? await prisma.supplier.findUnique({ where: { id } })
-      : await prisma.supplier.findFirst({ where: { name: name.trim().toUpperCase() } });
+    let targetSupplier = null;
+    if (id) {
+      targetSupplier = await prisma.supplier.findUnique({ where: { id } }).catch(() => null);
+    }
+    if (!targetSupplier && name) {
+      targetSupplier = await prisma.supplier.findFirst({
+        where: { name: { equals: name.trim().toUpperCase() } }
+      }).catch(() => null);
+    }
 
     if (!targetSupplier) {
-      return NextResponse.json({ error: 'Fournisseur introuvable' }, { status: 404 });
+      // Si introuvable, créer le fournisseur avec les informations fournies
+      const created = await prisma.supplier.create({
+        data: {
+          name: (name || 'FOURNISSEUR').trim().toUpperCase(),
+          contactName: contactName ? String(contactName).trim() : null,
+          phone: phone ? String(phone).trim() : null,
+          email: email ? String(email).trim() : null,
+          address: address ? String(address).trim() : null,
+          city: city ? String(city).trim() : null,
+          isActive: isActive !== undefined ? !!isActive : true,
+          b2bUrl: b2bUrl ? String(b2bUrl).trim() : null,
+          b2bLogin: b2bLogin ? String(b2bLogin).trim() : null,
+          b2bPassword: b2bPassword ? String(b2bPassword).trim() : null
+        }
+      });
+      return NextResponse.json({ success: true, data: created, message: 'Fournisseur enregistré avec succès' });
     }
 
     const updated = await prisma.supplier.update({
@@ -222,7 +250,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, data: updated, message: 'Fournisseur mis à jour' });
   } catch (err: any) {
     console.error('Supplier PATCH error:', err);
-    return NextResponse.json({ error: 'Erreur lors de la mise à jour du fournisseur' }, { status: 500 });
+    return NextResponse.json({ error: `Erreur lors de la mise à jour: ${err?.message || String(err)}` }, { status: 500 });
   }
 }
 

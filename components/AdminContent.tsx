@@ -20,6 +20,7 @@ import { notifyChatSync, subscribeToChatSync } from '@/lib/chatSync';
 
 // ─── Input style helper ───────────────────────────────────────────────────────
 const inputCls = "w-full bg-slate-950/80 text-slate-100 font-semibold border border-slate-800 text-xs px-4 h-10 rounded-xl focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 uppercase placeholder:text-slate-500 transition-colors";
+const rawInputCls = "w-full bg-slate-950/80 text-slate-100 font-medium border border-slate-800 text-xs px-4 h-10 rounded-xl focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500/30 placeholder:text-slate-500 transition-colors font-mono";
 const labelCls = "block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5";
 const cardCls = "bg-slate-900/90 border border-slate-800/90 rounded-2xl p-6 mb-5 w-full shadow-2xl backdrop-blur-md";
 
@@ -1538,19 +1539,19 @@ function SectionAjouterFournisseur() {
       <div className={cardCls}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
-            { label: 'NOM FOURNISSEUR *', key: 'name', type: 'text', placeholder: 'EX: STAFIM GROS' },
-            { label: 'CONTACT / RESPONSABLE', key: 'contactName', type: 'text', placeholder: 'NOM DU CONTACT' },
-            { label: 'TÉLÉPHONE', key: 'phone', type: 'tel', placeholder: 'EX: 98 XXX XXX' },
-            { label: 'EMAIL', key: 'email', type: 'email', placeholder: 'contact@fournisseur.tn' },
-            { label: 'ADRESSE', key: 'address', type: 'text', placeholder: 'ADRESSE COMPLÈTE' },
-            { label: 'VILLE', key: 'city', type: 'text', placeholder: 'EX: TUNIS' },
+            { label: 'NOM FOURNISSEUR *', key: 'name', type: 'text', placeholder: 'EX: STAFIM GROS', raw: false },
+            { label: 'CONTACT / RESPONSABLE', key: 'contactName', type: 'text', placeholder: 'NOM DU CONTACT', raw: false },
+            { label: 'TÉLÉPHONE', key: 'phone', type: 'tel', placeholder: 'EX: 98 XXX XXX', raw: false },
+            { label: 'EMAIL (RESPECTE LA CASSE)', key: 'email', type: 'email', placeholder: 'contact@fournisseur.tn', raw: true },
+            { label: 'ADRESSE', key: 'address', type: 'text', placeholder: 'ADRESSE COMPLÈTE', raw: false },
+            { label: 'VILLE', key: 'city', type: 'text', placeholder: 'EX: TUNIS', raw: false },
           ].map(f => (
             <div key={f.key}>
               <label className={labelCls}>{f.label}</label>
               <input type={f.type} placeholder={f.placeholder}
                 value={(form as any)[f.key]}
                 onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                className={inputCls} />
+                className={f.raw ? rawInputCls : inputCls} />
             </div>
           ))}
         </div>
@@ -1561,16 +1562,16 @@ function SectionAjouterFournisseur() {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: 'LIEN DU SITE B2B', key: 'b2bUrl', type: 'text', placeholder: 'https://...' },
-              { label: 'LOGIN / IDENTIFIANT B2B', key: 'b2bLogin', type: 'text', placeholder: 'Identifiant B2B' },
-              { label: 'MOT DE PASSE B2B', key: 'b2bPassword', type: 'text', placeholder: 'Mot de passe B2B' },
+              { label: 'LIEN DU SITE B2B (EXACT)', key: 'b2bUrl', type: 'text', placeholder: 'http://b2b.stafim.tn:9991/auth/signin' },
+              { label: 'LOGIN / IDENTIFIANT B2B (EXACT)', key: 'b2bLogin', type: 'text', placeholder: 'Identifiant B2B' },
+              { label: 'MOT DE PASSE B2B (EXACT)', key: 'b2bPassword', type: 'text', placeholder: 'Mot de passe B2B' },
             ].map(f => (
               <div key={f.key}>
                 <label className={labelCls}>{f.label}</label>
                 <input type={f.type} placeholder={f.placeholder}
                   value={(form as any)[f.key]}
                   onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  className={inputCls} />
+                  className={rawInputCls} />
               </div>
             ))}
           </div>
@@ -1991,8 +1992,8 @@ function SectionListeFournisseurs() {
                 </div>
               </div>
               <div>
-                <label className={labelCls}>EMAIL</label>
-                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className={inputCls} />
+                <label className={labelCls}>EMAIL (RESPECTE LA CASSE)</label>
+                <input type="email" value={editingSupplier.email || ''} onChange={e => setEditingSupplier({ ...editingSupplier, email: e.target.value })} className={rawInputCls} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2006,20 +2007,20 @@ function SectionListeFournisseurs() {
               </div>
 
               <div className="pt-4 mt-2 border-t border-slate-800">
-                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-3">ACCÈS B2B (MÉMO ET ROBOT)</h4>
+                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-3">ACCÈS B2B (MÉMO ET ROBOT MULTI-FOURNISSEURS)</h4>
                 <div className="space-y-3">
                   <div>
-                    <label className={labelCls}>LIEN DU SITE B2B</label>
-                    <input type="url" placeholder="https://" value={editingSupplier.b2bUrl || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bUrl: e.target.value })} className={inputCls} />
+                    <label className={labelCls}>LIEN DU SITE B2B (RESPECTE LA CASSE / EXACT)</label>
+                    <input type="text" placeholder="http://b2b.stafim.tn:9991/auth/signin" value={editingSupplier.b2bUrl || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bUrl: e.target.value })} className={rawInputCls} />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelCls}>LOGIN / UTILISATEUR</label>
-                      <input type="text" value={editingSupplier.b2bLogin || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bLogin: e.target.value })} className={inputCls} />
+                      <label className={labelCls}>LOGIN / UTILISATEUR B2B (EXACT)</label>
+                      <input type="text" value={editingSupplier.b2bLogin || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bLogin: e.target.value })} className={rawInputCls} />
                     </div>
                     <div>
-                      <label className={labelCls}>MOT DE PASSE B2B</label>
-                      <input type="text" value={editingSupplier.b2bPassword || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bPassword: e.target.value })} className={inputCls} />
+                      <label className={labelCls}>MOT DE PASSE B2B (EXACT)</label>
+                      <input type="text" value={editingSupplier.b2bPassword || ''} onChange={e => setEditingSupplier({ ...editingSupplier, b2bPassword: e.target.value })} className={rawInputCls} />
                     </div>
                   </div>
                 </div>
@@ -2037,19 +2038,33 @@ function SectionListeFournisseurs() {
                 onClick={async () => {
                   setUpdating(true);
                   try {
+                    const payload = {
+                      id: editingSupplier.id,
+                      name: editingSupplier.name,
+                      contactName: editingSupplier.contactName,
+                      phone: editingSupplier.phone,
+                      email: editingSupplier.email,
+                      address: editingSupplier.address,
+                      city: editingSupplier.city,
+                      isActive: editingSupplier.isActive,
+                      b2bUrl: editingSupplier.b2bUrl,
+                      b2bLogin: editingSupplier.b2bLogin,
+                      b2bPassword: editingSupplier.b2bPassword
+                    };
                     const res = await fetch('/api/suppliers', {
                       method: 'PATCH',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(editingSupplier)
+                      body: JSON.stringify(payload)
                     });
-                    if (res.ok) {
-                      setSuppliers(prev => prev.map(s => s.id === editingSupplier.id ? editingSupplier : s));
+                    const d = await res.json().catch(() => ({}));
+                    if (res.ok && (d.success || d.data)) {
+                      setSuppliers(prev => prev.map(s => s.id === editingSupplier.id ? { ...s, ...payload } : s));
                       setEditingSupplier(null);
                       if (typeof window !== 'undefined') {
                         window.dispatchEvent(new CustomEvent('autop_suppliers_updated'));
                       }
                     } else {
-                      alert('Erreur lors de la mise à jour');
+                      alert(d.error || 'Erreur lors de la mise à jour');
                     }
                   } catch (e: any) {
                     alert(`Erreur: ${e.message}`);

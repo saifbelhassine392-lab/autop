@@ -1851,6 +1851,71 @@ async function scrapeCARGROS(supplierId: string, query: string, b2bLogin: string
   }
 }
 
+async function scrapeSTAFIM(supplierId: string, query: string, b2bLogin: string, b2bPassword: string, b2bUrl?: string | null) {
+  try {
+    const rawUrl = b2bUrl || "http://b2b.stafim.tn:9991";
+    const baseUrl = rawUrl.startsWith('http') ? rawUrl.replace(/\/auth\/signin.*$/i, '') : `http://${rawUrl.replace(/\/auth\/signin.*$/i, '')}`;
+    let token = supplierCookies[supplierId] || "";
+    if (!token) {
+      const loginPayloads = [
+        { url: `${baseUrl}/auth/signin`, body: { username: b2bLogin, password: b2bPassword } },
+        { url: `${baseUrl}/api/auth/login`, body: { login: b2bLogin, password: b2bPassword } },
+        { url: `${baseUrl}/api/login`, body: { username: b2bLogin, password: b2bPassword } },
+      ];
+      for (const lp of loginPayloads) {
+        try {
+          const r = await fetch(lp.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+            body: JSON.stringify(lp.body)
+          });
+          if (r.ok) {
+            const d = await r.json().catch(() => null);
+            token = d?.token || d?.accessToken || d?.data?.token || "";
+            if (token) break;
+          }
+        } catch {}
+      }
+      if (token) supplierCookies[supplierId] = token;
+    }
+
+    const authHdr: Record<string, string> = token ? { "Authorization": `Bearer ${token}` } : {};
+    const searchEndpoints = [
+      `${baseUrl}/api/articles?ref=${encodeURIComponent(query)}`,
+      `${baseUrl}/api/pieces/search?q=${encodeURIComponent(query)}`,
+      `${baseUrl}/api/catalogue/search?query=${encodeURIComponent(query)}`
+    ];
+
+    for (const ep of searchEndpoints) {
+      try {
+        const r = await fetch(ep, {
+          headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json", ...authHdr }
+        });
+        if (r.ok) {
+          const d = await r.json().catch(() => null);
+          const articles = Array.isArray(d) ? d : (d?.data || d?.items || []);
+          if (articles.length > 0) {
+            const parsedItems = articles.slice(0, 20).map((i: any) => ({
+              name: i.reference || i.ref || query,
+              brand: i.brand || i.marque || "PEUGEOT / CITROEN",
+              price: parseFloat(i.price || i.prix || i.prixHT || 0) || 0,
+              discount: parseFloat(i.discount || i.remise || 0) || 0,
+              availability: parseInt(i.stock || i.qty || 0) > 0 ? "Disponible" : "Sur Commande",
+              rawStock: parseInt(i.stock || i.qty || 0),
+              available: parseInt(i.stock || i.qty || 0) > 0
+            }));
+            const best = parsedItems.find((i: any) => i.available) || parsedItems[0];
+            return { price: best.price, discount: best.discount, availability: best.availability, rawStock: best.rawStock, available: best.available, items: parsedItems };
+          }
+        }
+      } catch {}
+    }
+
+    return { price: 0, discount: 0, available: false, availability: `STAFIM B2B connecté (Code: ${b2bLogin}). Référence ${query} non trouvée.`, items: [] };
+  } catch (err: any) {
+    return { price: 0, discount: 0, available: false, availability: `Erreur STAFIM: ${err.message}`, items: [] };
+  }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCRAPER MAP — expose chaque scraper par nom pour le moteur de repli
@@ -1878,6 +1943,8 @@ function buildScraperFnMap(): Map<string, (supplierId: string, query: string, lo
     ['SOPIC',        (id, q, l, p)      => scrapeSOPIC(id, q, l, p)],
     ['CAR GROS',     (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
     ['CARGROS',      (id, q, l, p)      => scrapeCARGROS(id, q, l, p)],
+    ['STAFIM',       (id, q, l, p, u)   => scrapeSTAFIM(id, q, l, p, u)],
+    ['STAFIM GROS',  (id, q, l, p, u)   => scrapeSTAFIM(id, q, l, p, u)],
     // Fallback générique pour tout fournisseur non reconnu
     ['DEFAULT',      (id, q, l, p, u)   => scrapeMosaiqueAuto(id, q, l, p, u)],
   ];
@@ -1931,6 +1998,8 @@ async function searchSingleSupplier(supplier: any, searchQuery: string) {
     raw = await scrapeSOPIC(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
   } else if (supName.includes("CAR GROS") || supName.includes("CARGROS") || b2bUrl.includes("ennakl")) {
     raw = await scrapeCARGROS(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword);
+  } else if (supName.includes("STAFIM") || b2bUrl.includes("stafim")) {
+    raw = await scrapeSTAFIM(supplier.id, searchQuery, supplier.b2bLogin, supplier.b2bPassword, supplier.b2bUrl);
   } else {
     // Fournisseur avec identifiants mais sans robot spécifique — on signale
     raw = {
