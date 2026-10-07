@@ -526,8 +526,8 @@ ${itemsSummary}
             {refDisplay}
           </div>
           <h2 className="text-2xl font-black text-white mb-2">DEMANDE CONFIRMÉE !</h2>
-          <p className="text-xs sm:text-sm text-slate-400 mb-6">
-            Votre demande a été enregistrée et transmise par e-mail en direct à l'administrateur (<strong className="text-white">saifbelhassine392@gmail.com</strong>).
+          <p className="text-xs sm:text-sm text-slate-400 mb-6 normal-case">
+            Votre demande a été enregistrée et transmise par e-mail en direct à l'administrateur (<span className="text-white font-mono lowercase select-all font-semibold">saifbelhassine392@gmail.com</span>).
           </p>
 
           {/* Récapitulatif Visuel des Pièces Demandées */}
@@ -536,7 +536,7 @@ ${itemsSummary}
               <span className="text-[11px] font-black uppercase tracking-wider text-slate-400">
                 🚗 {submittedSummary?.brand || brand} {submittedSummary?.model || model} {submittedSummary?.vin && `· VIN: ${submittedSummary.vin}`}
               </span>
-              <span className="text-[10px] font-bold text-red-400 bg-red-950/50 border border-red-800/40 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold text-red-400 bg-red-950/50 border border-red-800/40 px-2 py-0.5 rounded-full uppercase">
                 {summaryItems.length} PIÈCE(S)
               </span>
             </div>
@@ -556,7 +556,7 @@ ${itemsSummary}
             </div>
 
             {submittedSummary?.remarks && (
-              <div className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800">
+              <div className="text-[11px] text-slate-400 italic pt-1 border-t border-slate-800 normal-case">
                 Note client : "{submittedSummary.remarks}"
               </div>
             )}
@@ -599,9 +599,9 @@ ${itemsSummary}
               href={`mailto:saifbelhassine392@gmail.com?subject=${encodeURIComponent(`Demande de Devis ${refDisplay} - ${clientName}`)}&body=${encodeURIComponent(
                 `Bonjour,\n\nVoici le détail de ma demande de devis (${refDisplay}) :\n\nClient: ${clientName} (${clientEmail})\nVéhicule: ${brand} ${model}\nVIN: ${vin || 'N/A'}\n\nPièces demandées :\n${summaryItems.map((it, idx) => `${idx + 1}. ${it.reference || 'N/A'} - ${it.designation} (x${it.quantity})`).join('\n')}\n\nMerci d'avance.`
               )}`}
-              className="w-full flex items-center justify-center gap-2.5 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold uppercase tracking-wider rounded-xl text-xs transition-all border border-slate-700"
+              className="w-full flex items-center justify-center gap-2.5 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold tracking-wider rounded-xl text-xs transition-all border border-slate-700 normal-case"
             >
-              ✉️ Ouvrir dans Gmail / Client Mail
+              ✉️ Ouvrir dans Gmail / Application Mail (<span className="lowercase font-mono text-red-400 font-semibold">saifbelhassine392@gmail.com</span>)
             </a>
           </div>
 
