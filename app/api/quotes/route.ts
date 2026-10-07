@@ -3,7 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { sendEmail, ADMIN_NOTIFICATION_EMAIL } from '@/lib/email';
-import { fetchProductionQuotes } from '@/lib/neonClient';
+import { 
+  fetchProductionQuotes, 
+  saveProductionQuote, 
+  updateProductionQuote, 
+  deleteProductionQuote 
+} from '@/lib/neonClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +17,20 @@ export async function GET(req: NextRequest) {
     const session = await getServerSession(authOptions);
     const user = session?.user as any;
 
-    // Si authentifié spécifiquement en tant que simple client, on filtre par son email
     const isClientOnly = user && (user.role?.toLowerCase() === 'client' || user.role?.toLowerCase() === 'user');
+    const clientEmail = isClientOnly ? user.email?.trim().toLowerCase() : undefined;
 
+    // 1. Priorité Neon PostgreSQL (Cloud persistant sur Vercel inter-lambdas)
+    try {
+      const neonQuotes = await fetchProductionQuotes(clientEmail);
+      if (Array.isArray(neonQuotes) && neonQuotes.length > 0) {
+        return NextResponse.json(neonQuotes);
+      }
+    } catch (neonErr) {
+      console.warn("Neon fetch quotes fallback to prisma:", neonErr);
+    }
+
+    // 2. Fallback Prisma SQLite
     const where = isClientOnly ? {
       clientEmail: user.email?.trim().toLowerCase()
     } : {};
@@ -60,37 +76,73 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nom et Email requis' }, { status: 400 });
     }
 
-    const newQuote = await prisma.quote.create({
-      data: {
+    let quoteId = '';
+    let newQuote: any = null;
+
+    // 1. Sauvegarde dans Prisma
+    try {
+      newQuote = await prisma.quote.create({
+        data: {
+          clientName,
+          clientEmail: clientEmail.trim().toLowerCase(),
+          brand,
+          model,
+          vin,
+          mileage: parseFloat(mileage) || 0,
+          remarks,
+          photo,
+          photoName,
+          chassisPhoto: body.chassisPhoto,
+          chassisPhotoName: body.chassisPhotoName,
+          fileBase64,
+          fileName,
+          fileFormat,
+          status: 'PENDING',
+          items: {
+            create: (items || []).map((item: any) => ({
+              reference: item.reference || '',
+              designation: item.designation || '',
+              quantity: parseInt(item.quantity) || 1,
+            })),
+          },
+        },
+        include: {
+          items: true,
+        }
+      });
+      quoteId = newQuote.id;
+    } catch (prismaErr) {
+      console.warn("Prisma create error, generating ID for Neon:", prismaErr);
+      quoteId = `qt_${Date.now()}`;
+      newQuote = {
+        id: quoteId,
         clientName,
-        clientEmail: clientEmail.trim().toLowerCase(),
+        clientEmail,
         brand,
         model,
         vin,
-        mileage: parseFloat(mileage) || 0,
         remarks,
-        photo,
-        photoName,
-        chassisPhoto: body.chassisPhoto,
-        chassisPhotoName: body.chassisPhotoName,
-        fileBase64,
-        fileName,
-        fileFormat,
         status: 'PENDING',
-        items: {
-          create: (items || []).map((item: any) => ({
-            reference: item.reference || '',
-            designation: item.designation || '',
-            quantity: parseInt(item.quantity) || 1,
-          })),
-        },
-      },
-      include: {
-        items: true,
-      }
-    });
+        items: items || []
+      };
+    }
 
-    // Envoi automatique de l'e-mail réel de confirmation au client ET à l'administrateur
+    // 2. Sauvegarde immédiate dans Neon PostgreSQL (Cloud persistant pour Vercel)
+    await saveProductionQuote({
+      id: quoteId,
+      clientName,
+      clientEmail,
+      brand,
+      model,
+      vin,
+      mileage: parseFloat(mileage) || 0,
+      remarks,
+      photo,
+      photoName,
+      items: items || []
+    }).catch(err => console.error("Neon save error:", err));
+
+    // 3. Envoi automatique de l'e-mail réel de confirmation au client ET à l'administrateur
     try {
       const itemsRowsHtml = (items || []).map((item: any, idx: number) => `
         <tr style="border-bottom: 1px solid #f1f5f9; background: ${idx % 2 === 0 ? '#ffffff' : '#f8fafc'};">
@@ -123,7 +175,7 @@ export async function POST(req: NextRequest) {
       }
 
       const hasAttachments = attachments.length > 0;
-      const refFormatted = `#DEVIS-${newQuote.id.slice(-6).toUpperCase()}`;
+      const refFormatted = `#DEVIS-${quoteId.slice(-6).toUpperCase()}`;
 
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 620px; margin: 0 auto; color: #1e293b; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff;">
@@ -180,7 +232,7 @@ export async function POST(req: NextRequest) {
         </div>
       `;
 
-      // 1. Envoi direct à l'administrateur
+      // Envoi direct à l'administrateur
       await sendEmail({
         to: ADMIN_NOTIFICATION_EMAIL,
         subject: `🚗 [AUTOP] Demande de Devis ${refFormatted} - ${brand} ${model} (${(items || []).length} pièce(s))`,
@@ -188,7 +240,7 @@ export async function POST(req: NextRequest) {
         attachments: hasAttachments ? attachments : undefined
       });
 
-      // 2. Envoi au client si différent
+      // Envoi au client si différent
       if (clientEmail && clientEmail.toLowerCase() !== ADMIN_NOTIFICATION_EMAIL.toLowerCase()) {
         sendEmail({
           to: clientEmail,
@@ -218,6 +270,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Identifiant de demande requis' }, { status: 400 });
     }
 
+    // 1. Mise à jour Neon Postgres Cloud
+    updateProductionQuote(quoteId, { status, managedByName }).catch(e => console.warn("Neon PATCH error:", e));
+
+    // 2. Mise à jour Prisma SQLite
     const data: any = {};
     if (status) data.status = status;
 
@@ -237,14 +293,19 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    const updatedQuote = await prisma.quote.update({
-      where: { id: quoteId },
-      data,
-      include: {
-        managedBy: true,
-        items: true
-      }
-    });
+    let updatedQuote: any = null;
+    try {
+      updatedQuote = await prisma.quote.update({
+        where: { id: quoteId },
+        data,
+        include: {
+          managedBy: true,
+          items: true
+        }
+      });
+    } catch {
+      updatedQuote = { id: quoteId, status, managedByName };
+    }
 
     return NextResponse.json({ success: true, data: updatedQuote });
   } catch (error) {
@@ -262,17 +323,17 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Identifiant de demande requis' }, { status: 400 });
     }
 
-    const quote = await prisma.quote.findUnique({
-      where: { id }
-    });
+    // 1. Suppression Neon Postgres Cloud
+    deleteProductionQuote(id).catch(e => console.warn("Neon DELETE error:", e));
 
-    if (!quote) {
-      return NextResponse.json({ error: 'Demande introuvable' }, { status: 404 });
+    // 2. Suppression Prisma SQLite
+    try {
+      await prisma.quote.delete({
+        where: { id }
+      });
+    } catch (e: any) {
+      console.warn("Prisma delete note:", e.message);
     }
-
-    await prisma.quote.delete({
-      where: { id }
-    });
 
     return NextResponse.json({ success: true, message: 'Demande supprimée avec succès' });
   } catch (error: any) {
