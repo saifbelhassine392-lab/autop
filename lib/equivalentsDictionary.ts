@@ -96,6 +96,32 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
     ]
   },
 
+  // === REFERENCE 1610699280 / 05P1770 (Jeu de patins / plaquettes de frein avant Peugeot 301 / Citroen C-Elysee) ===
+  '1610699280': {
+    oeReference: '1610699280',
+    designation: "J PATIN 301 C ELYSE 1610699280 (PLAQUETTES DE FREIN AVANT)",
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '1610699280', type: 'OE', designation: 'J PATIN ORIGINE 301 C-ELYSEE 1610699280' },
+      { brand: 'LPR', reference: '05P1770', type: 'ADAPTABLE', designation: 'J PATIN 301 C ELYSE 1610699280 LPR', estimatedPrice: 35.482 },
+      { brand: 'CDG', reference: '2209820', type: 'ADAPTABLE', designation: 'J PATIN 301 C ELYSE 1610699280 CDG', estimatedPrice: 48.614 },
+      { brand: 'FEDERAL MOGUL', reference: '573630CH', type: 'ADAPTABLE', designation: 'J PATIN 301 C ELYSE FEDERAL MOGUL', estimatedPrice: 0 },
+      { brand: 'FERODO', reference: 'FDB4491', type: 'ADAPTABLE', designation: 'JEU DE PLAQUETTES AVANT FERODO', estimatedPrice: 65.0 },
+      { brand: 'VALEO', reference: '601326', type: 'ADAPTABLE', designation: 'Jeu de plaquettes de frein avant Valeo 301', estimatedPrice: 58.0 },
+      { brand: 'BOSCH', reference: '0986494659', type: 'ADAPTABLE', designation: 'Jeu de plaquettes de frein avant Bosch 301', estimatedPrice: 62.0 }
+    ]
+  },
+  '05P1770': {
+    oeReference: '1610699280',
+    designation: "J PATIN 301 C ELYSE 1610699280 LPR (05P1770)",
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'LPR', reference: '05P1770', type: 'ADAPTABLE', designation: 'J PATIN 301 C ELYSE 1610699280 LPR', estimatedPrice: 35.482 },
+      { brand: 'PEUGEOT / CITROEN', reference: '1610699280', type: 'OE', designation: 'J PATIN ORIGINE 301 C-ELYSEE 1610699280' },
+      { brand: 'CDG', reference: '2209820', type: 'ADAPTABLE', designation: 'J PATIN 301 C ELYSE 1610699280 CDG', estimatedPrice: 48.614 }
+    ]
+  },
+
   // === REFERENCE 1611266580 (Kit embrayage PSA 301/BERLINGO B9 1.6 HDi) ===
   '1611266580': {
     oeReference: '1611266580',

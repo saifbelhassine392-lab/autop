@@ -881,27 +881,72 @@ function isValidCDGPartRef(ref: string): boolean {
   return true;
 }
 
-function parseCDGSearchHtml(html: string, query: string): any[] {
+function parseCDGSearchHtml(rawHtml: string, query: string): any[] {
   const items: any[] = [];
   const qNorm = normalizeRef(query);
 
-  // 1. JSON ApiJsonItemAll or embedded JSON
-  const jsonMatch = html.match(/var\s+(?:articles|items|products|data|liste)\s*=\s*(\[[\s\S]*?\])\s*;/i);
-  if (jsonMatch) {
-    try {
-      const articles = JSON.parse(jsonMatch[1]);
-      if (Array.isArray(articles)) {
-        for (const i of articles) {
-          const mapped = mapCDGArticle(i, query);
-          if (isValidCDGPartRef(mapped.name)) {
-            items.push(mapped);
-          }
-        }
-      }
-    } catch {}
+  // 1. Unescape WebDev JS encoding if present
+  const html = rawHtml
+    .replace(/\\x3C/g, '<')
+    .replace(/\\x3E/g, '>')
+    .replace(/\\"/g, '"')
+    .replace(/\\r\\n/g, '\n');
+
+  // 2. Parse WebDev Repeater rows (zrl_N_...)
+  const rowIndices = new Set<string>();
+  for (const m of html.matchAll(/id="zrl_(\d+)_A9"/gi)) {
+    rowIndices.add(m[1]);
+  }
+  for (const m of html.matchAll(/NAME="zrl_(\d+)_A11"/gi)) {
+    rowIndices.add(m[1]);
   }
 
-  // 2. Parse equivalent list table from CDG (Matches Screenshot: Liste des références équivalentes)
+  for (const idx of rowIndices) {
+    const refMatch = html.match(new RegExp(`id="zrl_${idx}_A9"[^>]*>\\s*([^<]+)\\s*<`, "i"));
+    if (!refMatch) continue;
+    const ref = refMatch[1].trim();
+    if (!isValidCDGPartRef(ref)) continue;
+
+    const desigMatch = html.match(new RegExp(`id="zrl_${idx}_A10"[^>]*>\\s*([^<]+)\\s*<`, "i"));
+    const designation = desigMatch ? desigMatch[1].trim() : `Article CDG ${ref}`;
+
+    const priceMatch = html.match(new RegExp(`NAME="zrl_${idx}_A11"\\s+VALUE="([^"]+)"`, "i"));
+    const price = priceMatch ? parseFloat(priceMatch[1].replace(/\s/g, "").replace(",", ".")) : 0;
+
+    let brand = "CDG";
+    if (html.includes("LPR") || html.includes("4011092")) brand = "LPR";
+    else if (html.includes("VALEO") || html.includes("4011080")) brand = "VALEO";
+    else if (html.includes("LUK") || html.includes("4011077")) brand = "LUK";
+    else if (html.includes("SKF") || html.includes("4011090")) brand = "SKF";
+    else if (html.includes("TALOSA") || html.includes("4011079")) brand = "TALOSA";
+    else if (html.includes("GATES") || html.includes("4011082")) brand = "GATES";
+    else if (html.includes("SASIC") || html.includes("4011001")) brand = "SASIC";
+    else if (html.includes("FEDERAL") || html.includes("573")) brand = "FEDERAL MOGUL";
+
+    const stockQtyMatch = html.match(new RegExp(`NAME="zrl_${idx}_A27"\\s+VALUE="([^"]+)"`, "i"));
+    const stockQty = stockQtyMatch ? parseInt(stockQtyMatch[1].replace(/\s/g, ""), 10) : 0;
+
+    const hasEnStockIcon = html.includes(`id="zrl_${idx}_A47"`) || html.includes(`dwwzrl_${idx}_A47`) || stockQty > 0;
+    const isDispo = hasEnStockIcon || (price > 0 && !html.includes(`id="zrl_${idx}_A48"`));
+
+    items.push({
+      name: ref,
+      reference: ref,
+      brand,
+      designation,
+      description: designation,
+      price,
+      prixHT: price,
+      discount: 0,
+      stock: stockQty > 0 ? stockQty : (isDispo ? 1 : 0),
+      rawStock: stockQty,
+      available: isDispo,
+      availability: isDispo ? (stockQty > 0 ? `Disponible en Stock (${stockQty} dispo - CDG)` : "Disponible en Stock (CDG Distribution)") : "Sur Commande (CDG)",
+      matchType: normalizeRef(ref) === qNorm ? "DIRECT" : "EQUIVALENCE"
+    });
+  }
+
+  // 3. Parse equivalent list table from CDG (Liste des références équivalentes)
   const refBlocks = html.split(/(?:R[ée]f[ée]rence\s*:?|<tr[\s>])/i).slice(1);
   for (const block of refBlocks) {
     const cleanText = block.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -912,6 +957,7 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
     const itemRef = refMatch[1].trim();
 
     if (!isValidCDGPartRef(itemRef)) continue;
+    if (items.some(it => normalizeRef(it.reference) === normalizeRef(itemRef))) continue;
 
     const priceMatch = cleanText.match(/Prix\s*(?:HT)?\s*[:\s]*([0-9\s.,]+)/i) || cleanText.match(/([0-9]+[.,][0-9]{2,3})\s*(?:HT|TND|DT)?/i);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.')) : 0;
@@ -946,46 +992,6 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
     }
   }
 
-  // 3. Generic table fallback
-  if (items.length === 0) {
-    const trParts = html.split(/<tr[\s>]/i).slice(1);
-    for (const tr of trParts) {
-      const tds = Array.from(tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((m) =>
-        m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
-      );
-      if (tds.length < 2) continue;
-      const refCell = tds.find((t) => {
-        const n = normalizeRef(t);
-        return isValidCDGPartRef(t) && n.length >= 3 && n.length <= 25;
-      });
-      if (!refCell) continue;
-
-      const priceMatch = tds.join(" ").match(/(\d+[.,]\d{2,3})/);
-      const price = priceMatch ? parseFloat(priceMatch[1].replace(",", ".")) : 0;
-      const stockMatch = tds.join(" ").match(/(?:stock|dispo|qt[eé])\s*[:\s]*(\d+)/i);
-      const stock = stockMatch ? parseInt(stockMatch[1], 10) : 0;
-      const dispoText = tds.join(" ").toLowerCase();
-      const available = stock > 0 || dispoText.includes("disponible") || dispoText.includes("en stock");
-
-      if (price === 0 && stock === 0 && !available) continue;
-
-      items.push({
-        name: refCell,
-        reference: refCell,
-        brand: tds[1] && tds[1] !== refCell ? tds[1] : tds[0] || "CDG",
-        designation: tds[2] || `Article ${refCell}`,
-        description: tds[2] || `Article ${refCell}`,
-        price,
-        prixHT: price,
-        discount: 0,
-        availability: available ? (stock > 0 ? `Disponible (${stock} en stock)` : "Disponible en Stock") : "Sur Commande",
-        rawStock: stock,
-        stock,
-        available,
-        matchType: normalizeRef(refCell) === qNorm ? "DIRECT" : "EQUIVALENCE",
-      });
-    }
-  }
   return items;
 }
 
@@ -1017,27 +1023,32 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
     const baseUrl = "http://cdgros.com";
     const cleanQuery = (query || "").trim().toUpperCase().replace(/[\s\-_.\/]+/g, "");
     const rawQuery = (query || "").trim().toUpperCase();
+    const loginUser = b2bLogin || "4112329";
+    const loginPass = b2bPassword || "98774525";
     let cookie = supplierCookies[supplierId] || "";
+    const allItems: any[] = [];
 
-    const ensureSession = async () => {
+    // 1. Session Login
+    try {
       const r1 = await fetch(`${baseUrl}/Site_CDG25`, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
       });
       const html1 = await r1.text();
-      cookie = mergeSetCookies("", r1.headers.get("set-cookie"));
-      const formAction = html1.match(/action="([^"]+)"/)?.[1] || "/Site_CDG25";
-      const wdJson = html1.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/)?.[1] || "";
+      cookie = mergeSetCookies(cookie, r1.headers.get("set-cookie"));
 
-      const loginBody = new URLSearchParams({
-        WD_JSON_PROPRIETE_: wdJson,
-        WD_BUTTON_CLICK_: "A44",
-        WD_ACTION_: "",
-        A8: b2bLogin,
-        A36: b2bPassword,
-        A3: "-1",
-        A3_DEB: "1",
-        _A3_OCC: "0"
-      });
+      const formAction = html1.match(/action="([^"]+)"/)?.[1] || "/Site_CDG25";
+      const wdJsonMatch = html1.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/);
+      const wdJson = wdJsonMatch ? wdJsonMatch[1].replace(/&quot;/g, '"') : "{}";
+
+      const loginParams = new URLSearchParams();
+      loginParams.append("WD_JSON_PROPRIETE_", wdJson);
+      loginParams.append("WD_BUTTON_CLICK_", "A5");
+      loginParams.append("WD_ACTION_", "");
+      loginParams.append("A8", loginUser);
+      loginParams.append("A36", loginPass);
+      loginParams.append("A3", "-1");
+      loginParams.append("A3_DEB", "1");
+      loginParams.append("_A3_OCC", "0");
 
       const r2 = await fetch(`${baseUrl}${formAction.startsWith("/") ? formAction : `/${formAction}`}`, {
         method: "POST",
@@ -1047,57 +1058,68 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           Referer: `${baseUrl}/Site_CDG25`,
         },
-        body: loginBody.toString(),
+        body: loginParams.toString(),
         redirect: "manual",
       });
-      cookie = mergeSetCookies(cookie, r2.headers.get("set-cookie"));
-      const loc = r2.headers.get("location");
-      if (loc && (r2.status === 301 || r2.status === 302)) {
-        const follow = await fetch(loc.startsWith("http") ? loc : `${baseUrl}${loc}`, {
-          headers: { Cookie: cookie, "User-Agent": "Mozilla/5.0" },
-          redirect: "manual",
-        });
-        cookie = mergeSetCookies(cookie, follow.headers.get("set-cookie"));
-      }
-      if (cookie) supplierCookies[supplierId] = cookie;
-    };
 
-    if (!cookie) await ensureSession();
+      const setCookie = r2.headers.get("set-cookie");
+      if (setCookie) cookie = mergeSetCookies(cookie, setCookie);
+      const catalogHtml = await r2.text();
 
-    const refsToTest = buildSupplierSearchRefs(rawQuery);
-    const allItems: any[] = [];
+      const catalogAction = catalogHtml.match(/<form[^>]*action="([^"]*)"/i)?.[1];
+      const catalogWdPropMatch = catalogHtml.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/i);
+      const catalogWdProp = catalogWdPropMatch ? catalogWdPropMatch[1].replace(/&quot;/g, '"') : "{}";
 
-    await Promise.all(refsToTest.slice(0, 5).map(async (q) => {
-      const searchUrls = [
-        `${baseUrl}/Site_CDG25/recherche.php?ref=${encodeURIComponent(q)}`,
-        `${baseUrl}/Site_CDG25/ajax_recherche.php?ref=${encodeURIComponent(q)}`,
-        `${baseUrl}/Site_CDG25/recherche_ref.php?q=${encodeURIComponent(q)}`
-      ];
+      if (catalogAction) {
+        const searchTargetUrl = `${baseUrl}${catalogAction.startsWith("/") ? catalogAction : `/${catalogAction}`}`;
+        const searchTerms = buildSupplierSearchRefs(rawQuery);
 
-      await Promise.all(searchUrls.map(async (searchUrl) => {
-        const r = await fetch(searchUrl, {
-          headers: {
-            Cookie: cookie,
-            "User-Agent": "Mozilla/5.0",
-            "X-Requested-With": "XMLHttpRequest",
-            Referer: `${baseUrl}/Site_CDG25/`,
-          },
-        }).catch(() => null);
-        if (!r || !r.ok) return;
-        const text = await r.text();
-
-        if (text.trim().startsWith("[") || text.trim().startsWith("{")) {
-          try {
-            const data = JSON.parse(text);
-            for (const i of extractJsonArticles(data)) {
-              allItems.push(mapCDGArticle(i, q));
-            }
-          } catch {}
+        const searchQueries: Array<{ field: string; term: string }> = [
+          { field: "A20", term: rawQuery },
+          ...searchTerms.slice(0, 3).map(t => ({ field: "A20", term: t })),
+          { field: "A33", term: rawQuery }
+        ];
+        if (/^\d{6,}$/.test(cleanQuery) || /^[A-Z0-9]{6,}$/.test(cleanQuery)) {
+          searchQueries.push({ field: "A89", term: cleanQuery });
         }
 
-        allItems.push(...parseCDGSearchHtml(text, q));
-      }));
-    }));
+        // Run searches
+        for (const sq of searchQueries) {
+          if (!sq.term) continue;
+          const searchParams = new URLSearchParams();
+          searchParams.append("WD_JSON_PROPRIETE_", catalogWdProp);
+          searchParams.append("WD_BUTTON_CLICK_", "A52");
+          searchParams.append("WD_ACTION_", "");
+          searchParams.append("A20", sq.field === "A20" ? sq.term : "");
+          searchParams.append("A33", sq.field === "A33" ? sq.term : "");
+          searchParams.append("A89", sq.field === "A89" ? sq.term : "");
+          searchParams.append("A16", "");
+
+          const rSearch = await fetch(searchTargetUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Cookie: cookie,
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              Referer: searchTargetUrl,
+            },
+            body: searchParams.toString(),
+            redirect: "manual"
+          }).catch(() => null);
+
+          if (rSearch && rSearch.ok) {
+            const searchHtml = await rSearch.text();
+            const parsed = parseCDGSearchHtml(searchHtml, sq.term);
+            allItems.push(...parsed);
+            if (allItems.some(it => it.price > 0 && normalizeRef(it.reference) === cleanQuery)) {
+              break; // Found direct match with real price!
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('[CDG Scraper WebDev Error]', e.message);
+    }
 
     const list = dedupeB2BItems(allItems);
     if (list.length > 0) {
