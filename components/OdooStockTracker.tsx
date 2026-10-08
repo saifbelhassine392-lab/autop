@@ -69,6 +69,7 @@ interface SummaryData {
 }
 
 const SAMPLE_REFS = [
+  { ref: '7410GE', label: '7410GE (Pare-Choc AR)' },
   { ref: '001983381R', label: '001983381R (Cache Antib)' },
   { ref: '7414QV', label: '7414QV (Armature P/C)' },
   { ref: '0108EAZ00680N', label: '0108EAZ00680N (Mahindra KUV)' },
@@ -78,7 +79,7 @@ const SAMPLE_REFS = [
 ];
 
 export default function OdooStockTracker({ initialRef = '' }: { initialRef?: string }) {
-  const [searchTerm, setSearchTerm] = useState(initialRef || '001983381R');
+  const [searchTerm, setSearchTerm] = useState(initialRef || '7410GE');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'purchases' | 'movements' | 'all'>('purchases');
@@ -124,8 +125,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
     if (initialRef) {
       fetchOdooData(initialRef);
     } else {
-      // Auto-load a sample for immediate display
-      fetchOdooData('001983381R');
+      // Auto-load 7410GE for immediate live display
+      fetchOdooData('7410GE');
     }
   }, [initialRef]);
 

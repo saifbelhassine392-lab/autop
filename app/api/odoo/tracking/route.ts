@@ -129,37 +129,54 @@ async function handleSearch(query: string) {
   const cleanNoSpaces = rawQ.replace(/[\s\-_.\/]+/g, "");
 
   try {
-    // 1. Recherche dans product.product
+    // 1. Recherche exhaustive dans product.product (champs auto standard + custom Odoo AUTOP)
     const productDomain = [
-      "|", "|",
+      "|", "|", "|", "|", "|", "|", "|",
       ["default_code", "ilike", rawQ],
       ["default_code", "ilike", cleanNoSpaces],
+      ["reference_piece", "ilike", rawQ],
+      ["reference_piece", "ilike", cleanNoSpaces],
+      ["reference_origine", "ilike", rawQ],
+      ["reference_origine", "ilike", cleanNoSpaces],
+      ["reference_adaptable", "ilike", rawQ],
       ["name", "ilike", rawQ]
     ];
 
     const products = await callOdooKw("product.product", "search_read", [productDomain], {
-      fields: ["id", "name", "default_code", "standard_price", "list_price", "qty_available", "categ_id", "barcode"],
-      limit: 15
+      fields: [
+        "id", "name", "default_code", "reference_piece", "reference_origine", 
+        "reference_adaptable", "standard_price", "list_price", "qty_available", 
+        "categ_id", "barcode", "vehicle_model_id"
+      ],
+      limit: 30
     }).catch(() => []) || [];
 
     const productIds = products.map((p: any) => p.id);
 
-    // 2. Recherche dans purchase.order.line (Historique d'achat par fournisseur - COMMANDES CONFIRMÉES UNIQUEMENT)
-    const poDomain = productIds.length > 0 ? [
-      "&",
-      ["state", "in", ["purchase", "done"]],
-      "|",
-      ["product_id", "in", productIds],
-      "|",
-      ["name", "ilike", rawQ],
-      ["name", "ilike", cleanNoSpaces]
-    ] : [
-      "&",
-      ["state", "in", ["purchase", "done"]],
-      "|",
-      ["name", "ilike", rawQ],
-      ["name", "ilike", cleanNoSpaces]
-    ];
+    // 2. Recherche dans purchase.order.line (Historique d'achat par fournisseur)
+    // Synchronisation de toutes les commandes confirmées / livrées (exclut brouillons si demandé, mais garde toutes les vraies commandes)
+    const poFilter = ["state", "in", ["purchase", "done"]];
+    
+    let poDomain: any[] = [];
+    if (productIds.length > 0) {
+      poDomain = [
+        "&",
+        poFilter,
+        "|", "|", "|",
+        ["product_id", "in", productIds],
+        ["name", "ilike", rawQ],
+        ["name", "ilike", cleanNoSpaces],
+        ["product_id.name", "ilike", rawQ]
+      ];
+    } else {
+      poDomain = [
+        "&",
+        poFilter,
+        "|",
+        ["name", "ilike", rawQ],
+        ["name", "ilike", cleanNoSpaces]
+      ];
+    }
 
     const rawPoLines = await callOdooKw("purchase.order.line", "search_read", [poDomain], {
       fields: [
@@ -167,24 +184,28 @@ async function handleSearch(query: string) {
         "partner_id", "date_order", "order_id", "price_total",
         "price_subtotal", "state"
       ],
-      limit: 60,
+      limit: 150,
       order: "date_order desc"
     }).catch(() => []) || [];
 
-    // Formatage de l'historique d'achat (commandes confirmées)
+    // Formatage de l'historique d'achat
     const purchaseHistory = rawPoLines.map((po: any) => {
       const supplierName = Array.isArray(po.partner_id) ? po.partner_id[1] : (po.partner_id || 'Fournisseur Inconnu');
       const orderRef = Array.isArray(po.order_id) ? po.order_id[1] : (po.order_id || `PO-${po.id}`);
       const productName = Array.isArray(po.product_id) ? po.product_id[1] : (po.name || rawQ);
       const qty = parseFloat(po.product_qty) || 0;
       const unitPrice = parseFloat(po.price_unit) || 0;
-      const totalCost = parseFloat(po.price_subtotal) || (qty * unitPrice);
+      const subtotal = parseFloat(po.price_subtotal) || (qty * unitPrice);
+      const totalCost = parseFloat(po.price_total) || subtotal;
 
       let stateLabel = 'Bon Confirmé';
       let stateColor = 'emerald';
       if (po.state === 'done') {
         stateLabel = 'Livré / Clôturé';
         stateColor = 'blue';
+      } else if (po.state === 'draft') {
+        stateLabel = 'Devis / Demande';
+        stateColor = 'slate';
       }
 
       return {
@@ -198,37 +219,42 @@ async function handleSearch(query: string) {
         productName,
         quantity: qty,
         unitPrice,
-        totalCost,
+        subtotal,
+        totalCost: subtotal > 0 ? subtotal : totalCost,
         state: po.state || 'purchase',
         stateLabel,
         stateColor
       };
     });
 
-    // 3. Recherche dans stock.move (Mouvements réels de stock, exclut annulations)
-    const moveDomain = productIds.length > 0 ? [
-      "&",
-      ["state", "!=", "cancel"],
-      "|",
-      ["product_id", "in", productIds],
-      "|",
-      ["name", "ilike", rawQ],
-      ["name", "ilike", cleanNoSpaces]
-    ] : [
-      "&",
-      ["state", "!=", "cancel"],
-      "|",
-      ["name", "ilike", rawQ],
-      ["name", "ilike", cleanNoSpaces]
-    ];
+    // 3. Recherche dans stock.move (Mouvements réels de stock)
+    let moveDomain: any[] = [];
+    if (productIds.length > 0) {
+      moveDomain = [
+        "&",
+        ["state", "!=", "cancel"],
+        "|", "|",
+        ["product_id", "in", productIds],
+        ["name", "ilike", rawQ],
+        ["name", "ilike", cleanNoSpaces]
+      ];
+    } else {
+      moveDomain = [
+        "&",
+        ["state", "!=", "cancel"],
+        "|",
+        ["name", "ilike", rawQ],
+        ["name", "ilike", cleanNoSpaces]
+      ];
+    }
 
-    const rawMoves = await callKw("stock.move", "search_read", [moveDomain], {
+    const rawMoves = await callOdooKw("stock.move", "search_read", [moveDomain], {
       fields: [
         "id", "name", "product_id", "product_uom_qty", "quantity_done",
         "location_id", "location_dest_id", "state", "date", "reference",
         "picking_id", "origin"
       ],
-      limit: 60,
+      limit: 150,
       order: "date desc"
     }).catch(() => []) || [];
 
@@ -256,9 +282,9 @@ async function handleSearch(query: string) {
         type = 'ACHAT';
         typeLabel = 'Entrée (Achat Fournisseur)';
         typeBadge = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      } else if (destLower.includes('customer') || destLower.includes('client') || (srcLower.includes('stock') && !destLower.includes('stock')) || originDoc.startsWith('SO')) {
+      } else if (destLower.includes('customer') || destLower.includes('client') || (srcLower.includes('stock') && !destLower.includes('stock')) || originDoc.startsWith('SO') || originDoc.startsWith('DS')) {
         type = 'VENTE';
-        typeLabel = 'Sortie (Vente Client / Dossier)';
+        typeLabel = 'Sortie (Vente / Dossier Client)';
         typeBadge = 'bg-rose-500/20 text-rose-400 border-rose-500/30';
       }
 
@@ -314,6 +340,15 @@ async function handleSearch(query: string) {
     const outMovesCount = stockMovements.filter((m: any) => m.type === 'VENTE').length;
     const internalMovesCount = stockMovements.filter((m: any) => m.type === 'TRANSFERT').length;
 
+    // Référence d'affichage propre
+    const displayRef = primaryProduct 
+      ? (primaryProduct.reference_piece || primaryProduct.reference_origine || primaryProduct.default_code || rawQ.toUpperCase())
+      : rawQ.toUpperCase();
+
+    const vehicleModel = primaryProduct && Array.isArray(primaryProduct.vehicle_model_id) 
+      ? primaryProduct.vehicle_model_id[1] 
+      : '';
+
     return NextResponse.json({
       success: true,
       query: rawQ,
@@ -325,7 +360,8 @@ async function handleSearch(query: string) {
       product: primaryProduct ? {
         id: primaryProduct.id,
         name: primaryProduct.name,
-        reference: primaryProduct.default_code || rawQ.toUpperCase(),
+        reference: displayRef,
+        vehicleModel,
         standardPrice: lastPurchaseWithPrice && lastPurchaseWithPrice.unitPrice > 0 ? lastPurchaseWithPrice.unitPrice : (parseFloat(primaryProduct.standard_price) || 0),
         listPrice: parseFloat(primaryProduct.list_price) || 0,
         stockAvailable: parseFloat(primaryProduct.qty_available) || 0,
@@ -334,7 +370,8 @@ async function handleSearch(query: string) {
       allProducts: products.map((p: any) => ({
         id: p.id,
         name: p.name,
-        reference: p.default_code || '',
+        reference: p.reference_piece || p.reference_origine || p.default_code || '',
+        vehicleModel: Array.isArray(p.vehicle_model_id) ? p.vehicle_model_id[1] : '',
         standardPrice: parseFloat(p.standard_price) || 0,
         listPrice: parseFloat(p.list_price) || 0,
         stockAvailable: parseFloat(p.qty_available) || 0,
@@ -364,8 +401,4 @@ async function handleSearch(query: string) {
       error: `Erreur de connexion Odoo : ${err.message}`
     }, { status: 500 });
   }
-}
-
-async function callKw(model: string, method: string, args: any[] = [], kwargs: Record<string, any> = {}) {
-  return callOdooKw(model, method, args, kwargs);
 }
