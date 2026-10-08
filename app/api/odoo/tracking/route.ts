@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -105,7 +106,30 @@ async function callOdooKw(model: string, method: string, args: any[] = [], kwarg
   }
 }
 
+const ODOO_DASH_PASSWORD = process.env.ODOO_DASH_PASSWORD || "AutopOdoo2026!Securite";
+const AUTH_SALT = process.env.NEXTAUTH_SECRET || "autop_odoo_secure_salt_2026";
+
+function isAuthorized(req: NextRequest): boolean {
+  const expectedToken = crypto.createHmac('sha256', AUTH_SALT).update(ODOO_DASH_PASSWORD).digest('hex');
+  const cookieToken = req.cookies.get('odoo_auth_token')?.value;
+  const headerToken = req.headers.get('x-odoo-auth');
+  const secretHeader = req.headers.get('x-odoo-password');
+
+  if (cookieToken && cookieToken === expectedToken) return true;
+  if (headerToken && headerToken === expectedToken) return true;
+  if (secretHeader && secretHeader.trim() === ODOO_DASH_PASSWORD.trim()) return true;
+
+  return false;
+}
+
 export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json(
+      { success: false, error: 'Accès non autorisé. Authentification requise pour consulter le module Odoo.' },
+      { status: 401 }
+    );
+  }
+
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('q') || searchParams.get('ref') || '';
   const startDate = searchParams.get('startDate') || '';
@@ -114,6 +138,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json(
+      { success: false, error: 'Accès non autorisé. Authentification requise pour consulter le module Odoo.' },
+      { status: 401 }
+    );
+  }
+
   const body = await req.json().catch(() => ({}));
   if (body.batch && Array.isArray(body.references)) {
     return handleBatchSearch(body.references);

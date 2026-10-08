@@ -8,7 +8,7 @@ import {
   Download, Printer, ChevronRight, Layers, ArrowLeftRight, DollarSign,
   Truck, Eye, Sparkles, UploadCloud, FileSpreadsheet, ListFilter,
   Check, X, Filter, BarChart3, Award, Zap, HelpCircle, Users,
-  Signal
+  Signal, Lock, LogOut, KeyRound, EyeOff
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -180,6 +180,14 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
   // Mode selection: single search vs batch import
   const [trackerMode, setTrackerMode] = useState<'single' | 'batch'>('single');
 
+  // Authentication Gate State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+  const [authPassword, setAuthPassword] = useState<string>('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSubmitting, setAuthSubmitting] = useState<boolean>(false);
+  const [showAuthPassword, setShowAuthPassword] = useState<boolean>(false);
+
   // Single Search State
   const [searchTerm, setSearchTerm] = useState(initialRef || '7410GE');
   const [loading, setLoading] = useState(false);
@@ -209,6 +217,94 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
   const [batchFilterTerm, setBatchFilterTerm] = useState('');
   const [batchStockOnly, setBatchStockOnly] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Verify Session on mount
+  useEffect(() => {
+    let isMounted = true;
+    const verifySession = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? sessionStorage.getItem('odoo_auth_token') : null;
+        const res = await fetch('/api/odoo/auth', {
+          headers: token ? { 'x-odoo-auth': token } : {}
+        });
+        const data = await res.json().catch(() => ({}));
+        if (isMounted) {
+          if (data.authenticated) {
+            setIsAuthenticated(true);
+          } else {
+            setIsAuthenticated(false);
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('odoo_auth_token');
+            }
+          }
+        }
+      } catch {
+        if (isMounted) setIsAuthenticated(false);
+      } finally {
+        if (isMounted) setCheckingAuth(false);
+      }
+    };
+    verifySession();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Handle Login submission
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authPassword.trim()) {
+      setAuthError('Veuillez entrer le mot de passe.');
+      return;
+    }
+    setAuthSubmitting(true);
+    setAuthError(null);
+
+    try {
+      const res = await fetch('/api/odoo/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: authPassword.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Mot de passe incorrect. Accès refusé.');
+      }
+
+      if (typeof window !== 'undefined' && data.token) {
+        sessionStorage.setItem('odoo_auth_token', data.token);
+      }
+      setIsAuthenticated(true);
+      setAuthPassword('');
+      setError(null);
+    } catch (err: any) {
+      setAuthError(err.message || 'Erreur lors de la validation du mot de passe.');
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
+  // Handle Logout
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/odoo/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'logout' })
+      });
+    } catch {
+      // ignore
+    }
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('odoo_auth_token');
+    }
+    setIsAuthenticated(false);
+    setProduct(null);
+    setSummary(null);
+    setDecision(null);
+    setPurchases([]);
+    setSales([]);
+    setMovements([]);
+    setHasSearched(false);
+  };
 
   // Live clock
   const [clock, setClock] = useState('');
@@ -268,8 +364,19 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
       if (sDate) params.set('startDate', sDate);
       if (eDate) params.set('endDate', eDate);
 
-      const res = await fetch(`/api/odoo/tracking?${params.toString()}`);
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('odoo_auth_token') : '';
+      const res = await fetch(`/api/odoo/tracking?${params.toString()}`, {
+        headers: token ? { 'x-odoo-auth': token } : {}
+      });
       const data = await res.json();
+
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('odoo_auth_token');
+        }
+        throw new Error(data.error || 'Session expirée. Veuillez vous reconnecter.');
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Erreur lors de la récupération des données Odoo.');
@@ -290,13 +397,15 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
     }
   };
 
+  // Only trigger initial fetch if authenticated!
   useEffect(() => {
+    if (!isAuthenticated) return;
     if (initialRef) {
       fetchOdooData(initialRef);
     } else {
       fetchOdooData('7410GE');
     }
-  }, [initialRef]);
+  }, [isAuthenticated, initialRef]);
 
   // Submit search
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -324,14 +433,26 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
     setError(null);
 
     try {
+      const token = typeof window !== 'undefined' ? sessionStorage.getItem('odoo_auth_token') : '';
       const res = await fetch('/api/odoo/tracking', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'x-odoo-auth': token } : {})
+        },
         body: JSON.stringify({ batch: true, references: list })
       });
       setBatchProgress(70);
 
       const data = await res.json();
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('odoo_auth_token');
+        }
+        throw new Error(data.error || 'Session expirée. Veuillez vous reconnecter.');
+      }
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Erreur lors du traitement par lot.');
       }
@@ -541,6 +662,102 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
     document.body.removeChild(link);
   };
 
+  // ─── AUTHENTICATION GATE CHECK ───
+  if (checkingAuth) {
+    return (
+      <div className="bg-[#111622] border border-[#1F293D] rounded-2xl shadow-lg p-16 flex flex-col items-center justify-center text-center max-w-lg mx-auto my-12">
+        <RefreshCw className="w-7 h-7 text-[#94A3B8] animate-spin mb-3.5" />
+        <p className="text-xs font-mono text-[#94A3B8]">Vérification de la session Odoo ERP...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="py-8 md:py-16 flex items-center justify-center px-4">
+        <div className="bg-[#111622] border border-[#1F293D] rounded-2xl p-7 md:p-9 max-w-md w-full shadow-2xl relative overflow-hidden">
+          {/* Top Lock Badge */}
+          <div className="flex items-center justify-center mb-5">
+            <div className="w-14 h-14 rounded-2xl bg-[#07090E] border border-[#1F293D] flex items-center justify-center shadow-inner">
+              <Lock className="w-6 h-6 text-[#FFFFFF]" />
+            </div>
+          </div>
+
+          {/* Title & Desc */}
+          <div className="text-center mb-6">
+            <h2 className="text-lg md:text-xl font-bold text-[#FFFFFF] tracking-tight">
+              Sas de Sécurité Odoo ERP
+            </h2>
+            <p className="text-xs text-[#94A3B8] mt-1.5 leading-relaxed">
+              Ce module contient des données stratégiques (stocks magasin, historiques d'achat et marges). Saisissez le mot de passe d'accès pour déverrouiller la console.
+            </p>
+          </div>
+
+          {/* Login Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-mono text-[#94A3B8] uppercase mb-1.5 font-medium">
+                Mot de passe d'accès
+              </label>
+              <div className="relative">
+                <input
+                  type={showAuthPassword ? 'text' : 'password'}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="Entrez le mot de passe..."
+                  autoFocus
+                  className="w-full bg-[#07090E] border border-[#1F293D] text-[#FFFFFF] placeholder-[#94A3B8]/40 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none focus:border-[#94A3B8] font-mono transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAuthPassword(!showAuthPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] hover:text-[#FFFFFF] p-1 transition"
+                  title={showAuthPassword ? "Masquer" : "Afficher"}
+                >
+                  {showAuthPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {authError && (
+              <div className="p-3 rounded-xl bg-red-950/20 border border-red-900/40 text-red-400 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className="w-full bg-[#EF4444] hover:bg-red-500 disabled:opacity-50 text-[#FFFFFF] font-semibold text-sm py-3 px-6 rounded-xl transition-all shadow-lg shadow-red-950/30 flex items-center justify-center gap-2 mt-2"
+            >
+              {authSubmitting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Vérification...</span>
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" />
+                  <span>Valider l'Accès</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Security note */}
+          <div className="mt-6 pt-4 border-t border-[#1F293D] flex items-center justify-between text-[11px] text-[#94A3B8]">
+            <span className="flex items-center gap-1.5 font-mono">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#94A3B8]" />
+              Session Sécurisée
+            </span>
+            <span className="font-mono">ERP AUTOP</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
 
@@ -565,8 +782,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
             </div>
           </div>
 
-          {/* Clock + Mode switcher */}
-          <div className="flex items-center gap-3 flex-wrap shrink-0">
+          {/* Clock + Mode switcher + Déconnexion */}
+          <div className="flex items-center gap-2.5 flex-wrap shrink-0">
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#07090E] border border-[#1F293D] rounded-lg text-xs font-mono text-[#94A3B8]">
               <Signal className="w-3.5 h-3.5 text-[#94A3B8]" />
               <span>{clock}</span>
@@ -589,6 +806,17 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 </button>
               ))}
             </div>
+
+            {/* Déconnexion */}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#07090E] hover:bg-[#1F293D] text-[#94A3B8] hover:text-[#FFFFFF] border border-[#1F293D] rounded-lg text-xs font-mono transition-all"
+              title="Fermer la session Odoo"
+            >
+              <LogOut className="w-3.5 h-3.5 text-[#94A3B8]" />
+              <span className="hidden sm:inline">Déconnexion</span>
+            </button>
           </div>
         </div>
 
