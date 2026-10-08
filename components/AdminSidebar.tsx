@@ -81,6 +81,7 @@ const sections: SidebarSection[] = [
       { id: 'parts-catalogue', label: '🚗 PARTS CATALOGUE (VIN)', icon: ShoppingBag },
       { id: 'suivi-po', label: 'SUIVI PO & LIVRAISONS', icon: Clock },
       { id: 'historique-achat', label: "HISTORIQUE D'ACHATS", icon: ClipboardList },
+      { id: 'suivi-stock-odoo', label: '📦 SUIVI STOCK ODOO', icon: Package },
     ]
   },
   {

@@ -7,6 +7,7 @@ import { searchDictionaryAndEquivalents, getEquivalentsForRef, validateCriticalP
 import ModalSyntheseOffres from './ModalSyntheseOffres';
 import ModalFicheArticle from './ModalFicheArticle';
 import B2BComparator from './B2BComparator';
+import OdooStockTracker from './OdooStockTracker';
 import {
   Search, Edit3, MessageSquare, FileText, Mail, Phone,
   Plus, Trash2, Save, X, Send,
@@ -5722,6 +5723,7 @@ export default function AdminContent() {
     'comparatif': <SectionConsultationFournisseur />,
     'suivi-po': <SectionSuiviPO />,
     'historique-achat': <SectionHistoriqueAchats />,
+    'suivi-stock-odoo': <OdooStockTracker />,
     'chat-interne': <SectionChatInterne />,
     'comptabilite': <SectionComptabilite />,
     'ajouter-article': <SectionGestionArticles />,

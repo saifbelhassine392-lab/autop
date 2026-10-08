@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
 import { useCart } from '@/contexts/CartContext'
 import { useState } from 'react'
-import { ShoppingCart, Menu, X, LogOut } from 'lucide-react'
+import { ShoppingCart, Menu, X, LogOut, Boxes } from 'lucide-react'
 
 export default function Header() {
   const { data: session } = useSession()
@@ -49,7 +49,17 @@ export default function Header() {
           </nav>
 
           {/* Right side */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            {/* Suivi Stock Odoo ERP Quick Access */}
+            <Link
+              href="/odoo-stock"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/40 hover:border-emerald-400 text-emerald-400 hover:text-emerald-300 font-bold text-xs uppercase tracking-wider transition shadow-sm"
+              title="Suivi de Stock & Historique Odoo ERP"
+            >
+              <Boxes className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="hidden sm:inline">Suivi Stock Odoo</span>
+            </Link>
+
             <Link href="/panier" className="relative p-2 text-slate-300 hover:text-red-500 transition">
               <ShoppingCart className="w-5 h-5" />
               {totalItems > 0 && (
@@ -108,6 +118,14 @@ export default function Header() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-slate-800">
             <div className="flex flex-col space-y-3 px-2">
+              <Link
+                href="/odoo-stock"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 font-bold text-xs uppercase tracking-wider transition"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Boxes className="w-4 h-4 text-emerald-400" />
+                <span>Suivi Stock Odoo ERP</span>
+              </Link>
               {[...navLinks, ...proLinks].map((link) => (
                 <Link
                   key={link.href}
