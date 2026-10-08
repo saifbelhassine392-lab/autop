@@ -7,3 +7,6 @@ dist
 *.html
 scratch/
 
+
+.vercel
+.env*

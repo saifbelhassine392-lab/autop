@@ -40,6 +40,7 @@ interface B2BItem {
 }
 
 interface MultiRefResult {
+  id?: string;
   ref: string;
   designation?: string;
   status: 'pending' | 'loading' | 'success' | 'not_found' | 'error';
@@ -47,6 +48,17 @@ interface MultiRefResult {
   bestItem?: B2BItem | null;
   errorMessage?: string;
 }
+
+// Helper to strictly parse references line-by-line
+const parseLinesToRefs = (text: string): string[] => {
+  if (!text) return [];
+  return text
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => line.toUpperCase().replace(/[\s\-_.\/]+/g, ""))
+    .filter(ref => ref.length >= 2);
+};
 
 export default function B2BComparator() {
   const { setAdminSection } = useApp();
@@ -379,15 +391,10 @@ export default function B2BComparator() {
 
   // ─── MODE 2: Multi-References & Batch Execution ───────────────────────────
   const handleParseMultiInput = () => {
-    const refs = multiInputText
-      .split(/[\n,;]+/)
-      .map(r => r.trim().toUpperCase().replace(/[\s\-_.\/]+/g, ""))
-      .filter(r => r.length >= 2);
-    
-    // Deduplicate
-    const uniqueRefs = Array.from(new Set(refs));
-    setMultiRefsList(uniqueRefs);
-    setMultiResults(uniqueRefs.map(ref => ({
+    const refs = parseLinesToRefs(multiInputText);
+    setMultiRefsList(refs);
+    setMultiResults(refs.map((ref, idx) => ({
+      id: `${ref}_${idx}_${Date.now()}`,
       ref,
       status: 'pending',
       items: []
@@ -408,24 +415,26 @@ export default function B2BComparator() {
         const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
         const extractedRefs: string[] = [];
-        rows.forEach((row, idx) => {
+        rows.forEach((row) => {
           if (!row || row.length === 0) return;
           // Look across first 3 columns for reference-like strings
           for (let col = 0; col < Math.min(row.length, 3); col++) {
             const cell = String(row[col] || '').trim();
             if (cell && cell.length >= 2 && cell.length <= 30 && !cell.toLowerCase().includes('ref') && !cell.toLowerCase().includes('code')) {
               const clean = cell.replace(/[\s\-_.\/]+/g, "").toUpperCase();
-              if (clean.length >= 2) extractedRefs.push(clean);
-              break;
+              if (clean.length >= 2) {
+                extractedRefs.push(clean);
+                break;
+              }
             }
           }
         });
 
-        const unique = Array.from(new Set(extractedRefs));
-        if (unique.length > 0) {
-          setMultiInputText(unique.join('\n'));
-          setMultiRefsList(unique);
-          setMultiResults(unique.map(ref => ({
+        if (extractedRefs.length > 0) {
+          setMultiInputText(extractedRefs.join('\n'));
+          setMultiRefsList(extractedRefs);
+          setMultiResults(extractedRefs.map((ref, idx) => ({
+            id: `${ref}_${idx}_${Date.now()}`,
             ref,
             status: 'pending',
             items: []
@@ -442,18 +451,30 @@ export default function B2BComparator() {
   };
 
   const runBatchComparison = async () => {
-    if (multiRefsList.length === 0 || multiRunning) return;
+    // Strictly parse references line-by-line from textarea
+    const refsToProcess = parseLinesToRefs(multiInputText);
+    if (refsToProcess.length === 0 || multiRunning) return;
 
     setMultiRunning(true);
-    setMultiProgress({ current: 0, total: multiRefsList.length });
+    setMultiRefsList(refsToProcess);
+    setMultiProgress({ current: 0, total: refsToProcess.length });
 
-    const updated = [...multiResults];
+    // Initialize one row per line
+    const initialRows: MultiRefResult[] = refsToProcess.map((ref, idx) => ({
+      id: `${ref}_${idx}_${Date.now()}`,
+      ref,
+      status: 'pending',
+      items: []
+    }));
+    setMultiResults(initialRows);
 
-    for (let i = 0; i < multiRefsList.length; i++) {
-      const targetRef = multiRefsList[i];
-      setMultiProgress({ current: i + 1, total: multiRefsList.length });
+    const updated = [...initialRows];
 
-      // Mark current as loading
+    for (let i = 0; i < refsToProcess.length; i++) {
+      const targetRef = refsToProcess[i];
+      setMultiProgress({ current: i + 1, total: refsToProcess.length });
+
+      // Mark current line as loading
       updated[i] = { ...updated[i], status: 'loading' };
       setMultiResults([...updated]);
 
@@ -473,6 +494,7 @@ export default function B2BComparator() {
           const best = items.find(it => it.available && it.price > 0) || items.find(it => it.price > 0) || items[0] || null;
           
           updated[i] = {
+            id: initialRows[i].id,
             ref: targetRef,
             designation: best?.designation || best?.description || `Article ${targetRef}`,
             status: items.length > 0 ? 'success' : 'not_found',
@@ -486,6 +508,7 @@ export default function B2BComparator() {
           }
         } else {
           updated[i] = {
+            id: initialRows[i].id,
             ref: targetRef,
             status: 'not_found',
             items: [],
@@ -494,6 +517,7 @@ export default function B2BComparator() {
         }
       } catch (err: any) {
         updated[i] = {
+          id: initialRows[i].id,
           ref: targetRef,
           status: 'error',
           items: [],
@@ -1349,14 +1373,19 @@ export default function B2BComparator() {
 
             {/* Textarea for Multi-Refs */}
             <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                SAISISSEZ OU COLLEZ UNE LISTE DE RÉFÉRENCES (UNE PAR LIGNE OU SÉPARÉES PAR VIRGULES) :
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  SAISISSEZ UNE LISTE DE RÉFÉRENCES (UNE PAR LIGNE) :
+                </label>
+                <span className="text-[10px] font-bold text-slate-500 font-mono">
+                  {parseLinesToRefs(multiInputText).length} ligne(s) détectée(s)
+                </span>
+              </div>
               <textarea
-                rows={4}
+                rows={5}
                 value={multiInputText}
                 onChange={e => setMultiInputText(e.target.value)}
-                placeholder="1306J5&#10;1611273080&#10;7401AX&#10;6208E6&#10;424917"
+                placeholder="1306J5&#10;1611273080&#10;7401AX&#10;6208E6"
                 className="w-full bg-slate-950 text-slate-100 font-mono text-xs border border-slate-800 p-4 rounded-xl focus:outline-none focus:border-red-500 uppercase leading-relaxed"
               />
             </div>
@@ -1367,12 +1396,13 @@ export default function B2BComparator() {
                 <button
                   type="button"
                   onClick={handleParseMultiInput}
-                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
+                  disabled={parseLinesToRefs(multiInputText).length === 0}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 rounded-xl text-xs font-black uppercase tracking-wider transition-all"
                 >
-                  Valider la liste ({multiRefsList.length} refs)
+                  Valider la liste ({parseLinesToRefs(multiInputText).length} réf{parseLinesToRefs(multiInputText).length > 1 ? 's' : ''})
                 </button>
 
-                {multiRefsList.length > 0 && (
+                {parseLinesToRefs(multiInputText).length > 0 && (
                   <button
                     type="button"
                     onClick={runBatchComparison}
@@ -1387,7 +1417,7 @@ export default function B2BComparator() {
                     ) : (
                       <>
                         <Search className="w-4 h-4" />
-                        <span>LANCER LA COMPARAISON PAR LOT</span>
+                        <span>LANCER LA COMPARAISON ({parseLinesToRefs(multiInputText).length} RÉFS)</span>
                       </>
                     )}
                   </button>
@@ -1444,13 +1474,14 @@ export default function B2BComparator() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {multiResults.map(row => {
-                      const isExpanded = expandedRef === row.ref;
+                    {multiResults.map((row, idx) => {
+                      const rowKey = row.id || `${row.ref}-${idx}`;
+                      const isExpanded = expandedRef === rowKey;
                       const best = row.bestItem;
                       const hasStock = best?.available || (best?.rawStock || 0) > 0;
 
                       return (
-                        <React.Fragment key={row.ref}>
+                        <React.Fragment key={rowKey}>
                           <tr className="hover:bg-slate-800/40 transition-colors">
                             {/* Ref */}
                             <td className="px-4 py-3 font-mono font-black text-red-400 text-sm">
@@ -1503,7 +1534,7 @@ export default function B2BComparator() {
                               {row.items.length > 0 ? (
                                 <button
                                   type="button"
-                                  onClick={() => setExpandedRef(isExpanded ? null : row.ref)}
+                                  onClick={() => setExpandedRef(isExpanded ? null : rowKey)}
                                   className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-950 hover:bg-slate-800 text-cyan-400 border border-slate-800 rounded-lg text-[10px] font-black uppercase transition-colors"
                                 >
                                   <span>{row.items.length} offres</span>

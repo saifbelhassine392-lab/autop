@@ -1,15 +1,51 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Search, Package, TrendingUp, TrendingDown, RefreshCw,
   Building2, Calendar, ShoppingCart, ArrowDownRight, ArrowUpRight,
   Boxes, ShieldCheck, CheckCircle2, Clock, AlertCircle, FileText,
   Download, Printer, ChevronRight, Layers, ArrowLeftRight, DollarSign,
   Truck, Eye, Sparkles, UploadCloud, FileSpreadsheet, ListFilter,
-  Check, X, Filter, BarChart3, Award, Zap, HelpCircle, Users
+  Check, X, Filter, BarChart3, Award, Zap, HelpCircle, Users,
+  Signal
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+/* ─── Sparkline SVG ─── */
+function Sparkline({ data, color = '#22c55e', width = 120, height = 36 }: { data: number[]; color?: string; width?: number; height?: number }) {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data); const max = Math.max(...data); const range = max - min || 1;
+  const pad = 3; const w = width - pad * 2; const h = height - pad * 2;
+  const pts = data.map((v, i) => `${pad + (i / (data.length - 1)) * w},${pad + h - ((v - min) / range) * h}`);
+  const last = pts[pts.length - 1].split(',');
+  const fillPath = `M${pts[0].split(',')[0]},${pad + h} L${pts.join(' L')} L${last[0]},${pad + h} Z`;
+  const gradId = `sg${color.replace(/[^a-z0-9]/gi, '')}`;
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={fillPath} fill={`url(#${gradId})`} />
+      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={last[0]} cy={last[1]} r="2.5" fill={color} className="animate-pulse" />
+    </svg>
+  );
+}
+
+/* ─── Live Dot ─── */
+function LiveDot({ color = 'emerald' }: { color?: string }) {
+  const bg = color === 'red' ? 'bg-red-500' : 'bg-emerald-500';
+  return (
+    <span className="relative flex h-2.5 w-2.5 shrink-0">
+      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${bg} opacity-60`} />
+      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${bg}`} />
+    </span>
+  );
+}
 
 interface OdooProduct {
   id: number;
@@ -186,6 +222,23 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
   const [batchFilterTerm, setBatchFilterTerm] = useState('');
   const [batchStockOnly, setBatchStockOnly] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Live clock
+  const [clock, setClock] = useState('');
+  useEffect(() => {
+    const tick = () => setClock(new Date().toLocaleTimeString('fr-TN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Sparkline data (sorted chronologically → most recent last)
+  const purchaseSparkData = useMemo(() =>
+    purchases.slice().sort((a, b) => a.rawDate < b.rawDate ? -1 : 1).map(p => p.unitPrice),
+    [purchases]);
+  const saleSparkData = useMemo(() =>
+    sales.slice().sort((a, b) => a.rawDate < b.rawDate ? -1 : 1).map(s => s.unitPrice),
+    [sales]);
 
   // Apply quick period preset
   const handlePresetChange = (preset: 'ALL' | '30D' | '90D' | '2026' | '2025' | 'CUSTOM') => {
@@ -502,55 +555,59 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* ========================================================================= */}
-      {/* 1. TOP HEADER & SEARCH BANNER (Design Pro Terminal / SaaS Premium)        */}
-      {/* ========================================================================= */}
-      <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl shadow-xl p-5 md:p-6 relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1.5">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                <Boxes className="w-6 h-6" />
-              </div>
-              <h1 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
-                Suivi de Stock & Historique Odoo
-                <span className="text-xs bg-red-600 text-white px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-md shadow-red-900/30">
-                  ERP Live
-                </span>
-              </h1>
-            </div>
-            <p className="text-xs md:text-sm text-slate-400">
-              Interrogation temps réel de l'ERP Odoo AUTOP : Historique d'achat par fournisseur, ventes clients, mouvements et suivi par lot.
-            </p>
-          </div>
+    <div className="space-y-5 max-w-7xl mx-auto">
 
-          {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1.5 bg-[#0B0F19] p-1.5 rounded-xl border border-[#1E293B] shrink-0 self-start lg:self-auto">
-            <button
-              onClick={() => setTrackerMode('single')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
-                trackerMode === 'single'
-                  ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#131B2E]'
-              }`}
-            >
-              <Search className="w-3.5 h-3.5" />
-              <span>Recherche Unitaire</span>
-            </button>
-            <button
-              onClick={() => setTrackerMode('batch')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
-                trackerMode === 'batch'
-                  ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#131B2E]'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Import & Suivi par Lot</span>
-            </button>
+
+      {/* ═══════ 1. TOP HEADER ═══════ */}
+      <div className="relative bg-[#0D1117] border border-[#1E2A3A] rounded-2xl shadow-2xl overflow-hidden">
+        {/* decorative grid */}
+        <div className="absolute inset-0 opacity-[0.025]" style={{backgroundImage:'repeating-linear-gradient(0deg,transparent,transparent 28px,#ffffff 28px,#ffffff 29px),repeating-linear-gradient(90deg,transparent,transparent 28px,#ffffff 28px,#ffffff 29px)'}} />
+        {/* top accent line */}
+        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-red-600 to-transparent opacity-75" />
+        <div className="px-5 pt-4 pb-5 relative z-10">
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="relative p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 glow-green">
+                <Boxes className="w-7 h-7" />
+                <span className="absolute -top-1 -right-1"><LiveDot color="emerald" /></span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight">
+                    Suivi de Stock &amp; Historique Odoo
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] bg-red-600/90 text-white px-2.5 py-0.5 rounded-full font-black tracking-widest uppercase shadow-md shadow-red-900/40">
+                    <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70" /><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" /></span>
+                    ERP Live
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">Interrogation temps réel Odoo AUTOP — Achats, Ventes, Mouvements, Suivi par lot</p>
+              </div>
+            </div>
+
+            {/* Clock + Mode switcher */}
+            <div className="flex items-center gap-3 flex-wrap shrink-0">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-[#131B2E] border border-[#1E293B] rounded-lg text-[11px] font-mono text-emerald-400">
+                <Signal className="w-3 h-3 text-emerald-500" />
+                <span>{clock}</span>
+              </div>
+              <div className="flex items-center gap-1 bg-[#0B0F19] p-1 rounded-xl border border-[#1E293B]">
+                {[
+                  { id: 'single', icon: <Search className="w-3.5 h-3.5" />, label: 'Recherche Unitaire' },
+                  { id: 'batch', icon: <FileSpreadsheet className="w-3.5 h-3.5" />, label: 'Suivi par Lot' },
+                ].map(m => (
+                  <button key={m.id} onClick={() => setTrackerMode(m.id as any)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                      trackerMode === m.id
+                        ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/40'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-[#131B2E]'
+                    }`}>
+                    {m.icon} <span>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
 
         {/* SINGLE SEARCH CONTROLS */}
         {trackerMode === 'single' && (
@@ -786,6 +843,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Error Message */}
@@ -811,175 +869,184 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
           {/* 2. BLOC CONCLUSION & DECISION D'ACHAT (Terminal / SaaS Cards)             */}
           {/* ========================================================================= */}
           {decision && (
-            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl shadow-xl p-5 md:p-6 transition-all duration-300 hover:scale-[1.01] hover:border-red-500/50 hover:shadow-2xl hover:shadow-red-500/10">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1E293B]">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-inner">
-                    <Award className="w-6 h-6" />
+            <div className="relative bg-[#0D1117] border border-[#1E2A3A] rounded-2xl shadow-2xl overflow-hidden group">
+              {/* accent line that glows on hover */}
+              <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50 group-hover:opacity-90 transition-opacity duration-500" />
+              <div className="p-5 md:p-6">
+                {/* Header row */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1E293B]/50">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                      <Award className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">SYNTHÈSE DÉCISIONNELLE ERP ODOO</span>
+                      <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight">Indicateurs Clés &amp; Décision d'Achat</h2>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-400">
-                      SYNTHÈSE DÉCISIONNELLE ERP ODOO
-                    </span>
-                    <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight">
-                      Conclusion & Indicateurs Clés de Rentabilité
-                    </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[
+                      { icon: <FileSpreadsheet className="w-4 h-4 text-emerald-400" />, label: 'Excel', fn: exportSingleToExcel },
+                      { icon: <Download className="w-4 h-4 text-blue-400" />, label: 'CSV', fn: exportSingleToCSV },
+                      { icon: <Printer className="w-4 h-4 text-slate-400" />, label: 'Imprimer', fn: () => window.print() },
+                    ].map(btn => (
+                      <button key={btn.label} onClick={btn.fn}
+                        className="bg-[#131B2E] hover:bg-[#1E293B] text-slate-200 border border-[#1E293B] hover:border-slate-600 px-3.5 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all">
+                        {btn.icon} {btn.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Export Buttons */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={exportSingleToExcel}
-                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
-                    title="Télécharger la fiche complète au format Excel"
-                  >
-                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                    <span>Export Excel</span>
-                  </button>
-                  <button
-                    onClick={exportSingleToCSV}
-                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
-                  >
-                    <Download className="w-4 h-4 text-blue-400" />
-                    <span>CSV</span>
-                  </button>
-                  <button
-                    onClick={() => window.print()}
-                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
-                  >
-                    <Printer className="w-4 h-4 text-slate-400" />
-                    <span>Imprimer / PDF</span>
-                  </button>
-                </div>
-              </div>
+                {/* ─── 3 KPI CARDS ─── */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
 
-              {/* 3 Pillars of Decision: Best Buy, Last Buy, Last Sell */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
-                {/* 1. MEILLEUR PRIX ACHAT */}
-                <div className="bg-[#0B0F19] border border-emerald-500/30 rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-emerald-500/60 hover:shadow-xl hover:shadow-emerald-500/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                      <Award className="w-4 h-4" />
-                      Meilleur Prix d'Achat
-                    </span>
-                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
-                      Top Économie
-                    </span>
-                  </div>
-
-                  <div className="mt-2">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
-                        {decision.bestPurchase?.price ? decision.bestPurchase.price.toFixed(3) : '0.000'}
-                      </span>
-                      <span className="text-xs text-emerald-400 font-bold">TND HT</span>
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">Fournisseur :</span>
-                        <strong className="text-white font-bold">{decision.bestPurchase?.supplier || 'N/A'}</strong>
+                  {/* 1. MEILLEUR PRIX ACHAT — emerald theme */}
+                  <div className="group/card relative bg-[#050F09] border border-emerald-500/25 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:border-emerald-400/60 hover:shadow-2xl hover:shadow-emerald-500/15 hover:scale-[1.015] overflow-hidden glow-green">
+                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5" /> Meilleur Prix Achat
+                        </span>
+                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">Top Éco</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>Date de commande :</span>
-                        <span className="font-mono text-slate-300">{decision.bestPurchase?.date || 'N/A'}</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl lg:text-4xl font-black tracking-tight text-white font-mono tabular-nums">
+                          {decision.bestPurchase?.price ? decision.bestPurchase.price.toFixed(3) : '0.000'}
+                        </span>
+                        <span className="text-xs text-emerald-400 font-bold">TND HT</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>N° Bon Commande :</span>
-                        <span className="font-mono text-blue-400 font-bold">{decision.bestPurchase?.orderReference || 'N/A'}</span>
+                      {purchaseSparkData.length >= 2 && (
+                        <div className="mt-3 opacity-75 group-hover/card:opacity-100 transition-opacity">
+                          <Sparkline data={purchaseSparkData} color="#22c55e" width={130} height={36} />
+                        </div>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-emerald-900/40 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-emerald-800/80">Fournisseur :</span>
+                          <strong className="text-white font-bold truncate max-w-[140px]">{decision.bestPurchase?.supplier || 'N/A'}</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-emerald-900">Date :</span>
+                          <span className="font-mono text-slate-300">{decision.bestPurchase?.date || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-emerald-900">N° PO :</span>
+                          <span className="font-mono text-blue-400 font-bold">{decision.bestPurchase?.orderReference || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* 2. DERNIER PRIX ACHAT */}
-                <div className="bg-[#0B0F19] border border-[#1E293B] rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-red-500/50 hover:shadow-xl hover:shadow-red-500/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
-                      <Truck className="w-4 h-4" />
-                      Dernier Prix d'Achat
-                    </span>
-                    <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
-                      Réception Récente
-                    </span>
+                  {/* 2. DERNIER PRIX ACHAT — blue theme */}
+                  <div className="group/card relative bg-[#050914] border border-blue-500/20 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:border-blue-400/50 hover:shadow-2xl hover:shadow-blue-500/15 hover:scale-[1.015] overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-blue-400 flex items-center gap-1.5">
+                          <Truck className="w-3.5 h-3.5" /> Dernier Prix Achat
+                        </span>
+                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">Récent</span>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl lg:text-4xl font-black tracking-tight text-white font-mono tabular-nums">
+                          {decision.lastPurchase?.price ? decision.lastPurchase.price.toFixed(3) : '0.000'}
+                        </span>
+                        <span className="text-xs text-blue-400 font-bold">TND HT</span>
+                      </div>
+                      {purchaseSparkData.length >= 2 && (
+                        <div className="mt-3 opacity-75 group-hover/card:opacity-100 transition-opacity">
+                          <Sparkline data={purchaseSparkData} color="#60a5fa" width={130} height={36} />
+                        </div>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-blue-900/30 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-blue-900">Fournisseur :</span>
+                          <strong className="text-white font-bold truncate max-w-[140px]">{decision.lastPurchase?.supplier || 'N/A'}</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-blue-900/80">Date :</span>
+                          <span className="font-mono text-slate-300">{decision.lastPurchase?.date || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-blue-900/80">N° PO :</span>
+                          <span className="font-mono text-blue-400 font-bold">{decision.lastPurchase?.orderReference || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="mt-2">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
-                        {decision.lastPurchase?.price ? decision.lastPurchase.price.toFixed(3) : '0.000'}
-                      </span>
-                      <span className="text-xs text-blue-400 font-bold">TND HT</span>
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">Fournisseur :</span>
-                        <strong className="text-white font-bold">{decision.lastPurchase?.supplier || 'N/A'}</strong>
+                  {/* 3. DERNIER PRIX VENTE — amber theme */}
+                  <div className="group/card relative bg-[#140A00] border border-amber-500/20 rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:border-amber-400/50 hover:shadow-2xl hover:shadow-amber-500/15 hover:scale-[1.015] overflow-hidden glow-amber">
+                    <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent pointer-events-none" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[11px] font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5" /> Dernier Prix Vente
+                        </span>
+                        <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">Client</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>Date de commande :</span>
-                        <span className="font-mono text-slate-300">{decision.lastPurchase?.date || 'N/A'}</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl lg:text-4xl font-black tracking-tight text-white font-mono tabular-nums">
+                          {decision.lastSale?.price ? decision.lastSale.price.toFixed(3) : '0.000'}
+                        </span>
+                        <span className="text-xs text-amber-400 font-bold">TND HT</span>
                       </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>N° Bon Commande :</span>
-                        <span className="font-mono text-blue-400 font-bold">{decision.lastPurchase?.orderReference || 'N/A'}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. DERNIER PRIX VENTE */}
-                <div className="bg-[#0B0F19] border border-[#1E293B] rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-amber-500/50 hover:shadow-xl hover:shadow-amber-500/10">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                      <Users className="w-4 h-4" />
-                      Dernier Prix de Vente
-                    </span>
-                    <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
-                      Facturation Client
-                    </span>
-                  </div>
-
-                  <div className="mt-2">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
-                        {decision.lastSale?.price ? decision.lastSale.price.toFixed(3) : '0.000'}
-                      </span>
-                      <span className="text-xs text-amber-400 font-bold">TND HT</span>
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
-                      <div className="flex items-center justify-between text-slate-300">
-                        <span className="text-slate-400">Client / Assureur :</span>
-                        <strong className="text-white font-bold truncate max-w-[150px]">{decision.lastSale?.customer || 'N/A'}</strong>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>Date de vente :</span>
-                        <span className="font-mono text-slate-300">{decision.lastSale?.date || 'N/A'}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                        <span>N° Commande (SO) :</span>
-                        <span className="font-mono text-amber-400 font-bold">{decision.lastSale?.orderReference || 'N/A'}</span>
+                      {saleSparkData.length >= 2 && (
+                        <div className="mt-3 opacity-75 group-hover/card:opacity-100 transition-opacity">
+                          <Sparkline data={saleSparkData} color="#f59e0b" width={130} height={36} />
+                        </div>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-amber-900/30 space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-amber-900">Client :</span>
+                          <strong className="text-white font-bold truncate max-w-[140px]">{decision.lastSale?.customer || 'N/A'}</strong>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-amber-900/80">Date :</span>
+                          <span className="font-mono text-slate-300">{decision.lastSale?.date || 'N/A'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-amber-900/80">N° SO :</span>
+                          <span className="font-mono text-amber-400 font-bold">{decision.lastSale?.orderReference || 'N/A'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Recommendation Strip */}
-              <div className="mt-4 p-3.5 bg-[#0B0F19] border border-[#1E293B] rounded-xl flex items-center justify-between gap-3 text-xs flex-wrap">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                  <span className="font-semibold text-slate-400">Recommandation Achat :</span>
-                  <span className="text-white font-bold">{decision.recommendation}</span>
+                {/* Margin + Recommendation 2-col strip */}
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-3.5 bg-[#0B0F19] border border-[#1E293B] rounded-xl flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${(decision.marginPercent || 0) > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                      {(decision.marginPercent || 0) > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Marge Brute Constatée</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-lg font-black font-mono ${(decision.marginPercent || 0) > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {decision.marginAmount?.toFixed(3) || '0.000'} TND
+                        </span>
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${(decision.marginPercent || 0) > 0 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20'}`}>
+                          {(decision.marginPercent || 0) > 0 ? '+' : ''}{decision.marginPercent?.toFixed(1) || '0'}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-3.5 bg-[#0B0F19] border border-[#1E293B] rounded-xl flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Recommandation Achat</span>
+                      <span className="text-sm font-bold text-white truncate block">{decision.recommendation}</span>
+                      {decision.potentialSavings > 0 && (
+                        <span className="text-[11px] text-emerald-400 font-semibold">Gain : +{decision.potentialSavings.toFixed(3)} TND / pièce</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                {decision.potentialSavings > 0 && (
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
-                    Gain potentiel : +{decision.potentialSavings.toFixed(3)} TND / pièce
-                  </span>
-                )}
               </div>
             </div>
           )}
