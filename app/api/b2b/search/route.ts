@@ -867,6 +867,20 @@ async function scrapeSAGAP(supplierId: string, query: string, b2bLogin: string, 
 // ─────────────────────────────────────────────────────────────────────────────
 // 5. CDG  (cdgros.com)
 // ─────────────────────────────────────────────────────────────────────────────
+function isValidCDGPartRef(ref: string): boolean {
+  if (!ref || typeof ref !== 'string') return false;
+  const t = ref.trim().toUpperCase();
+  const JUNK = new Set([
+    'STYLE', 'POUR', 'MOT', 'PAGE', 'ACCES', 'SITE', 'MERCI', 'PASSE', 'DIV', 'TABLE', 'CLASS', 'SPAN', 
+    'BORDER', 'WIDTH', 'HEIGHT', 'NORMAL', 'FOND', 'NEGATIF', 'CHAMAM', 'SAINT', 'GAUBIN', 'MEGRINE', 
+    'CONNEXION', 'CONNECT', 'DECONNECT', 'PANIER', 'CLIENT', 'LISTE', 'DES', 'EQUIVALENTES', 'REFERENCES'
+  ]);
+  if (JUNK.has(t)) return false;
+  if (t.length < 3 || t.length > 25) return false;
+  if (/^[A-Z]{1,4}$/.test(t) && !/^[0-9]+/.test(t)) return false;
+  return true;
+}
+
 function parseCDGSearchHtml(html: string, query: string): any[] {
   const items: any[] = [];
   const qNorm = normalizeRef(query);
@@ -878,7 +892,10 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
       const articles = JSON.parse(jsonMatch[1]);
       if (Array.isArray(articles)) {
         for (const i of articles) {
-          items.push(mapCDGArticle(i, query));
+          const mapped = mapCDGArticle(i, query);
+          if (isValidCDGPartRef(mapped.name)) {
+            items.push(mapped);
+          }
         }
       }
     } catch {}
@@ -894,7 +911,7 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
     if (!refMatch) continue;
     const itemRef = refMatch[1].trim();
 
-    if (itemRef.toLowerCase().includes("login") || itemRef.toLowerCase().includes("société") || itemRef.toLowerCase().includes("serveur") || itemRef.toLowerCase().includes("accès")) continue;
+    if (!isValidCDGPartRef(itemRef)) continue;
 
     const priceMatch = cleanText.match(/Prix\s*(?:HT)?\s*[:\s]*([0-9\s.,]+)/i) || cleanText.match(/([0-9]+[.,][0-9]{2,3})\s*(?:HT|TND|DT)?/i);
     const price = priceMatch ? parseFloat(priceMatch[1].replace(/\s/g, '').replace(',', '.')) : 0;
@@ -939,7 +956,7 @@ function parseCDGSearchHtml(html: string, query: string): any[] {
       if (tds.length < 2) continue;
       const refCell = tds.find((t) => {
         const n = normalizeRef(t);
-        return n.length >= 3 && n.length <= 25 && !t.toLowerCase().includes("login") && !t.toLowerCase().includes("mot de passe") && !t.toLowerCase().includes("société") && !t.toLowerCase().includes("serveur");
+        return isValidCDGPartRef(t) && n.length >= 3 && n.length <= 25;
       });
       if (!refCell) continue;
 
