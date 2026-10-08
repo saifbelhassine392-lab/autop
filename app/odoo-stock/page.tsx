@@ -11,21 +11,21 @@ export const metadata: Metadata = {
 
 export default function OdooStockPage() {
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col antialiased">
+    <div className="min-h-screen bg-[#07090E] text-[#94A3B8] flex flex-col antialiased">
       {/* Top Main Navigation Header */}
       <Header />
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-6" aria-label="Breadcrumb">
+        <nav className="flex items-center gap-2 text-xs font-medium text-[#94A3B8] mb-6" aria-label="Breadcrumb">
           <Link href="/" className="hover:text-white flex items-center gap-1 transition">
-            <Home className="w-3.5 h-3.5" />
+            <Home className="w-3.5 h-3.5 text-[#94A3B8]" />
             <span>Accueil</span>
           </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-          <span className="text-red-500 font-bold flex items-center gap-1">
-            <Boxes className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8]/60" />
+          <span className="text-[#FFFFFF] font-medium flex items-center gap-1">
+            <Boxes className="w-3.5 h-3.5 text-[#94A3B8]" />
             <span>Suivi Stock Odoo ERP</span>
           </span>
         </nav>
@@ -35,16 +35,16 @@ export default function OdooStockPage() {
       </main>
 
       {/* Footer minimaliste */}
-      <footer className="border-t border-slate-900 bg-slate-950/60 py-6 text-center text-xs text-slate-500 mt-12">
+      <footer className="border-t border-[#1F293D] bg-[#07090E] py-6 text-center text-xs text-[#94A3B8] mt-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© {new Date().getFullYear()} AUTOP Tunisie — Connecteur ERP Odoo v16/v17 (autop-soft.autop.tn)</p>
-          <div className="flex items-center gap-4 text-[11px] text-slate-400">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              XML-RPC & JSON-RPC Connecté
+          <p>© {new Date().getFullYear()} AUTOP Tunisie — Connecteur ERP Odoo (autop-soft.autop.tn)</p>
+          <div className="flex items-center gap-4 text-[11px] text-[#94A3B8]">
+            <span className="inline-flex items-center gap-1.5 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#94A3B8]"></span>
+              API Odoo Connectée
             </span>
             <span>•</span>
-            <span>Utilisateur : seifeddine.belhessine@autop.tn</span>
+            <span className="font-mono">seifeddine.belhessine@autop.tn</span>
           </div>
         </div>
       </footer>
