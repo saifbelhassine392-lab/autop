@@ -1765,8 +1765,7 @@ async function scrapeALPHAFORD(supplierId: string, query: string, b2bLogin: stri
           body: params.toString()
         }, 4500);
 
-        const setCookies = loginRes.headers.get("set-cookie") || initCookies;
-        const newCookie = setCookies.split(',').map(c => c.split(';')[0].trim()).join('; ');
+        const newCookie = mergeSetCookies(initCookies, loginRes.headers.get("set-cookie"));
         if (newCookie) {
           supplierCookies[supplierId] = newCookie;
           return newCookie;
