@@ -53,7 +53,46 @@ export const DICTIONARY_DB: Record<string, PartDictionaryEntry> = {
     equivalents: [
       { brand: 'LUK', reference: '623332500', type: 'ADAPTABLE', designation: 'LUK RepSet 3P', estimatedPrice: 450.0 },
       { brand: 'VALEO', reference: '832427', type: 'ADAPTABLE', designation: 'Valeo Kit EMB', estimatedPrice: 450.998 },
-      { brand: 'MECARM', reference: 'MK10231', type: 'ADAPTABLE', designation: 'Mecarm KIT', estimatedPrice: 380.0 },
+    ]
+  },
+
+  // === REFERENCE 425276 / 05P802 (Jeu de plaquettes de frein avant Partner M59 / Berlingo) ===
+  '425276': {
+    oeReference: '425276',
+    designation: "JEU DE PATINS / PLAQUETTES DE FREIN AVANT PARTNER M59 / BERLINGO",
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'PEUGEOT / CITROEN', reference: '425276', type: 'OE', designation: 'JEU DE PATINS ORIGINE PARTNER M59 425276' },
+      { brand: 'LPR', reference: '05P802', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 29.105 },
+      { brand: 'LPR', reference: '05P789', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 30.828 },
+      { brand: 'CDG', reference: '2203270', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276', estimatedPrice: 44.232 },
+      { brand: 'CDG', reference: 'PMX3360', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 PMX', estimatedPrice: 0 },
+      { brand: 'FEDERAL MOGUL', reference: '573030CW', type: 'ADAPTABLE', designation: 'J PATIN PARTNER II FEDERAL MOGUL', estimatedPrice: 0 },
+      { brand: 'VALEO', reference: '598463', type: 'ADAPTABLE', designation: 'Jeu de 4 plaquettes de frein avant Valeo', estimatedPrice: 52.0 },
+      { brand: 'FERODO', reference: 'FDB1378', type: 'ADAPTABLE', designation: 'Jeu de 4 plaquettes de frein avant Ferodo', estimatedPrice: 58.0 },
+      { brand: 'BREMBO', reference: 'P61066', type: 'ADAPTABLE', designation: 'Jeu de 4 plaquettes de frein avant Brembo', estimatedPrice: 62.0 },
+      { brand: 'BOSCH', reference: '0986424572', type: 'ADAPTABLE', designation: 'Jeu de 4 plaquettes de frein avant Bosch', estimatedPrice: 55.0 }
+    ]
+  },
+  '05P802': {
+    oeReference: '425276',
+    designation: "J PATIN PARTNER M59 425276 LPR (05P802)",
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'LPR', reference: '05P802', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 29.105 },
+      { brand: 'LPR', reference: '05P789', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 30.828 },
+      { brand: 'PEUGEOT / CITROEN', reference: '425276', type: 'OE', designation: 'JEU DE PATINS ORIGINE PARTNER M59 425276' },
+      { brand: 'CDG', reference: '2203270', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276', estimatedPrice: 44.232 }
+    ]
+  },
+  '05P789': {
+    oeReference: '425276',
+    designation: "J PATIN PARTNER M59 425276 LPR (05P789)",
+    category: 'Freinage',
+    equivalents: [
+      { brand: 'LPR', reference: '05P789', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 30.828 },
+      { brand: 'LPR', reference: '05P802', type: 'ADAPTABLE', designation: 'J PATIN PARTNER M59 425276 LPR', estimatedPrice: 29.105 },
+      { brand: 'PEUGEOT / CITROEN', reference: '425276', type: 'OE', designation: 'JEU DE PATINS ORIGINE PARTNER M59 425276' }
     ]
   },
 
