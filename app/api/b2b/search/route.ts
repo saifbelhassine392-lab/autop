@@ -1070,29 +1070,37 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
       const catalogWdPropMatch = catalogHtml.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/i);
       const catalogWdProp = catalogWdPropMatch ? catalogWdPropMatch[1].replace(/&quot;/g, '"') : "{}";
 
-      if (catalogAction) {
-        const searchTargetUrl = `${baseUrl}${catalogAction.startsWith("/") ? catalogAction : `/${catalogAction}`}`;
-        const searchTerms = buildSupplierSearchRefs(rawQuery);
+      let currentCatalogAction: string = catalogAction || "";
+      let currentCatalogWdProp: string = catalogWdProp || "{}";
 
-        const searchQueries: Array<{ field: string; term: string }> = [
-          { field: "A20", term: rawQuery },
-          ...searchTerms.slice(0, 3).map(t => ({ field: "A20", term: t })),
-          { field: "A33", term: rawQuery }
-        ];
-        if (/^\d{6,}$/.test(cleanQuery) || /^[A-Z0-9]{6,}$/.test(cleanQuery)) {
-          searchQueries.push({ field: "A89", term: cleanQuery });
+      if (currentCatalogAction) {
+        const isDesignation = rawQuery.includes(" ") || /(?:PATIN|PLAQUETTE|FILTRE|DISQUE|KIT|EMBRAYAGE|BOUGIE|COURROIE|AMORTISSEUR|JOINT|POMPE|BOUCHON)/i.test(rawQuery);
+        const isPureOEM = /^\d{6,}$/.test(cleanQuery);
+
+        const searchAttempts: Array<{ field: string; term: string }> = [];
+        if (isDesignation) {
+          searchAttempts.push({ field: "A33", term: rawQuery });
+          searchAttempts.push({ field: "A20", term: cleanQuery });
+        } else if (isPureOEM) {
+          searchAttempts.push({ field: "A20", term: cleanQuery });
+          searchAttempts.push({ field: "A89", term: cleanQuery });
+          searchAttempts.push({ field: "A33", term: rawQuery });
+        } else {
+          searchAttempts.push({ field: "A20", term: cleanQuery });
+          searchAttempts.push({ field: "A33", term: rawQuery });
         }
 
-        // Run searches
-        for (const sq of searchQueries) {
-          if (!sq.term) continue;
+        for (const att of searchAttempts) {
+          if (!currentCatalogAction) break;
+          const searchTargetUrl: string = currentCatalogAction.startsWith("http") ? currentCatalogAction : `${baseUrl}${currentCatalogAction.startsWith("/") ? currentCatalogAction : `/${currentCatalogAction}`}`;
+
           const searchParams = new URLSearchParams();
-          searchParams.append("WD_JSON_PROPRIETE_", catalogWdProp);
+          searchParams.append("WD_JSON_PROPRIETE_", currentCatalogWdProp);
           searchParams.append("WD_BUTTON_CLICK_", "A52");
           searchParams.append("WD_ACTION_", "");
-          searchParams.append("A20", sq.field === "A20" ? sq.term : "");
-          searchParams.append("A33", sq.field === "A33" ? sq.term : "");
-          searchParams.append("A89", sq.field === "A89" ? sq.term : "");
+          searchParams.append("A20", att.field === "A20" ? att.term : "");
+          searchParams.append("A33", att.field === "A33" ? att.term : "");
+          searchParams.append("A89", att.field === "A89" ? att.term : "");
           searchParams.append("A16", "");
 
           const rSearch = await fetch(searchTargetUrl, {
@@ -1108,12 +1116,19 @@ async function scrapeCDG(supplierId: string, query: string, b2bLogin: string, b2
           }).catch(() => null);
 
           if (rSearch && rSearch.ok) {
-            const searchHtml = await rSearch.text();
-            const parsed = parseCDGSearchHtml(searchHtml, sq.term);
+            const respHtml = await rSearch.text();
+            const parsed = parseCDGSearchHtml(respHtml, att.term);
             allItems.push(...parsed);
-            if (allItems.some(it => it.price > 0 && normalizeRef(it.reference) === cleanQuery)) {
-              break; // Found direct match with real price!
+
+            if (parsed.length > 0) {
+              break; // Succès !
             }
+
+            // Met à jour catalogAction & catalogWdProp pour la tentative suivante
+            const nextAction = respHtml.match(/<form[^>]*action="([^"]*)"/i)?.[1];
+            const nextProp = respHtml.match(/name="WD_JSON_PROPRIETE_"\s+value="([^"]*)"/i)?.[1];
+            if (nextAction) currentCatalogAction = nextAction;
+            if (nextProp) currentCatalogWdProp = nextProp.replace(/&quot;/g, '"');
           }
         }
       }
