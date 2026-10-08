@@ -108,16 +108,23 @@ async function callOdooKw(model: string, method: string, args: any[] = [], kwarg
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('q') || searchParams.get('ref') || '';
-  return handleSearch(query);
+  const startDate = searchParams.get('startDate') || '';
+  const endDate = searchParams.get('endDate') || '';
+  return handleSearch(query, startDate, endDate);
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
+  if (body.batch && Array.isArray(body.references)) {
+    return handleBatchSearch(body.references);
+  }
   const query = body.query || body.ref || '';
-  return handleSearch(query);
+  const startDate = body.startDate || '';
+  const endDate = body.endDate || '';
+  return handleSearch(query, startDate, endDate);
 }
 
-async function handleSearch(query: string) {
+async function handleSearch(query: string, startDate?: string, endDate?: string) {
   const rawQ = query.trim();
   if (!rawQ) {
     return NextResponse.json({
@@ -131,14 +138,12 @@ async function handleSearch(query: string) {
   try {
     // 1. Recherche exhaustive dans product.product (champs auto standard + custom Odoo AUTOP)
     const productDomain = [
-      "|", "|", "|", "|", "|", "|", "|",
+      "|", "|", "|", "|", "|",
       ["default_code", "ilike", rawQ],
       ["default_code", "ilike", cleanNoSpaces],
       ["reference_piece", "ilike", rawQ],
       ["reference_piece", "ilike", cleanNoSpaces],
       ["reference_origine", "ilike", rawQ],
-      ["reference_origine", "ilike", cleanNoSpaces],
-      ["reference_adaptable", "ilike", rawQ],
       ["name", "ilike", rawQ]
     ];
 
@@ -153,32 +158,23 @@ async function handleSearch(query: string) {
 
     const productIds = products.map((p: any) => p.id);
 
-    // 2. Recherche dans purchase.order.line (Historique d'achat par fournisseur)
-    // Synchronisation de toutes les commandes confirmées / livrées (exclut brouillons si demandé, mais garde toutes les vraies commandes)
-    const poFilter = ["state", "in", ["purchase", "done"]];
-    
-    let poDomain: any[] = [];
-    if (productIds.length > 0) {
-      poDomain = [
-        "&",
-        poFilter,
-        "|", "|", "|",
-        ["product_id", "in", productIds],
-        ["name", "ilike", rawQ],
-        ["name", "ilike", cleanNoSpaces],
-        ["product_id.name", "ilike", rawQ]
-      ];
-    } else {
-      poDomain = [
-        "&",
-        poFilter,
-        "|",
-        ["name", "ilike", rawQ],
-        ["name", "ilike", cleanNoSpaces]
-      ];
-    }
+    // 2. Recherche dans purchase.order.line (Commandes confirmées d'achats)
+    const poBaseDomain: any[] = productIds.length > 0 ? [
+      "&",
+      ["state", "in", ["purchase", "done"]],
+      "|", "|",
+      ["product_id", "in", productIds],
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ] : [
+      "&",
+      ["state", "in", ["purchase", "done"]],
+      "|",
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ];
 
-    const rawPoLines = await callOdooKw("purchase.order.line", "search_read", [poDomain], {
+    const rawPoLines = await callOdooKw("purchase.order.line", "search_read", [poBaseDomain], {
       fields: [
         "id", "name", "product_id", "price_unit", "product_qty",
         "partner_id", "date_order", "order_id", "price_total",
@@ -188,8 +184,60 @@ async function handleSearch(query: string) {
       order: "date_order desc"
     }).catch(() => []) || [];
 
-    // Formatage de l'historique d'achat
-    const purchaseHistory = rawPoLines.map((po: any) => {
+    // 3. Recherche dans sale.order.line (Commandes confirmées de ventes clients)
+    const soBaseDomain: any[] = productIds.length > 0 ? [
+      "&",
+      ["state", "in", ["sale", "done"]],
+      "|", "|",
+      ["product_id", "in", productIds],
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ] : [
+      "&",
+      ["state", "in", ["sale", "done"]],
+      "|",
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ];
+
+    const rawSoLines = await callOdooKw("sale.order.line", "search_read", [soBaseDomain], {
+      fields: [
+        "id", "name", "product_id", "price_unit", "product_uom_qty",
+        "order_partner_id", "create_date", "order_id", "price_total",
+        "price_subtotal", "state"
+      ],
+      limit: 100,
+      order: "create_date desc"
+    }).catch(() => []) || [];
+
+    // 4. Recherche dans stock.move (Mouvements réels de stock)
+    const moveBaseDomain: any[] = productIds.length > 0 ? [
+      "&",
+      ["state", "!=", "cancel"],
+      "|", "|",
+      ["product_id", "in", productIds],
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ] : [
+      "&",
+      ["state", "!=", "cancel"],
+      "|",
+      ["name", "ilike", rawQ],
+      ["name", "ilike", cleanNoSpaces]
+    ];
+
+    const rawMoves = await callOdooKw("stock.move", "search_read", [moveBaseDomain], {
+      fields: [
+        "id", "name", "product_id", "product_uom_qty", "quantity_done",
+        "location_id", "location_dest_id", "state", "date", "reference",
+        "picking_id", "origin"
+      ],
+      limit: 150,
+      order: "date desc"
+    }).catch(() => []) || [];
+
+    // Formatage des Achats
+    let purchaseHistory = rawPoLines.map((po: any) => {
       const supplierName = Array.isArray(po.partner_id) ? po.partner_id[1] : (po.partner_id || 'Fournisseur Inconnu');
       const orderRef = Array.isArray(po.order_id) ? po.order_id[1] : (po.order_id || `PO-${po.id}`);
       const productName = Array.isArray(po.product_id) ? po.product_id[1] : (po.name || rawQ);
@@ -203,9 +251,6 @@ async function handleSearch(query: string) {
       if (po.state === 'done') {
         stateLabel = 'Livré / Clôturé';
         stateColor = 'blue';
-      } else if (po.state === 'draft') {
-        stateLabel = 'Devis / Demande';
-        stateColor = 'slate';
       }
 
       return {
@@ -227,39 +272,37 @@ async function handleSearch(query: string) {
       };
     });
 
-    // 3. Recherche dans stock.move (Mouvements réels de stock)
-    let moveDomain: any[] = [];
-    if (productIds.length > 0) {
-      moveDomain = [
-        "&",
-        ["state", "!=", "cancel"],
-        "|", "|",
-        ["product_id", "in", productIds],
-        ["name", "ilike", rawQ],
-        ["name", "ilike", cleanNoSpaces]
-      ];
-    } else {
-      moveDomain = [
-        "&",
-        ["state", "!=", "cancel"],
-        "|",
-        ["name", "ilike", rawQ],
-        ["name", "ilike", cleanNoSpaces]
-      ];
-    }
+    // Formatage des Ventes
+    let salesHistory = rawSoLines.map((so: any) => {
+      const customerName = Array.isArray(so.order_partner_id) ? so.order_partner_id[1] : (so.order_partner_id || 'Client / Assureur');
+      const orderRef = Array.isArray(so.order_id) ? so.order_id[1] : (so.order_id || `SO-${so.id}`);
+      const productName = Array.isArray(so.product_id) ? so.product_id[1] : (so.name || rawQ);
+      const qty = parseFloat(so.product_uom_qty) || 0;
+      const unitPrice = parseFloat(so.price_unit) || 0;
+      const subtotal = parseFloat(so.price_subtotal) || (qty * unitPrice);
+      const totalCost = parseFloat(so.price_total) || subtotal;
 
-    const rawMoves = await callOdooKw("stock.move", "search_read", [moveDomain], {
-      fields: [
-        "id", "name", "product_id", "product_uom_qty", "quantity_done",
-        "location_id", "location_dest_id", "state", "date", "reference",
-        "picking_id", "origin"
-      ],
-      limit: 150,
-      order: "date desc"
-    }).catch(() => []) || [];
+      return {
+        id: so.id,
+        date: so.create_date ? new Date(so.create_date).toLocaleDateString('fr-FR', {
+          day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        }) : 'Non daté',
+        rawDate: so.create_date || '',
+        customerName,
+        orderReference: orderRef,
+        productName,
+        quantity: qty,
+        unitPrice,
+        subtotal,
+        totalCost,
+        state: so.state || 'sale',
+        stateLabel: so.state === 'done' ? 'Facturé / Clôturé' : 'Commande Validée',
+        stateColor: 'emerald'
+      };
+    });
 
     // Formatage des mouvements de stock
-    const stockMovements = rawMoves.map((m: any) => {
+    let stockMovements = rawMoves.map((m: any) => {
       const locSrc = Array.isArray(m.location_id) ? m.location_id[1] : (m.location_id || '');
       const locDest = Array.isArray(m.location_dest_id) ? m.location_dest_id[1] : (m.location_dest_id || '');
       const prodName = Array.isArray(m.product_id) ? m.product_id[1] : (m.name || rawQ);
@@ -270,7 +313,6 @@ async function handleSearch(query: string) {
       const qtyExpected = parseFloat(m.product_uom_qty) || 0;
       const finalQty = qtyDone > 0 ? qtyDone : qtyExpected;
 
-      // Déduction du type de flux
       let type: 'ACHAT' | 'VENTE' | 'TRANSFERT' = 'TRANSFERT';
       let typeLabel = 'Transfert Interne';
       let typeBadge = 'bg-blue-500/20 text-blue-400 border-blue-500/30';
@@ -327,20 +369,92 @@ async function handleSearch(query: string) {
       };
     });
 
-    // 4. Synthèse et KPIs
+    // 5. Filtrage optionnel par Période (Date Début & Date Fin)
+    if (startDate || endDate) {
+      const startMs = startDate ? new Date(startDate).getTime() : 0;
+      const endMs = endDate ? new Date(endDate).getTime() + (24 * 60 * 60 * 1000 - 1) : Infinity;
+
+      if (startMs > 0 || endMs < Infinity) {
+        purchaseHistory = purchaseHistory.filter((p: any) => {
+          const t = new Date(p.rawDate).getTime();
+          return isNaN(t) || (t >= startMs && t <= endMs);
+        });
+        salesHistory = salesHistory.filter((s: any) => {
+          const t = new Date(s.rawDate).getTime();
+          return isNaN(t) || (t >= startMs && t <= endMs);
+        });
+        stockMovements = stockMovements.filter((m: any) => {
+          const t = new Date(m.rawDate).getTime();
+          return isNaN(t) || (t >= startMs && t <= endMs);
+        });
+      }
+    }
+
+    // 6. Calculs Indicateurs Clés (Meilleur Achat, Dernier Achat, Dernier Prix de Vente)
     const primaryProduct = products[0] || null;
     const totalStock = products.reduce((acc: number, p: any) => acc + (parseFloat(p.qty_available) || 0), 0);
-    const lastPurchaseWithPrice = purchaseHistory.find((p: any) => p.unitPrice > 0) || purchaseHistory[0] || null;
-    const lastPurchase = purchaseHistory[0] || null;
+
+    // Achats valides avec prix unitaire > 0
+    const validPurchases = purchaseHistory.filter((p: any) => p.unitPrice > 0);
+    const sortedByPrice = [...validPurchases].sort((a: any, b: any) => a.unitPrice - b.unitPrice);
+    const sortedByDate = [...validPurchases].sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+
+    // Meilleur prix d'achat historique
+    const bestPurchaseItem = sortedByPrice[0] || null;
+    const bestPurchase = bestPurchaseItem ? {
+      price: bestPurchaseItem.unitPrice,
+      supplier: bestPurchaseItem.supplierName,
+      date: bestPurchaseItem.date,
+      rawDate: bestPurchaseItem.rawDate,
+      orderReference: bestPurchaseItem.orderReference
+    } : null;
+
+    // Dernier prix d'achat récent
+    const lastPurchaseItem = sortedByDate[0] || purchaseHistory[0] || null;
+    const lastPurchase = lastPurchaseItem ? {
+      price: lastPurchaseItem.unitPrice || (primaryProduct ? parseFloat(primaryProduct.standard_price) || 0 : 0),
+      supplier: lastPurchaseItem.supplierName || 'N/A',
+      date: lastPurchaseItem.date || 'N/A',
+      rawDate: lastPurchaseItem.rawDate || '',
+      orderReference: lastPurchaseItem.orderReference || 'N/A'
+    } : null;
+
+    // Dernier prix de vente réel
+    const validSales = salesHistory.filter((s: any) => s.unitPrice > 0);
+    const sortedSalesByDate = [...validSales].sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+    const lastSaleItem = sortedSalesByDate[0] || null;
+    const lastSale = lastSaleItem ? {
+      price: lastSaleItem.unitPrice,
+      customer: lastSaleItem.customerName,
+      date: lastSaleItem.date,
+      rawDate: lastSaleItem.rawDate,
+      orderReference: lastSaleItem.orderReference
+    } : {
+      price: primaryProduct ? parseFloat(primaryProduct.list_price) || 0 : 0,
+      customer: 'Catalogue',
+      date: 'N/A',
+      rawDate: '',
+      orderReference: 'CATALOGUE'
+    };
+
+    // Marges et écarts de rentabilité
+    const currentBuyPrice = lastPurchase ? lastPurchase.price : 0;
+    const currentSellPrice = lastSale ? lastSale.price : 0;
+    const bestBuyPrice = bestPurchase ? bestPurchase.price : currentBuyPrice;
+
+    const marginAmount = currentSellPrice > currentBuyPrice ? (currentSellPrice - currentBuyPrice) : 0;
+    const marginPercent = currentBuyPrice > 0 ? ((marginAmount / currentBuyPrice) * 100) : 0;
+    const potentialSavings = (currentBuyPrice > bestBuyPrice && bestBuyPrice > 0) ? (currentBuyPrice - bestBuyPrice) : 0;
 
     const totalPurchasedQty = purchaseHistory.reduce((acc: number, po: any) => acc + (po.quantity || 0), 0);
     const totalPurchaseSpend = purchaseHistory.reduce((acc: number, po: any) => acc + (po.totalCost || 0), 0);
+    const totalSoldQty = salesHistory.reduce((acc: number, so: any) => acc + (so.quantity || 0), 0);
+    const totalSaleRevenue = salesHistory.reduce((acc: number, so: any) => acc + (so.totalCost || 0), 0);
 
     const inMovesCount = stockMovements.filter((m: any) => m.type === 'ACHAT').length;
     const outMovesCount = stockMovements.filter((m: any) => m.type === 'VENTE').length;
     const internalMovesCount = stockMovements.filter((m: any) => m.type === 'TRANSFERT').length;
 
-    // Référence d'affichage propre
     const displayRef = primaryProduct 
       ? (primaryProduct.reference_piece || primaryProduct.reference_origine || primaryProduct.default_code || rawQ.toUpperCase())
       : rawQ.toUpperCase();
@@ -352,9 +466,11 @@ async function handleSearch(query: string) {
     return NextResponse.json({
       success: true,
       query: rawQ,
+      period: { startDate: startDate || null, endDate: endDate || null },
       count: {
         products: products.length,
         purchases: purchaseHistory.length,
+        sales: salesHistory.length,
         movements: stockMovements.length
       },
       product: primaryProduct ? {
@@ -362,7 +478,7 @@ async function handleSearch(query: string) {
         name: primaryProduct.name,
         reference: displayRef,
         vehicleModel,
-        standardPrice: lastPurchaseWithPrice && lastPurchaseWithPrice.unitPrice > 0 ? lastPurchaseWithPrice.unitPrice : (parseFloat(primaryProduct.standard_price) || 0),
+        standardPrice: lastPurchase ? lastPurchase.price : (parseFloat(primaryProduct.standard_price) || 0),
         listPrice: parseFloat(primaryProduct.list_price) || 0,
         stockAvailable: parseFloat(primaryProduct.qty_available) || 0,
         category: Array.isArray(primaryProduct.categ_id) ? primaryProduct.categ_id[1] : (primaryProduct.categ_id || 'Pièces')
@@ -377,20 +493,40 @@ async function handleSearch(query: string) {
         stockAvailable: parseFloat(p.qty_available) || 0,
         category: Array.isArray(p.categ_id) ? p.categ_id[1] : (p.categ_id || '')
       })),
+      decision: {
+        bestPurchase,
+        lastPurchase,
+        lastSale,
+        marginAmount,
+        marginPercent,
+        potentialSavings,
+        recommendation: bestPurchase && lastPurchase && bestPurchase.price < lastPurchase.price
+          ? `Privilégier le fournisseur "${bestPurchase.supplier}" (Meilleur prix historique à ${bestPurchase.price.toFixed(3)} TND, économie de ${potentialSavings.toFixed(3)} TND/pc par rapport au dernier achat).`
+          : `Dernier prix d'achat à ${lastPurchase?.price.toFixed(3)} TND chez ${lastPurchase?.supplier}.`
+      },
       summary: {
         totalStock,
-        lastPurchasePrice: lastPurchaseWithPrice ? lastPurchaseWithPrice.unitPrice : (primaryProduct ? parseFloat(primaryProduct.standard_price) || 0 : 0),
-        lastSupplier: lastPurchaseWithPrice ? lastPurchaseWithPrice.supplierName : (lastPurchase ? lastPurchase.supplierName : 'N/A'),
-        lastPurchaseDate: lastPurchaseWithPrice ? lastPurchaseWithPrice.date : (lastPurchase ? lastPurchase.date : 'N/A'),
-        lastOrderReference: lastPurchaseWithPrice ? lastPurchaseWithPrice.orderReference : (lastPurchase ? lastPurchase.orderReference : 'N/A'),
-        sellingPrice: primaryProduct ? parseFloat(primaryProduct.list_price) || 0 : 0,
+        bestPurchasePrice: bestPurchase ? bestPurchase.price : 0,
+        bestSupplier: bestPurchase ? bestPurchase.supplier : 'N/A',
+        lastPurchasePrice: lastPurchase ? lastPurchase.price : 0,
+        lastSupplier: lastPurchase ? lastPurchase.supplier : 'N/A',
+        lastPurchaseDate: lastPurchase ? lastPurchase.date : 'N/A',
+        lastOrderReference: lastPurchase ? lastPurchase.orderReference : 'N/A',
+        sellingPrice: lastSale ? lastSale.price : 0,
+        lastCustomer: lastSale ? lastSale.customer : 'N/A',
+        lastSaleDate: lastSale ? lastSale.date : 'N/A',
+        marginAmount,
+        marginPercent,
         totalPurchasedQty,
         totalPurchaseSpend,
+        totalSoldQty,
+        totalSaleRevenue,
         inMovesCount,
         outMovesCount,
         internalMovesCount
       },
       purchaseHistory,
+      salesHistory,
       stockMovements
     });
 
@@ -399,6 +535,127 @@ async function handleSearch(query: string) {
     return NextResponse.json({
       success: false,
       error: `Erreur de connexion Odoo : ${err.message}`
+    }, { status: 500 });
+  }
+}
+
+async function handleBatchSearch(references: string[]) {
+  const cleanRefs = Array.from(new Set(
+    references.map(r => String(r || '').trim()).filter(r => r.length >= 2)
+  )).slice(0, 50); // Limite de 50 références par lot
+
+  if (cleanRefs.length === 0) {
+    return NextResponse.json({
+      success: false,
+      error: "Aucune référence valide fournie pour la recherche par lot."
+    }, { status: 400 });
+  }
+
+  try {
+    const results: any[] = [];
+
+    // Recherche séquentielle rapide ou par petits lots pour préserver la session Odoo
+    for (const ref of cleanRefs) {
+      const cleanNoSpaces = ref.replace(/[\s\-_.\/]+/g, "");
+
+      const pDomain = [
+        "|", "|", "|", "|", "|",
+        ["default_code", "ilike", ref],
+        ["default_code", "ilike", cleanNoSpaces],
+        ["reference_piece", "ilike", ref],
+        ["reference_piece", "ilike", cleanNoSpaces],
+        ["reference_origine", "ilike", ref],
+        ["name", "ilike", ref]
+      ];
+
+      const prods = await callOdooKw("product.product", "search_read", [pDomain], {
+        fields: ["id", "name", "default_code", "reference_piece", "reference_origine", "qty_available", "standard_price", "list_price", "vehicle_model_id"],
+        limit: 1
+      }).catch(() => []) || [];
+
+      if (prods.length === 0) {
+        results.push({
+          reference: ref,
+          found: false,
+          name: "Non trouvé dans Odoo",
+          vehicleModel: "-",
+          stockAvailable: 0,
+          bestPurchasePrice: 0,
+          bestSupplier: "N/A",
+          lastPurchasePrice: 0,
+          lastSupplier: "N/A",
+          lastSellingPrice: 0,
+          lastCustomer: "N/A",
+          status: "Non répertorié"
+        });
+        continue;
+      }
+
+      const p = prods[0];
+      const [poLines, soLines] = await Promise.all([
+        callOdooKw("purchase.order.line", "search_read", [[
+          "&", ["state", "in", ["purchase", "done"]],
+          ["product_id", "=", p.id]
+        ]], { fields: ["id", "price_unit", "partner_id", "date_order", "order_id"], limit: 50 }).catch(() => []) || [],
+        callOdooKw("sale.order.line", "search_read", [[
+          "&", ["state", "in", ["sale", "done"]],
+          ["product_id", "=", p.id]
+        ]], { fields: ["id", "price_unit", "order_partner_id", "create_date", "order_id"], limit: 10, order: "create_date desc" }).catch(() => []) || []
+      ]);
+
+      const validPo = poLines.filter((x: any) => x.price_unit > 0);
+      const sortedByDate = [...validPo].sort((a: any, b: any) => new Date(b.date_order).getTime() - new Date(a.date_order).getTime());
+      const sortedByPrice = [...validPo].sort((a: any, b: any) => a.price_unit - b.price_unit);
+
+      const bestPo = sortedByPrice[0] || null;
+      const lastPo = sortedByDate[0] || null;
+      const lastSo = soLines[0] || null;
+
+      const stock = parseFloat(p.qty_available) || 0;
+      const bestPrice = bestPo ? bestPo.price_unit : 0;
+      const lastBuyPrice = lastPo ? lastPo.price_unit : (parseFloat(p.standard_price) || 0);
+      const lastSellPrice = lastSo ? lastSo.price_unit : (parseFloat(p.list_price) || 0);
+
+      results.push({
+        reference: p.reference_piece || p.reference_origine || p.default_code || ref,
+        queryRef: ref,
+        found: true,
+        productId: p.id,
+        name: p.name,
+        vehicleModel: Array.isArray(p.vehicle_model_id) ? p.vehicle_model_id[1] : "-",
+        stockAvailable: stock,
+        bestPurchasePrice: bestPrice,
+        bestSupplier: bestPo && Array.isArray(bestPo.partner_id) ? bestPo.partner_id[1] : (bestPo?.partner_id || "N/A"),
+        bestDate: bestPo ? bestPo.date_order : "",
+        lastPurchasePrice: lastBuyPrice,
+        lastSupplier: lastPo && Array.isArray(lastPo.partner_id) ? lastPo.partner_id[1] : (lastPo?.partner_id || "N/A"),
+        lastPurchaseDate: lastPo ? lastPo.date_order : "",
+        lastSellingPrice: lastSellPrice,
+        lastCustomer: lastSo && Array.isArray(lastSo.order_partner_id) ? lastSo.order_partner_id[1] : (lastSo?.order_partner_id || "Catalogue"),
+        lastSaleDate: lastSo ? lastSo.create_date : "",
+        status: stock > 0 ? "En Stock" : "Rupture",
+        purchaseCount: validPo.length,
+        saleCount: soLines.length
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      batchCount: results.length,
+      items: results,
+      stats: {
+        totalItems: results.length,
+        foundCount: results.filter(r => r.found).length,
+        inStockCount: results.filter(r => r.stockAvailable > 0).length,
+        totalStockSum: results.reduce((acc, r) => acc + (r.stockAvailable || 0), 0)
+      }
+    });
+
+  } catch (err: any) {
+    console.error("[Odoo Batch Tracking API] Error:", err.message);
+    return NextResponse.json({
+      success: false,
+      error: `Erreur lors de la recherche par lot Odoo : ${err.message}`
     }, { status: 500 });
   }
 }
