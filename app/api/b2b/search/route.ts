@@ -3386,11 +3386,12 @@ export async function POST(request: Request) {
         return { ...s, b2bLogin: l, b2bPassword: p };
       });
 
-      console.log(`[B2B Search] Recherche pour "${searchQuery}" sur ${preparedSuppliers.length} fournisseurs B2B...`);
+      console.log(`[B2B Search] Recherche pour "${rawQuery}" (ref: "${searchQuery}") sur ${preparedSuppliers.length} fournisseurs B2B...`);
 
       // 1. Recherche Directe en parallèle sur les 14 fournisseurs avec timeout de 22s
+      const queryToSearch = rawQuery || searchQuery;
       const settledResults = await Promise.allSettled(
-        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, searchQuery, 22000))
+        preparedSuppliers.map(s => searchSingleSupplierWithTimeout(s, queryToSearch, 22000))
       );
 
       let allResults: any[] = [];
