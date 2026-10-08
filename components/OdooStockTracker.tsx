@@ -176,16 +176,6 @@ interface BatchItem {
   saleCount?: number;
 }
 
-const SAMPLE_REFS = [
-  { ref: '7410GE', label: '7410GE (Pare-Choc AR)' },
-  { ref: '001983381R', label: '001983381R (Cache Antib)' },
-  { ref: '7414QV', label: '7414QV (Armature P/C)' },
-  { ref: '1306J5', label: '1306J5 (Bouchon Vase)' },
-  { ref: '0108EAZ00680N', label: '0108EAZ00680N (Mahindra)' },
-  { ref: '10010001', label: '10010001 (Huile B47)' },
-  { ref: '04C103603C', label: '04C103603C (Carter Polo)' },
-];
-
 export default function OdooStockTracker({ initialRef = '' }: { initialRef?: string }) {
   // Mode selection: single search vs batch import
   const [trackerMode, setTrackerMode] = useState<'single' | 'batch'>('single');
@@ -728,28 +718,6 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   Filtrer
                 </button>
               </div>
-            </div>
-
-            {/* Quick Sample Pills */}
-            <div className="flex items-center gap-2 flex-wrap text-xs text-[#94A3B8]">
-              <span className="font-semibold text-[#94A3B8] shrink-0">Exemples rapides :</span>
-              {SAMPLE_REFS.map((s) => (
-                <button
-                  key={s.ref}
-                  type="button"
-                  onClick={() => {
-                    setSearchTerm(s.ref);
-                    fetchOdooData(s.ref, startDate, endDate);
-                  }}
-                  className={`px-2.5 py-1 rounded-md border transition font-mono ${
-                    searchTerm === s.ref
-                      ? 'bg-[#1F293D] border-[#1F293D] text-[#FFFFFF] font-bold'
-                      : 'bg-[#07090E] border-[#1F293D] hover:border-[#94A3B8]/40 text-[#94A3B8]'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
             </div>
           </div>
         )}
