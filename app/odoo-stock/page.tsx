@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function OdooStockPage() {
   return (
-    <div className="min-h-screen bg-[#0a0e1a] text-slate-100 flex flex-col antialiased">
+    <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col antialiased">
       {/* Top Main Navigation Header */}
       <Header />
 

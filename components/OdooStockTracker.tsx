@@ -503,20 +503,19 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Banner & Mode Switcher */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none -mr-20 -mt-20"></div>
-        <div className="absolute bottom-0 left-1/3 w-80 h-80 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
-
+      {/* ========================================================================= */}
+      {/* 1. TOP HEADER & SEARCH BANNER (Design Pro Terminal / SaaS Premium)        */}
+      {/* ========================================================================= */}
+      <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl shadow-xl p-5 md:p-6 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
                 <Boxes className="w-6 h-6" />
               </div>
               <h1 className="text-xl md:text-2xl font-black text-white uppercase tracking-tight flex items-center gap-2.5">
                 Suivi de Stock & Historique Odoo
-                <span className="text-xs bg-red-600 text-white px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase">
+                <span className="text-xs bg-red-600 text-white px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-md shadow-red-900/30">
                   ERP Live
                 </span>
               </h1>
@@ -527,13 +526,13 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-xl border border-slate-800 shrink-0 self-start lg:self-auto">
+          <div className="flex items-center gap-1.5 bg-[#0B0F19] p-1.5 rounded-xl border border-[#1E293B] shrink-0 self-start lg:self-auto">
             <button
               onClick={() => setTrackerMode('single')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
                 trackerMode === 'single'
-                  ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#131B2E]'
               }`}
             >
               <Search className="w-3.5 h-3.5" />
@@ -541,10 +540,10 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
             </button>
             <button
               onClick={() => setTrackerMode('batch')}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all duration-200 ${
                 trackerMode === 'batch'
-                  ? 'bg-red-600 text-white shadow-md shadow-red-600/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                  ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#131B2E]'
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -567,7 +566,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Entrez une référence d'article (ex: 7410GE, 001983381R, 7414QV, 1306J5)..."
-                  className="w-full pl-11 pr-4 py-3 bg-slate-950/90 border border-slate-700 hover:border-slate-600 focus:border-red-500 rounded-xl text-white font-medium placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 text-sm md:text-base transition shadow-inner"
+                  className="w-full pl-11 pr-4 py-3 bg-[#0B0F19] border border-[#1E293B] hover:border-slate-600 focus:border-red-500 rounded-xl text-white font-medium placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-red-500/20 text-sm md:text-base transition shadow-inner"
                 />
                 {searchTerm && (
                   <button
@@ -583,7 +582,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               <button
                 type="submit"
                 disabled={loading || !searchTerm.trim()}
-                className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-slate-800 disabled:text-slate-500 text-white rounded-xl font-bold uppercase tracking-wider text-xs md:text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-red-600/20 shrink-0"
+                className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white rounded-xl font-semibold uppercase tracking-wider text-xs md:text-sm flex items-center justify-center gap-2 shadow-lg shadow-red-900/30 transition-all duration-200 shrink-0"
               >
                 {loading ? (
                   <>
@@ -600,7 +599,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
             </form>
 
             {/* Date Range & Period Filter Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-800/80">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1E293B]">
               {/* Presets */}
               <div className="flex items-center gap-1.5 flex-wrap text-xs">
                 <span className="font-bold text-slate-400 flex items-center gap-1 shrink-0">
@@ -620,8 +619,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                     onClick={() => handlePresetChange(p.id as any)}
                     className={`px-2.5 py-1 rounded-lg font-semibold transition ${
                       periodPreset === p.id
-                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                        : 'bg-slate-950 text-slate-400 hover:text-slate-200 border border-slate-800'
+                        ? 'bg-red-500/10 text-red-400 border border-red-500/30'
+                        : 'bg-[#0B0F19] text-slate-400 hover:text-slate-200 border border-[#1E293B]'
                     }`}
                   >
                     {p.label}
@@ -631,7 +630,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
               {/* Custom Date Pickers */}
               <div className="flex items-center gap-2 text-xs">
-                <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                <div className="flex items-center gap-1.5 bg-[#0B0F19] px-2.5 py-1 rounded-lg border border-[#1E293B]">
                   <span className="text-slate-500 text-[11px]">Du :</span>
                   <input
                     type="date"
@@ -643,7 +642,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                     className="bg-transparent text-white text-xs focus:outline-none font-mono"
                   />
                 </div>
-                <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
+                <div className="flex items-center gap-1.5 bg-[#0B0F19] px-2.5 py-1 rounded-lg border border-[#1E293B]">
                   <span className="text-slate-500 text-[11px]">Au :</span>
                   <input
                     type="date"
@@ -673,7 +672,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 <button
                   type="button"
                   onClick={() => fetchOdooData(searchTerm, startDate, endDate)}
-                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700"
+                  className="px-3 py-1 bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 font-medium rounded-lg border border-slate-700/60 transition-all"
                 >
                   Filtrer
                 </button>
@@ -693,8 +692,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   }}
                   className={`px-2.5 py-1 rounded-lg border transition font-mono ${
                     searchTerm === s.ref
-                      ? 'bg-red-500/20 border-red-500 text-red-300 font-bold'
-                      : 'bg-slate-800/80 border-slate-700 hover:border-slate-500 text-slate-300'
+                      ? 'bg-red-500/10 border-red-500 text-red-400 font-bold'
+                      : 'bg-[#0B0F19] border-[#1E293B] hover:border-slate-600 text-slate-300'
                   }`}
                 >
                   {s.label}
@@ -719,12 +718,12 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   onChange={(e) => setBatchText(e.target.value)}
                   rows={4}
                   placeholder="7410GE&#10;001983381R&#10;7414QV&#10;1306J5&#10;04C103603C"
-                  className="w-full p-3 bg-slate-950/90 border border-slate-700 focus:border-red-500 rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                  className="w-full p-3 bg-[#0B0F19] border border-[#1E293B] focus:border-red-500 rounded-xl text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-red-500/20"
                 />
               </div>
 
               {/* Excel File Upload Box */}
-              <div className="flex flex-col justify-between p-4 bg-slate-950/80 border border-dashed border-slate-700 rounded-xl text-center">
+              <div className="flex flex-col justify-between p-4 bg-[#0B0F19] border border-dashed border-slate-700/60 rounded-xl text-center">
                 <div>
                   <UploadCloud className="w-8 h-8 text-red-500 mx-auto mb-2" />
                   <p className="text-xs font-bold text-white mb-1">Importer un fichier Excel / CSV</p>
@@ -740,7 +739,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-3 w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold uppercase tracking-wider border border-slate-700 transition"
+                  className="mt-3 w-full py-2 bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 rounded-lg text-xs font-medium uppercase tracking-wider border border-slate-700/60 transition-all"
                 >
                   Choisir un fichier
                 </button>
@@ -748,7 +747,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
             </div>
 
             {/* Launch Batch Search Button & Actions */}
-            <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-[#1E293B]">
               <div className="text-xs text-slate-400">
                 Références détectées : <strong className="text-white">{batchText.split(/[\n,;]+/).filter(s => s.trim().length >= 2).length}</strong>
               </div>
@@ -758,12 +757,12 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   type="button"
                   onClick={() => handleBatchSearch()}
                   disabled={batchLoading}
-                  className="px-6 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 transition shadow-lg shadow-red-600/20"
+                  className="px-6 py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-slate-800 disabled:to-slate-800 text-white font-semibold rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-red-900/30 transition-all duration-200"
                 >
                   {batchLoading ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Interrogation groupée en cours ({batchProgress}%)...</span>
+                      <span>Interrogation groupée ({batchProgress}%)...</span>
                     </>
                   ) : (
                     <>
@@ -777,9 +776,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   <button
                     type="button"
                     onClick={exportBatchToExcel}
-                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 transition shadow-lg shadow-emerald-600/20"
+                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4 text-emerald-400" />
                     <span>Export Excel Lot (.xlsx)</span>
                   </button>
                 )}
@@ -809,46 +808,47 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
       {trackerMode === 'single' && hasSearched && !loading && (
         <>
           {/* ========================================================================= */}
-          {/* 4. BLOC CONCLUSION & DECISION D'ACHAT (MEILLEUR PRIX ACHAT & VENTE)      */}
+          {/* 2. BLOC CONCLUSION & DECISION D'ACHAT (Terminal / SaaS Cards)             */}
           {/* ========================================================================= */}
           {decision && (
-            <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border-2 border-emerald-500/30 rounded-2xl p-5 md:p-6 shadow-2xl relative overflow-hidden">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl shadow-xl p-5 md:p-6 transition-all duration-300 hover:scale-[1.01] hover:border-red-500/50 hover:shadow-2xl hover:shadow-red-500/10">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1E293B]">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 shadow-inner">
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shadow-inner">
                     <Award className="w-6 h-6" />
                   </div>
                   <div>
-                    <span className="text-[11px] font-black uppercase tracking-widest text-emerald-400">
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-400">
                       SYNTHÈSE DÉCISIONNELLE ERP ODOO
                     </span>
-                    <h2 className="text-lg md:text-xl font-black text-white">
+                    <h2 className="text-lg md:text-xl font-extrabold text-white tracking-tight">
                       Conclusion & Indicateurs Clés de Rentabilité
                     </h2>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Export Buttons */}
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={exportSingleToExcel}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition shadow-lg shadow-emerald-600/20"
+                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
                     title="Télécharger la fiche complète au format Excel"
                   >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    <span>Export Excel (.xlsx)</span>
+                    <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                    <span>Export Excel</span>
                   </button>
                   <button
                     onClick={exportSingleToCSV}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 transition"
+                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-4 h-4 text-blue-400" />
                     <span>CSV</span>
                   </button>
                   <button
                     onClick={() => window.print()}
-                    className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 transition"
+                    className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
                   >
-                    <Printer className="w-4 h-4" />
+                    <Printer className="w-4 h-4 text-slate-400" />
                     <span>Imprimer / PDF</span>
                   </button>
                 </div>
@@ -857,26 +857,26 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               {/* 3 Pillars of Decision: Best Buy, Last Buy, Last Sell */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
                 {/* 1. MEILLEUR PRIX ACHAT */}
-                <div className="bg-slate-950/80 border border-emerald-500/30 rounded-2xl p-4 md:p-5 flex flex-col justify-between relative overflow-hidden">
+                <div className="bg-[#0B0F19] border border-emerald-500/30 rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-emerald-500/60 hover:shadow-xl hover:shadow-emerald-500/10">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                       <Award className="w-4 h-4" />
                       Meilleur Prix d'Achat
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase">
+                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                       Top Économie
                     </span>
                   </div>
 
                   <div className="mt-2">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-emerald-400 font-mono">
+                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
                         {decision.bestPurchase?.price ? decision.bestPurchase.price.toFixed(3) : '0.000'}
                       </span>
                       <span className="text-xs text-emerald-400 font-bold">TND HT</span>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1 text-xs">
+                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-slate-400">Fournisseur :</span>
                         <strong className="text-white font-bold">{decision.bestPurchase?.supplier || 'N/A'}</strong>
@@ -894,26 +894,26 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 </div>
 
                 {/* 2. DERNIER PRIX ACHAT */}
-                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="bg-[#0B0F19] border border-[#1E293B] rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-red-500/50 hover:shadow-xl hover:shadow-red-500/10">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
                       <Truck className="w-4 h-4" />
                       Dernier Prix d'Achat
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase">
+                    <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                       Réception Récente
                     </span>
                   </div>
 
                   <div className="mt-2">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-white font-mono">
+                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
                         {decision.lastPurchase?.price ? decision.lastPurchase.price.toFixed(3) : '0.000'}
                       </span>
                       <span className="text-xs text-blue-400 font-bold">TND HT</span>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1 text-xs">
+                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-slate-400">Fournisseur :</span>
                         <strong className="text-white font-bold">{decision.lastPurchase?.supplier || 'N/A'}</strong>
@@ -931,26 +931,26 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 </div>
 
                 {/* 3. DERNIER PRIX VENTE */}
-                <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-4 md:p-5 flex flex-col justify-between">
+                <div className="bg-[#0B0F19] border border-[#1E293B] rounded-xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:scale-[1.01] hover:border-amber-500/50 hover:shadow-xl hover:shadow-amber-500/10">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                       <Users className="w-4 h-4" />
                       Dernier Prix de Vente
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
+                    <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                       Facturation Client
                     </span>
                   </div>
 
                   <div className="mt-2">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-amber-400 font-mono">
+                      <span className="text-2xl lg:text-3xl font-extrabold tracking-tight text-white font-mono">
                         {decision.lastSale?.price ? decision.lastSale.price.toFixed(3) : '0.000'}
                       </span>
                       <span className="text-xs text-amber-400 font-bold">TND HT</span>
                     </div>
 
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 space-y-1 text-xs">
+                    <div className="mt-3 pt-3 border-t border-[#1E293B] space-y-1 text-xs">
                       <div className="flex items-center justify-between text-slate-300">
                         <span className="text-slate-400">Client / Assureur :</span>
                         <strong className="text-white font-bold truncate max-w-[150px]">{decision.lastSale?.customer || 'N/A'}</strong>
@@ -969,14 +969,14 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               </div>
 
               {/* Recommendation Strip */}
-              <div className="mt-4 p-3.5 bg-slate-950/90 border border-slate-800 rounded-xl flex items-center justify-between gap-3 text-xs flex-wrap">
+              <div className="mt-4 p-3.5 bg-[#0B0F19] border border-[#1E293B] rounded-xl flex items-center justify-between gap-3 text-xs flex-wrap">
                 <div className="flex items-center gap-2 text-slate-300">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span className="font-semibold text-slate-400">Recommandation Achat :</span>
                   <span className="text-white font-bold">{decision.recommendation}</span>
                 </div>
                 {decision.potentialSavings > 0 && (
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-black">
+                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                     Gain potentiel : +{decision.potentialSavings.toFixed(3)} TND / pièce
                   </span>
                 )}
@@ -986,7 +986,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
           {/* Product Detail Card */}
           {product && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 md:p-5 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl shadow-xl p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 hover:border-slate-600">
               <div className="flex items-center gap-3.5">
                 <div className="w-12 h-12 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
                   <FileText className="w-6 h-6" />
@@ -996,16 +996,16 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                     <span className="text-base md:text-lg font-black text-white uppercase tracking-tight">
                       {product.name}
                     </span>
-                    <span className="font-mono text-xs bg-slate-800 text-red-400 px-2.5 py-0.5 rounded-md font-bold border border-slate-700">
+                    <span className="font-mono text-xs bg-[#0B0F19] text-red-400 px-2.5 py-0.5 rounded-md font-bold border border-[#1E293B]">
                       Réf: {product.reference}
                     </span>
                     {product.vehicleModel && (
-                      <span className="text-xs bg-blue-950/80 text-blue-300 px-2.5 py-0.5 rounded-md font-bold border border-blue-800">
+                      <span className="text-xs bg-[#0B0F19] text-blue-300 px-2.5 py-0.5 rounded-md font-bold border border-blue-900/50">
                         {product.vehicleModel}
                       </span>
                     )}
                     {product.category && (
-                      <span className="text-[11px] bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded font-medium">
+                      <span className="text-[11px] bg-[#0B0F19] text-slate-300 px-2 py-0.5 rounded font-medium border border-[#1E293B]">
                         {product.category}
                       </span>
                     )}
@@ -1018,17 +1018,17 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
               {/* Quick KPIs on Product */}
               <div className="flex items-center gap-3 text-xs shrink-0">
-                <div className="px-3.5 py-2 bg-slate-950 rounded-xl border border-slate-800 text-center">
+                <div className="px-3.5 py-2 bg-[#0B0F19] rounded-xl border border-[#1E293B] text-center">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Stock</span>
                   <span className={`text-base font-black ${product.stockAvailable > 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
                     {product.stockAvailable} pcs
                   </span>
                 </div>
-                <div className="px-3.5 py-2 bg-slate-950 rounded-xl border border-slate-800 text-center">
+                <div className="px-3.5 py-2 bg-[#0B0F19] rounded-xl border border-[#1E293B] text-center">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Achats</span>
                   <span className="text-base font-black text-white">{purchases.length}</span>
                 </div>
-                <div className="px-3.5 py-2 bg-slate-950 rounded-xl border border-slate-800 text-center">
+                <div className="px-3.5 py-2 bg-[#0B0F19] rounded-xl border border-[#1E293B] text-center">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">Ventes</span>
                   <span className="text-base font-black text-amber-400">{sales.length}</span>
                 </div>
@@ -1037,14 +1037,14 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
           )}
 
           {/* Navigation Tabs for Single View */}
-          <div className="border-b border-slate-800 flex items-center justify-between gap-4 flex-wrap pb-2">
+          <div className="border-b border-[#1E293B] flex items-center justify-between gap-4 flex-wrap pb-2">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setActiveTab('purchases')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition-all duration-200 ${
                   activeTab === 'purchases'
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
+                    : 'bg-[#131B2E] text-slate-400 hover:text-white hover:bg-[#1E293B] border border-[#1E293B]'
                 }`}
               >
                 <Building2 className="w-4 h-4" />
@@ -1056,10 +1056,10 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
               <button
                 onClick={() => setActiveTab('sales')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition-all duration-200 ${
                   activeTab === 'sales'
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
+                    : 'bg-[#131B2E] text-slate-400 hover:text-white hover:bg-[#1E293B] border border-[#1E293B]'
                 }`}
               >
                 <Users className="w-4 h-4" />
@@ -1071,10 +1071,10 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
               <button
                 onClick={() => setActiveTab('movements')}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs md:text-sm font-bold uppercase tracking-wider transition-all duration-200 ${
                   activeTab === 'movements'
-                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-                    : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-gradient-to-r from-red-600 to-red-700 text-white shadow-lg shadow-red-900/30 font-bold'
+                    : 'bg-[#131B2E] text-slate-400 hover:text-white hover:bg-[#1E293B] border border-[#1E293B]'
                 }`}
               >
                 <ArrowLeftRight className="w-4 h-4" />
@@ -1092,7 +1092,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 <select
                   value={supplierFilter}
                   onChange={(e) => setSupplierFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-700 text-white rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-red-500"
+                  className="bg-[#0B0F19] border border-[#1E293B] text-white rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:border-red-500"
                 >
                   <option value="ALL">Tous les fournisseurs ({purchases.length})</option>
                   {uniqueSuppliers.map(s => (
@@ -1107,8 +1107,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
           {/* TAB 1: Achats Fournisseurs */}
           {activeTab === 'purchases' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl overflow-hidden shadow-xl">
+              <div className="px-5 py-4 border-b border-[#1E293B] flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-white text-sm md:text-base flex items-center gap-2">
                     <Building2 className="w-4 h-4 text-red-500" />
@@ -1120,7 +1120,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400 font-medium">Dépense cumulée : </span>
-                  <span className="text-sm font-black text-white font-mono">
+                  <span className="text-sm font-extrabold text-white font-mono">
                     {filteredPurchases.reduce((acc, p) => acc + p.totalCost, 0).toFixed(3)} TND
                   </span>
                 </div>
@@ -1134,7 +1134,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-800">
+                    <thead className="bg-[#0B0F19] text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-[#1E293B]">
                       <tr>
                         <th className="py-3 px-4">Date Exacte</th>
                         <th className="py-3 px-4">Fournisseur</th>
@@ -1145,9 +1145,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                         <th className="py-3 px-4 text-center">Statut Odoo</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/80">
+                    <tbody className="divide-y divide-[#1E293B]">
                       {filteredPurchases.map((po, idx) => (
-                        <tr key={po.id || idx} className="hover:bg-slate-800/50 transition">
+                        <tr key={po.id || idx} className="odd:bg-[#131B2E] even:bg-[#0E1422] hover:bg-[#1E293B]/50 transition-colors">
                           <td className="py-3.5 px-4 font-mono text-slate-200">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-slate-500" />
@@ -1164,21 +1164,21 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                             {po.orderReference}
                           </td>
                           <td className="py-3.5 px-4 text-center font-black text-slate-200">
-                            <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700">
+                            <span className="px-2.5 py-1 rounded-md bg-[#0B0F19] border border-[#1E293B]">
                               {po.quantity} pcs
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
                             {po.unitPrice.toFixed(3)} <span className="text-slate-400 text-[10px]">TND</span>
                           </td>
-                          <td className="py-3.5 px-4 text-right font-mono font-black text-emerald-400">
+                          <td className="py-3.5 px-4 text-right font-mono font-extrabold text-emerald-400">
                             {po.totalCost.toFixed(3)} <span className="text-slate-400 text-[10px]">TND</span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              po.stateColor === 'emerald' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
-                              po.stateColor === 'blue' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40' :
-                              'bg-slate-800 text-slate-300'
+                            <span className={`inline-flex items-center gap-1 ${
+                              po.stateColor === 'emerald' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium' :
+                              po.stateColor === 'blue' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2.5 py-1 rounded-full text-xs font-medium' :
+                              'bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium'
                             }`}>
                               {po.stateLabel}
                             </span>
@@ -1194,8 +1194,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
           {/* TAB 2: Ventes Clients */}
           {activeTab === 'sales' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl overflow-hidden shadow-xl">
+              <div className="px-5 py-4 border-b border-[#1E293B] flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-white text-sm md:text-base flex items-center gap-2">
                     <Users className="w-4 h-4 text-amber-500" />
@@ -1207,7 +1207,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400 font-medium">Chiffre d'affaires cumulé : </span>
-                  <span className="text-sm font-black text-amber-400 font-mono">
+                  <span className="text-sm font-extrabold text-amber-400 font-mono">
                     {sales.reduce((acc, s) => acc + s.totalCost, 0).toFixed(3)} TND
                   </span>
                 </div>
@@ -1221,7 +1221,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-800">
+                    <thead className="bg-[#0B0F19] text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-[#1E293B]">
                       <tr>
                         <th className="py-3 px-4">Date Vente</th>
                         <th className="py-3 px-4">Client / Assureur</th>
@@ -1232,9 +1232,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                         <th className="py-3 px-4 text-center">Statut</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/80">
+                    <tbody className="divide-y divide-[#1E293B]">
                       {sales.map((s, idx) => (
-                        <tr key={s.id || idx} className="hover:bg-slate-800/50 transition">
+                        <tr key={s.id || idx} className="odd:bg-[#131B2E] even:bg-[#0E1422] hover:bg-[#1E293B]/50 transition-colors">
                           <td className="py-3.5 px-4 font-mono text-slate-200">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-slate-500" />
@@ -1248,18 +1248,18 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                             {s.orderReference}
                           </td>
                           <td className="py-3.5 px-4 text-center font-black text-slate-200">
-                            <span className="px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700">
+                            <span className="px-2.5 py-1 rounded-md bg-[#0B0F19] border border-[#1E293B]">
                               {s.quantity} pcs
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right font-mono font-bold text-amber-300">
                             {s.unitPrice.toFixed(3)} <span className="text-slate-400 text-[10px]">TND</span>
                           </td>
-                          <td className="py-3.5 px-4 text-right font-mono font-black text-white">
+                          <td className="py-3.5 px-4 text-right font-mono font-extrabold text-white">
                             {s.totalCost.toFixed(3)} <span className="text-slate-400 text-[10px]">TND</span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                               {s.stateLabel}
                             </span>
                           </td>
@@ -1274,8 +1274,8 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
 
           {/* TAB 3: Mouvements de Stock */}
           {activeTab === 'movements' && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-              <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+            <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl overflow-hidden shadow-xl">
+              <div className="px-5 py-4 border-b border-[#1E293B] flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-white text-sm md:text-base flex items-center gap-2">
                     <ArrowLeftRight className="w-4 h-4 text-red-500" />
@@ -1303,7 +1303,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="bg-slate-950/80 text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-800">
+                    <thead className="bg-[#0B0F19] text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-[#1E293B]">
                       <tr>
                         <th className="py-3 px-4">Date & Heure</th>
                         <th className="py-3 px-4">Type de Mouvement</th>
@@ -1314,9 +1314,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                         <th className="py-3 px-4 text-center">Statut</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/80">
+                    <tbody className="divide-y divide-[#1E293B]">
                       {movements.map((m, idx) => (
-                        <tr key={m.id || idx} className="hover:bg-slate-800/50 transition">
+                        <tr key={m.id || idx} className="odd:bg-[#131B2E] even:bg-[#0E1422] hover:bg-[#1E293B]/50 transition-colors">
                           <td className="py-3.5 px-4 font-mono text-slate-200">
                             <div className="flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5 text-slate-500" />
@@ -1339,11 +1339,11 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="text-[11px] flex items-center gap-1.5 flex-wrap">
-                              <span className="text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 truncate max-w-[140px]" title={m.sourceLocation}>
+                              <span className="text-slate-400 bg-[#0B0F19] px-2 py-0.5 rounded border border-[#1E293B] truncate max-w-[140px]" title={m.sourceLocation}>
                                 {m.sourceLocation}
                               </span>
                               <span className="text-red-500 font-bold">➔</span>
-                              <span className="text-slate-200 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 font-semibold truncate max-w-[140px]" title={m.destLocation}>
+                              <span className="text-slate-200 bg-[#0B0F19] px-2 py-0.5 rounded border border-[#1E293B] font-semibold truncate max-w-[140px]" title={m.destLocation}>
                                 {m.destLocation}
                               </span>
                             </div>
@@ -1358,7 +1358,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium">
                               {m.stateLabel}
                             </span>
                           </td>
@@ -1377,9 +1377,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
       {/* BATCH SEARCH RESULTS VIEW                                                */}
       {/* ========================================================================= */}
       {trackerMode === 'batch' && batchResults.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl space-y-4 p-5">
+        <div className="bg-[#131B2E] border border-[#1E293B] rounded-xl overflow-hidden shadow-xl space-y-4 p-5">
           {/* Header & Filter Controls */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-800">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#1E293B]">
             <div>
               <h3 className="font-bold text-white text-base flex items-center gap-2">
                 <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
@@ -1398,11 +1398,11 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   value={batchFilterTerm}
                   onChange={(e) => setBatchFilterTerm(e.target.value)}
                   placeholder="Filtrer dans le lot..."
-                  className="pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
+                  className="pl-9 pr-3 py-1.5 bg-[#0B0F19] border border-[#1E293B] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500"
                 />
               </div>
 
-              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+              <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer select-none bg-[#0B0F19] px-3 py-1.5 rounded-xl border border-[#1E293B]">
                 <input
                   type="checkbox"
                   checked={batchStockOnly}
@@ -1415,9 +1415,9 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
               <button
                 type="button"
                 onClick={exportBatchToExcel}
-                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition"
+                className="bg-[#1E293B] hover:bg-[#2A374A] text-slate-200 border border-slate-700/60 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4 text-emerald-400" />
                 <span>Export Excel (.xlsx)</span>
               </button>
             </div>
@@ -1426,7 +1426,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950/90 text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-slate-800">
+              <thead className="bg-[#0B0F19] text-[11px] font-black uppercase text-slate-400 tracking-wider border-b border-[#1E293B]">
                 <tr>
                   <th className="py-3 px-3.5">Référence</th>
                   <th className="py-3 px-3.5">Article & Véhicule</th>
@@ -1437,11 +1437,11 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                   <th className="py-3 px-3 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/80">
+              <tbody className="divide-y divide-[#1E293B]">
                 {filteredBatchResults.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-800/40 transition">
+                  <tr key={idx} className="odd:bg-[#131B2E] even:bg-[#0E1422] hover:bg-[#1E293B]/50 transition-colors">
                     <td className="py-3.5 px-3.5 font-mono font-bold text-white">
-                      <span className="bg-slate-950 px-2 py-1 rounded border border-slate-800">
+                      <span className="bg-[#0B0F19] px-2 py-1 rounded border border-[#1E293B]">
                         {item.reference}
                       </span>
                     </td>
@@ -1452,10 +1452,10 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                       )}
                     </td>
                     <td className="py-3.5 px-3 text-center font-black">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] ${
+                      <span className={`inline-flex items-center gap-1 ${
                         item.stockAvailable > 0
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full text-xs font-medium'
+                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full text-xs font-medium'
                       }`}>
                         {item.stockAvailable} pcs
                       </span>
@@ -1504,7 +1504,7 @@ export default function OdooStockTracker({ initialRef = '' }: { initialRef?: str
                           setTrackerMode('single');
                           fetchOdooData(item.reference);
                         }}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white transition"
+                        className="p-1.5 rounded-lg bg-[#0B0F19] hover:bg-red-600 text-slate-300 hover:text-white border border-[#1E293B] transition"
                         title="Voir la fiche détaillée Odoo"
                       >
                         <Eye className="w-4 h-4" />
